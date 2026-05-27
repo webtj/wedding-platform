@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "types": ["node", "vitest/globals"],
+    "paths": {
+      "@wedding/shared": ["./packages/shared/dist/index.d.ts"],
+      "@wedding/shared/*": ["./packages/shared/dist/*"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}

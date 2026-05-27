@@ -1,0 +1,175 @@
+/* ============================================================
+   Wedding SaaS Platform Theme
+   Design tokens from .web-design/pc/_theme.css
+   ============================================================ */
+
+[data-theme='wedding'] {
+  /* Base */
+  --background: oklch(97% 0.006 80);
+  --foreground: oklch(25% 0.015 60);
+  --card: oklch(100% 0 0 / 0.65);
+  --card-foreground: oklch(25% 0.015 60);
+  --popover: oklch(100% 0 0);
+  --popover-foreground: oklch(25% 0.015 60);
+
+  /* Primary — Wedding rose red */
+  --primary: oklch(65% 0.12 15);
+  --primary-foreground: oklch(100% 0 0);
+
+  /* Secondary — Soft warm */
+  --secondary: oklch(96% 0.01 15);
+  --secondary-foreground: oklch(30% 0.02 15);
+
+  /* Muted */
+  --muted: oklch(96% 0.005 80);
+  --muted-foreground: oklch(55% 0.02 60);
+
+  /* Accent */
+  --accent: oklch(90% 0.06 15);
+  --accent-foreground: oklch(45% 0.08 15);
+
+  /* Destructive */
+  --destructive: oklch(62% 0.2 25);
+  --destructive-foreground: oklch(100% 0 0);
+
+  /* Borders & Inputs */
+  --border: oklch(88% 0.01 80);
+  --input: oklch(92% 0.01 80);
+  --ring: oklch(65% 0.12 15);
+
+  /* Charts — wedding palette */
+  --chart-1: oklch(65% 0.12 15);
+  --chart-2: oklch(75% 0.15 75);
+  --chart-3: oklch(62% 0.17 145);
+  --chart-4: oklch(55% 0.1 250);
+  --chart-5: oklch(70% 0.08 300);
+
+  /* Sidebar */
+  --sidebar: oklch(100% 0 0);
+  --sidebar-foreground: oklch(25% 0.015 60);
+  --sidebar-primary: oklch(65% 0.12 15);
+  --sidebar-primary-foreground: oklch(100% 0 0);
+  --sidebar-accent: oklch(90% 0.06 15);
+  --sidebar-accent-foreground: oklch(45% 0.08 15);
+  --sidebar-border: oklch(88% 0.01 80);
+  --sidebar-ring: oklch(65% 0.12 15);
+
+  /* Fonts — Wedding brand fonts */
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-serif: 'Noto Serif Display', Georgia, 'Times New Roman', serif;
+  --font-mono: 'Space Mono', 'Courier New', ui-monospace, monospace;
+
+  /* Radius — Softer, larger radii for wedding aesthetic */
+  --radius: 0.75rem;
+
+  /* Shadows — Soft warm shadows */
+  --shadow-x: 0px;
+  --shadow-y: 4px;
+  --shadow-blur: 16px;
+  --shadow-spread: 0px;
+  --shadow-opacity: 0.08;
+  --shadow-color: hsl(60 5% 25%);
+  --shadow-2xs: 0px 1px 2px 0px hsl(60 5% 25% / 0.04);
+  --shadow-xs: 0px 1px 2px 0px hsl(60 5% 25% / 0.04);
+  --shadow-sm: 0px 2px 8px 0px hsl(60 5% 25% / 0.06);
+  --shadow: 0px 4px 16px 0px hsl(60 5% 25% / 0.08);
+  --shadow-md: 0px 4px 16px 0px hsl(60 5% 25% / 0.08), 0px 2px 4px -1px hsl(60 5% 25% / 0.06);
+  --shadow-lg: 0px 8px 32px 0px hsl(60 5% 25% / 0.1);
+  --shadow-xl: 0px 12px 48px 0px hsl(60 5% 25% / 0.12);
+  --shadow-2xl: 0px 24px 80px 0px hsl(60 5% 25% / 0.16);
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+}
+
+/* Dark mode — Warm dark with rose accents */
+[data-theme='wedding'].dark {
+  --background: oklch(18% 0.01 60);
+  --foreground: oklch(92% 0 0);
+  --card: oklch(22% 0.01 60 / 0.8);
+  --card-foreground: oklch(92% 0 0);
+  --popover: oklch(24% 0.01 60);
+  --popover-foreground: oklch(92% 0 0);
+  --primary: oklch(65% 0.12 15);
+  --primary-foreground: oklch(100% 0 0);
+  --secondary: oklch(28% 0.01 15);
+  --secondary-foreground: oklch(90% 0 0);
+  --muted: oklch(26% 0.01 60);
+  --muted-foreground: oklch(65% 0.01 60);
+  --accent: oklch(35% 0.06 15);
+  --accent-foreground: oklch(90% 0 0);
+  --destructive: oklch(62% 0.2 25);
+  --destructive-foreground: oklch(100% 0 0);
+  --border: oklch(30% 0.01 60);
+  --input: oklch(26% 0.01 60);
+  --ring: oklch(65% 0.12 15);
+  --sidebar: oklch(20% 0.01 60);
+  --sidebar-foreground: oklch(92% 0 0);
+  --sidebar-primary: oklch(65% 0.12 15);
+  --sidebar-primary-foreground: oklch(100% 0 0);
+  --sidebar-accent: oklch(30% 0.04 15);
+  --sidebar-accent-foreground: oklch(90% 0 0);
+  --sidebar-border: oklch(28% 0.01 60);
+  --sidebar-ring: oklch(65% 0.12 15);
+  --shadow-color: hsl(60 5% 10%);
+  --shadow-2xs: 0px 1px 2px 0px hsl(60 5% 10% / 0.2);
+  --shadow-xs: 0px 1px 2px 0px hsl(60 5% 10% / 0.2);
+  --shadow-sm: 0px 2px 8px 0px hsl(60 5% 10% / 0.3);
+  --shadow: 0px 4px 16px 0px hsl(60 5% 10% / 0.4);
+  --shadow-md: 0px 4px 16px 0px hsl(60 5% 10% / 0.4), 0px 2px 4px -1px hsl(60 5% 10% / 0.3);
+  --shadow-lg: 0px 8px 32px 0px hsl(60 5% 10% / 0.5);
+  --shadow-xl: 0px 12px 48px 0px hsl(60 5% 10% / 0.6);
+  --shadow-2xl: 0px 24px 80px 0px hsl(60 5% 10% / 0.7);
+}
+
+/* Tailwind v4 theme mapping */
+[data-theme='wedding'] {
+  @theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-ring: var(--sidebar-ring);
+    --font-sans: var(--font-sans);
+    --font-mono: var(--font-mono);
+    --font-serif: var(--font-serif);
+    --radius-sm: calc(var(--radius) - 4px);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) + 4px);
+    --shadow-2xs: var(--shadow-2xs);
+    --shadow-xs: var(--shadow-xs);
+    --shadow-sm: var(--shadow-sm);
+    --shadow: var(--shadow);
+    --shadow-md: var(--shadow-md);
+    --shadow-lg: var(--shadow-lg);
+    --shadow-xl: var(--shadow-xl);
+    --shadow-2xl: var(--shadow-2xl);
+  }
+}

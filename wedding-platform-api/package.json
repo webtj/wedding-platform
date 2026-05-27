@@ -1,0 +1,46 @@
+{
+  "name": "@wedding/api",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "nest start --watch",
+    "build": "nest build",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:seed": "prisma db seed"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.24",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.1.24",
+    "@nestjs/jwt": "^11.0.2",
+    "@nestjs/platform-express": "^11.1.24",
+    "@prisma/client": "^6.0.0",
+    "@wedding/shared": "workspace:*",
+    "bcryptjs": "^3.0.3",
+    "helmet": "^8.2.0",
+    "jszip": "^3.10.1",
+    "reflect-metadata": "^0.2.0",
+    "rxjs": "^7.0.0",
+    "zod": "^3.0.0"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/testing": "^11.1.24",
+    "@types/bcryptjs": "^3.0.0",
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.0.0",
+    "prisma": "^6.0.0",
+    "ts-node": "^10.0.0",
+    "tsx": "^4.22.3",
+    "typescript": "^5.0.0",
+    "vitest": "^3.0.0"
+  }
+}

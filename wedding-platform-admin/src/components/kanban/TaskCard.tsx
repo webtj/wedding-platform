@@ -1,0 +1,136 @@
+'use client';
+
+import { useState } from 'react';
+import { mutationOptions } from '@tanstack/react-query';
+import { getQueryClient } from '@/lib/query-client';
+import { apiClient } from '@/lib/api-client';
+import { useMutationToast } from '@/lib/use-mutation-toast';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { toDateDisplay } from '@/lib/date-format';
+import { TASK_STATUS_ICON } from '@/lib/task-constants';
+import { TaskDetailSheet } from './TaskDetailSheet';
+
+type Props = { task: any; projectId: string; onRefresh: () => void };
+
+export function TaskCard({ task, projectId, onRefresh }: Props) {
+  const [detailOpen, setDetailOpen] = useState(false);
+  const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'done';
+  const isBlocked = task.isBlocked;
+
+  const updateTask = useMutationToast({
+    ...mutationOptions({
+      mutationFn: ({ id, data }: { id: string; data: any }) =>
+        apiClient(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+      onSuccess: () => getQueryClient().invalidateQueries({ queryKey: ['kanban', projectId] })
+    }),
+    successMsg: '已更新',
+    errorMsg: '更新失败'
+  });
+
+  const completeTask = useMutationToast({
+    ...mutationOptions({
+      mutationFn: (id: string) => apiClient(`/tasks/${id}/complete`, { method: 'POST' }),
+      onSuccess: () => getQueryClient().invalidateQueries({ queryKey: ['kanban', projectId] })
+    }),
+    successMsg: '任务已完成',
+    errorMsg: '操作失败'
+  });
+
+  return (
+    <>
+      <div
+        className={`bg-card rounded-lg border p-3 cursor-pointer hover:shadow-md transition-shadow text-sm ${isBlocked ? 'border-l-2 border-l-red-500' : ''}`}
+        onClick={() => setDetailOpen(true)}
+      >
+        <div className='flex items-start justify-between gap-2'>
+          <span className='font-medium truncate'>
+            {TASK_STATUS_ICON[task.status] ?? '⬜'} {task.title}
+          </span>
+          <span className='text-xs text-muted-foreground flex-shrink-0'>
+            {'●'.repeat(task.priority || 2)}
+            {'○'.repeat(Math.max(0, 3 - (task.priority || 2)))}
+          </span>
+        </div>
+        <div className='flex items-center gap-2 mt-2 flex-wrap'>
+          {task.assignees?.length > 0 ? (
+            task.assignees.map((a: any) => (
+              <Badge key={a.id} variant='outline' className='text-xs bg-accent/10 text-accent'>
+                {a.member?.displayName ?? '成员'}
+              </Badge>
+            ))
+          ) : (
+            <Badge variant='outline' className='text-xs text-muted-foreground'>
+              未指派
+            </Badge>
+          )}
+          {task.dueDate && (
+            <span
+              className={`text-xs ${isOverdue ? 'text-red-600 font-semibold' : 'text-muted-foreground'}`}
+            >
+              {toDateDisplay(task.dueDate)}
+            </span>
+          )}
+          {isBlocked && (
+            <Badge variant='outline' className='text-xs bg-red-100 text-red-700 border-red-300'>
+              阻塞
+            </Badge>
+          )}
+        </div>
+        <div className='flex gap-1 mt-2 pt-2 border-t'>
+          {task.status === 'todo' && (
+            <Button
+              variant='ghost'
+              size='sm'
+              className='h-6 text-xs'
+              onClick={(e) => {
+                e.stopPropagation();
+                updateTask.mutate(
+                  { id: task.id, data: { status: 'in_progress' } },
+                  { onSuccess: onRefresh }
+                );
+              }}
+            >
+              开始
+            </Button>
+          )}
+          {task.status === 'in_progress' && (
+            <Button
+              variant='ghost'
+              size='sm'
+              className='h-6 text-xs'
+              onClick={(e) => {
+                e.stopPropagation();
+                completeTask.mutate(task.id, { onSuccess: onRefresh });
+              }}
+            >
+              完成
+            </Button>
+          )}
+          <Button
+            variant='ghost'
+            size='sm'
+            className='h-6 text-xs'
+            onClick={(e) => {
+              e.stopPropagation();
+              updateTask.mutate(
+                { id: task.id, data: { isBlocked: !task.isBlocked } },
+                { onSuccess: onRefresh }
+              );
+            }}
+          >
+            {task.isBlocked ? '解阻' : '阻塞'}
+          </Button>
+        </div>
+      </div>
+
+      <TaskDetailSheet
+        task={task}
+        projectId={projectId}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        onRefresh={onRefresh}
+      />
+    </>
+  );
+}

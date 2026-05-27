@@ -1,0 +1,8 @@
+FROM node:22-alpine
+
+WORKDIR /workspace
+RUN corepack enable
+
+EXPOSE 4000
+
+CMD ["sh", "-c", "pnpm install && pnpm --filter @wedding/api prisma:generate && pnpm --filter @wedding/api dev"]

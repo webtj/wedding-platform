@@ -1,0 +1,1327 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TenantStatus {
+  active
+  disabled
+}
+
+enum UserStatus {
+  active
+  disabled
+}
+
+enum MemberStatus {
+  active
+  disabled
+}
+
+enum AuthProvider {
+  password
+  phone
+  wechat_mini
+  douyin_mini
+}
+
+enum RoleScope {
+  platform
+  tenant
+}
+
+enum LeadStatus {
+  new
+  contacted
+  quoted
+  negotiating
+  won
+  lost
+}
+
+enum LeadSourceChannel {
+  wechat
+  xiaohongshu
+  douyin
+  referral
+  other
+}
+
+enum PaymentStatus {
+  pending
+  confirmed
+}
+
+enum ProjectStatus {
+  pending
+  active
+  completed
+}
+
+enum ProjectMemberRole {
+  planner
+  couple
+}
+
+enum InvitationStatus {
+  pending
+  accepted
+  revoked
+  expired
+}
+
+enum TaskStatus {
+  todo
+  in_progress
+  done
+  closed
+}
+
+enum TaskAssigneeType {
+  planner
+  couple
+}
+
+enum ConfirmationStatus {
+  pending
+  approved
+  rejected
+}
+
+enum ConfirmationEventType {
+  created
+  approved
+  rejected
+  reissued
+}
+
+enum AssetStatus {
+  uploading
+  ready
+  archived
+  deleted
+}
+
+enum AnnotationStatus {
+  pending
+  replied
+  resolved
+}
+
+enum NotificationType {
+  task
+  confirmation
+  annotation
+  asset
+  ai
+  system
+}
+
+enum AiJobStatus {
+  queued
+  succeeded
+  failed
+}
+
+enum AiJobType {
+  vows
+  speech
+  social_copy
+  planner_marketing
+}
+
+enum ArchivePackageStatus {
+  queued
+  processing
+  ready
+  failed
+  expired
+}
+
+enum ArchivePackageType {
+  full_project
+  assets_only
+  couple_delivery
+  case_draft
+}
+
+enum RetentionReminderStatus {
+  pending
+  sent
+  dismissed
+}
+
+enum AiTemplateCategory {
+  couple
+  planner_marketing
+  timeline
+  case_study
+}
+
+enum ProjectStageStatus {
+  pending
+  active
+  done
+  skipped
+}
+
+enum TimelineItemStatus {
+  pending
+  ready
+  in_progress
+  done
+  canceled
+}
+
+enum ContractStatus {
+  pending_sign
+  signed
+  voided
+}
+
+enum PaymentMethod {
+  cash
+  bank_transfer
+  wechat
+  alipay
+  other
+}
+
+enum ExpenseCategory {
+  venue
+  floral
+  photo_video
+  makeup
+  production
+  travel
+  other
+}
+
+enum PlanPackageStatus {
+  draft
+  active
+  retired
+}
+
+enum TenantSubscriptionStatus {
+  trialing
+  active
+  past_due
+  suspended
+  canceled
+}
+
+enum BillingCycle {
+  monthly
+  yearly
+  manual
+}
+
+enum PlatformChannelType {
+  web
+  wechat_mini
+  douyin_mini
+}
+
+enum PlatformChannelStatus {
+  draft
+  active
+  disabled
+}
+
+enum VendorStatus {
+  draft
+  active
+  disabled
+}
+
+enum VendorCategory {
+  venue
+  floral
+  photo_video
+  makeup
+  production
+  host
+  other
+}
+
+enum MaterialStatus {
+  available
+  missing
+}
+
+enum PublicCaseStatus {
+  draft
+  review
+  published
+  archived
+}
+
+model Tenant {
+  id          String       @id @default(cuid())
+  name        String
+  description String       @default("")
+  address     String?
+  status      TenantStatus @default(active)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  members TenantMember[]
+  roles   Role[]
+  menuItems MenuItem[]
+
+  leads         Lead[]
+  projects      Project[]
+  contracts     Contract[]
+  paymentRecords PaymentRecord[]
+  projectExpenses ProjectExpense[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
+
+  archivePackages    ArchivePackage[]
+  retentionPolicies  AssetRetentionPolicy[]
+  retentionReminders RetentionReminder[]
+  aiTemplates        AiTemplate[]
+
+  subscription     TenantSubscription?
+  channelBindings  ChannelBinding[]
+  vendorProfiles   VendorProfile[]
+  publicCases       PublicCase[]
+  processTemplates  ProcessTemplate[]
+  materialCategories MaterialCategory[]
+
+  @@map("tenants")
+}
+
+model User {
+  id              String     @id @default(cuid())
+  displayName     String
+  status          UserStatus @default(active)
+  isPlatformAdmin Boolean    @default(false)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  authAccounts    AuthAccount[]
+  tenantMembers   TenantMember[]
+  refreshSessions RefreshSession[]
+
+  projectMembers        ProjectMember[]
+  acceptedInvitations   CoupleInvitation[] @relation("InvitationAcceptedBy")
+  assignedTasks         Task[]             @relation("TaskAssignedUser")
+  notifications         Notification[]
+  auditLogs             AuditLog[]
+  createdLeads          Lead[]             @relation("LeadCreatedBy")
+  createdFollowups      LeadFollowup[]     @relation("FollowupCreatedBy")
+  createdConfirmations  Confirmation[]     @relation("ConfirmationCreatedBy")
+  confirmationEvents    ConfirmationEvent[] @relation("ConfirmationEventActor")
+  uploadedAssets        Asset[]            @relation("AssetUploadedBy")
+  assetAnnotations      AssetAnnotation[]  @relation("AnnotationCreatedBy")
+  aiJobs                AiJob[]            @relation("AiJobRequestedBy")
+
+  plannedProjects Project[]      @relation("ProjectPlanner")
+  vendorProfiles VendorProfile[] @relation("VendorCreatedBy")
+  publicCases    PublicCase[]    @relation("PublicCaseCreatedBy")
+
+  @@map("users")
+}
+
+model AuthAccount {
+  id           String       @id @default(cuid())
+  userId       String
+  provider     AuthProvider
+  identifier   String
+  passwordHash String?
+  verifiedAt   DateTime?
+  metadata     Json?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, identifier])
+  @@index([userId])
+  @@map("auth_accounts")
+}
+
+model TenantMember {
+  id          String       @id @default(cuid())
+  tenantId    String
+  userId      String
+  displayName String
+  status      MemberStatus @default(active)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roles  MemberRole[]
+
+  projectMembers         ProjectMember[]
+  assignedTasks           TaskAssignee[]
+  templateTaskAssignees   ProcessTemplateTaskAssignee[]
+
+  @@unique([tenantId, userId])
+  @@index([userId])
+  @@map("tenant_members")
+}
+
+model Role {
+  id          String    @id @default(cuid())
+  tenantId    String?
+  scope       RoleScope
+  code        String
+  name        String
+  description String?
+  isBuiltIn   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tenant        Tenant?                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  permissions   RolePermission[]
+  members       MemberRole[]
+  menus         RoleMenuItem[]
+  templateTasks ProcessTemplateTask[]
+  projectTasks  Task[]
+
+  @@unique([scope, tenantId, code])
+  @@index([tenantId])
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  group       String
+  description String?
+  createdAt   DateTime @default(now())
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model MemberRole {
+  memberId String
+  roleId   String
+
+  member TenantMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  role   Role         @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([memberId, roleId])
+  @@map("member_roles")
+}
+
+model MenuItem {
+  id        String    @id @default(cuid())
+  tenantId  String?
+  scope     RoleScope
+  parentId  String?
+  label     String
+  href      String?
+  icon      String?
+  sortOrder Int       @default(0)
+  visible   Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  tenant   Tenant?        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  parent   MenuItem?      @relation("MenuTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children MenuItem[]     @relation("MenuTree")
+  roles    RoleMenuItem[]
+
+  @@index([tenantId])
+  @@index([parentId])
+  @@map("menu_items")
+}
+
+model RoleMenuItem {
+  roleId     String
+  menuItemId String
+
+  role     Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, menuItemId])
+  @@map("role_menu_items")
+}
+
+model RefreshSession {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_sessions")
+}
+
+model Lead {
+  id                 String            @id @default(cuid())
+  tenantId           String
+  leadNo             String            @unique
+  name               String
+  phone              String?
+  email              String?
+  sourceChannel      LeadSourceChannel @default(other)
+  status             LeadStatus        @default(new)
+  consultationTime   DateTime?
+  weddingDate        DateTime?
+  budgetCents        Int?
+  note               String?
+  lostReason         String?
+  convertedAt        DateTime?
+  convertedProjectId String?           @unique
+  contractId         String?           @unique
+  createdByUserId    String
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy        User             @relation("LeadCreatedBy", fields: [createdByUserId], references: [id])
+  followups        LeadFollowup[]
+  convertedProject Project?        @relation("LeadConvertedProject", fields: [convertedProjectId], references: [id])
+  contract         Contract?        @relation("LeadContract", fields: [contractId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+  @@map("leads")
+}
+
+model LeadFollowup {
+  id             String   @id @default(cuid())
+  leadId         String
+  tenantId       String
+  content        String
+  nextFollowUpAt DateTime?
+  createdByUserId String
+  createdAt      DateTime @default(now())
+
+  lead      Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdBy User   @relation("FollowupCreatedBy", fields: [createdByUserId], references: [id])
+
+  @@index([tenantId, leadId])
+  @@map("lead_followups")
+}
+
+model Project {
+  id                  String        @id @default(cuid())
+  tenantId            String
+  leadId              String?       @unique
+  projectNo           String        @unique
+  brideName           String
+  groomName           String
+  weddingDate         DateTime
+  ceremonyType        String?
+  venue               String?
+  guestCount          Int?
+  guestCountFinal     Int?
+  colorTheme          String?
+  style               String?
+  specialRequirements String?
+  plannerId           String?
+  appliedTemplateId    String?
+  status              ProjectStatus @default(pending)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  tenant        Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  planner       User?                @relation("ProjectPlanner", fields: [plannerId], references: [id], onDelete: SetNull)
+  convertedFromLead Lead?           @relation("LeadConvertedProject")
+  members       ProjectMember[]
+  invitations   CoupleInvitation[]
+  tasks         Task[]
+  stages        ProjectStage[]
+  contracts     Contract[]
+  paymentRecords PaymentRecord[]
+  expenses      ProjectExpense[]
+  confirmations Confirmation[]
+  assets        Asset[]
+  timelineItems WeddingTimelineItem[]
+  aiJobs        AiJob[]
+  aiOutputs     AiOutput[]
+  publicCase    PublicCase?
+
+  completedAt   DateTime?
+  archivedAt    DateTime?
+  archiveNote   String?
+  retentionPolicy AssetRetentionPolicy?
+  archivePackages ArchivePackage[]
+  retentionReminders RetentionReminder[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, weddingDate])
+  @@map("projects")
+}
+
+model ProjectMember {
+  id        String            @id @default(cuid())
+  projectId String
+  tenantId  String
+  userId    String
+  memberId  String?
+  role      ProjectMemberRole
+  createdAt DateTime          @default(now())
+
+  project Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member  TenantMember? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, userId, role])
+  @@index([tenantId, userId])
+  @@map("project_members")
+}
+
+model CoupleInvitation {
+  id              String           @id @default(cuid())
+  tenantId        String
+  projectId       String
+  token           String           @unique
+  invitedName     String
+  invitedPhone    String?
+  status          InvitationStatus @default(pending)
+  expiresAt       DateTime
+  acceptedByUserId String?
+  acceptedAt      DateTime?
+  createdAt       DateTime         @default(now())
+
+  project        Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  acceptedByUser User?   @relation("InvitationAcceptedBy", fields: [acceptedByUserId], references: [id])
+
+  @@index([tenantId, projectId])
+  @@map("couple_invitations")
+}
+
+model Task {
+  id             String           @id @default(cuid())
+  tenantId       String
+  projectId      String
+  stageId        String?
+  title          String
+  description    String?
+  status         TaskStatus       @default(todo)
+  assigneeType   TaskAssigneeType
+  assignedRoleId String?
+  assignedUserId String?
+  dueDate        DateTime?
+  priority       Int              @default(2)
+  sortOrder      Int              @default(0)
+  isBlocked      Boolean          @default(false)
+  blockReason    String?
+  completedAt    DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  project      Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stage        ProjectStage?  @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  assignedUser User?          @relation("TaskAssignedUser", fields: [assignedUserId], references: [id])
+  assignedRole Role?          @relation(fields: [assignedRoleId], references: [id], onDelete: SetNull)
+  assignees    TaskAssignee[]
+  taskMaterials TaskMaterial[]
+
+  @@index([tenantId, projectId, status])
+  @@index([tenantId, projectId, stageId, sortOrder])
+  @@map("tasks")
+}
+
+model ProcessTemplate {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  description String?
+  category    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  stages ProcessTemplateStage[]
+
+  @@index([tenantId])
+  @@map("process_templates")
+}
+
+model ProcessTemplateStage {
+  id          String   @id @default(cuid())
+  templateId  String
+  name        String
+  description String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  template ProcessTemplate       @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  tasks    ProcessTemplateTask[]
+
+  @@index([templateId, sortOrder])
+  @@map("process_template_stages")
+}
+
+model ProcessTemplateTask {
+  id             String           @id @default(cuid())
+  stageId        String
+  title          String
+  description    String?
+  assigneeType   TaskAssigneeType
+  assignedRoleId String?
+  priority       Int              @default(2)
+  offsetDays     Int              @default(0)
+  sortOrder      Int              @default(0)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  stage           ProcessTemplateStage           @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  assignedRole    Role?                          @relation(fields: [assignedRoleId], references: [id], onDelete: SetNull)
+  assignees       ProcessTemplateTaskAssignee[]
+  checklistItems  ProcessTemplateChecklistItem[]
+
+  @@index([stageId, sortOrder])
+  @@map("process_template_tasks")
+}
+
+model ProcessTemplateChecklistItem {
+  id        String   @id @default(cuid())
+  taskId    String
+  content   String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  task ProcessTemplateTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, sortOrder])
+  @@map("process_template_checklist_items")
+}
+
+model ProcessTemplateTaskAssignee {
+  id             String             @id @default(cuid())
+  templateTaskId String
+  memberId       String
+
+  templateTask ProcessTemplateTask @relation(fields: [templateTaskId], references: [id], onDelete: Cascade)
+  member       TenantMember        @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([templateTaskId, memberId])
+  @@map("process_template_task_assignees")
+}
+
+model Confirmation {
+  id              String             @id @default(cuid())
+  tenantId        String
+  projectId       String
+  title           String
+  description     String
+  category        String
+  status          ConfirmationStatus @default(pending)
+  latestComment   String?
+  createdByUserId String
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  project   Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy User                @relation("ConfirmationCreatedBy", fields: [createdByUserId], references: [id])
+  events    ConfirmationEvent[]
+
+  @@index([tenantId, projectId, status])
+  @@map("confirmations")
+}
+
+model ConfirmationEvent {
+  id              String                @id @default(cuid())
+  confirmationId  String
+  tenantId        String
+  type            ConfirmationEventType
+  comment         String?
+  actorUserId     String
+  createdAt       DateTime              @default(now())
+
+  confirmation Confirmation @relation(fields: [confirmationId], references: [id], onDelete: Cascade)
+  actor        User         @relation("ConfirmationEventActor", fields: [actorUserId], references: [id])
+
+  @@index([tenantId, confirmationId])
+  @@map("confirmation_events")
+}
+
+model Asset {
+  id              String      @id @default(cuid())
+  tenantId        String
+  projectId       String
+  filename        String
+  contentType     String
+  sizeBytes       Int
+  category        String?
+  objectKey       String
+  status          AssetStatus @default(uploading)
+  uploadedByUserId String
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploadedBy      User             @relation("AssetUploadedBy", fields: [uploadedByUserId], references: [id])
+  versions        AssetVersion[]
+  annotations     AssetAnnotation[]
+  paymentVouchers PaymentRecord[]  @relation("PaymentVoucherAsset")
+  expenseVouchers ProjectExpense[] @relation("ExpenseVoucherAsset")
+
+  expiresAt              DateTime?
+  archivePackageItems    ArchivePackageItem[]
+  retentionReminders     RetentionReminder[]
+
+  @@index([tenantId, projectId, status])
+  @@map("assets")
+}
+
+model AssetVersion {
+  id        String   @id @default(cuid())
+  assetId   String
+  version   Int
+  objectKey String
+  createdAt DateTime @default(now())
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, version])
+  @@map("asset_versions")
+}
+
+model AssetAnnotation {
+  id              String           @id @default(cuid())
+  tenantId        String
+  assetId         String
+  x               Decimal          @db.Decimal(5, 4)
+  y               Decimal          @db.Decimal(5, 4)
+  content         String
+  status          AnnotationStatus @default(pending)
+  reply           String?
+  createdByUserId String
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  asset     Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  createdBy User  @relation("AnnotationCreatedBy", fields: [createdByUserId], references: [id])
+
+  @@index([tenantId, assetId, status])
+  @@map("asset_annotations")
+}
+
+model WeddingTimelineItem {
+  id                    String             @id @default(cuid())
+  tenantId              String
+  projectId             String
+  startTime             DateTime
+  title                 String
+  description           String?
+  owner                 String?
+  location              String?
+  status                TimelineItemStatus @default(pending)
+  sortOrder             Int                @default(0)
+  visibleToCouple       Boolean            @default(true)
+  reminderMinutesBefore Int?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, projectId, sortOrder])
+  @@index([tenantId, projectId, startTime])
+  @@map("wedding_timeline_items")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  tenantId  String
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId, readAt])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String
+  action    String
+  entity    String
+  entityId  String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([tenantId, entity, entityId])
+  @@map("audit_logs")
+}
+
+model AiJob {
+  id                String      @id @default(cuid())
+  tenantId          String
+  projectId         String
+  type              AiJobType
+  prompt            String
+  status            AiJobStatus @default(queued)
+  requestedByUserId String
+  errorMessage      String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requestedBy User       @relation("AiJobRequestedBy", fields: [requestedByUserId], references: [id])
+  outputs     AiOutput[]
+
+  @@index([tenantId, projectId, status])
+  @@map("ai_jobs")
+}
+
+model AiOutput {
+  id        String   @id @default(cuid())
+  tenantId  String
+  projectId String
+  jobId     String
+  title     String
+  content   String
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  job     AiJob   @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  versions AiOutputVersion[]
+
+  @@index([tenantId, projectId])
+  @@map("ai_outputs")
+}
+
+// ── M5: Operations, Finance, Team ──────────────────────────────────────────
+
+model ProjectStage {
+  id          String             @id @default(cuid())
+  tenantId    String
+  projectId   String
+  name        String
+  description String?
+  status      ProjectStageStatus @default(pending)
+  dueDate     DateTime?
+  sortOrder   Int                @default(0)
+  completedAt DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   Task[]
+
+  @@index([tenantId, projectId, sortOrder])
+  @@map("project_stages")
+}
+
+model Contract {
+  id                String         @id @default(cuid())
+  tenantId          String
+  leadId            String?        @unique
+  projectId         String?
+  contractNo        String
+  title             String
+  brideName         String?
+  groomName         String?
+  phone             String?
+  weddingDate       DateTime?
+  venue             String?
+  amountCents       Int
+  depositCents      Int?
+  serviceContent    String?
+  companyName       String?
+  companyAddress    String?
+  signToken         String?        @unique
+  status            ContractStatus @default(pending_sign)
+  signedAt          DateTime?
+  signatureData     String?
+  rejectedAt        DateTime?
+  rejectReason      String?
+  note              String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  tenant  Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lead    Lead?           @relation("LeadContract")
+  project Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  items   ContractItem[]
+  payments PaymentRecord[]
+
+  @@unique([tenantId, contractNo])
+  @@index([tenantId, projectId])
+  @@map("contracts")
+}
+
+model ContractItem {
+  id             String   @id @default(cuid())
+  contractId     String
+  name           String
+  quantity       Float    @default(1)
+  unitPriceCents Int
+  totalCents     Int
+  note           String?
+  createdAt      DateTime @default(now())
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId])
+  @@map("contract_items")
+}
+
+model PaymentRecord {
+  id             String        @id @default(cuid())
+  tenantId       String
+  projectId      String
+  contractId     String
+  amountCents    Int
+  status         PaymentStatus @default(pending)
+  paidAt         DateTime?
+  method         PaymentMethod?
+  note           String?
+  voucherAssetId String?
+  createdAt      DateTime      @default(now())
+
+  tenant       Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project      Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  contract     Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  voucherAsset Asset?  @relation("PaymentVoucherAsset", fields: [voucherAssetId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, projectId])
+  @@index([tenantId, contractId])
+  @@map("payment_records")
+}
+
+model ProjectExpense {
+  id             String         @id @default(cuid())
+  tenantId       String
+  projectId      String
+  category       ExpenseCategory
+  title          String
+  amountCents    Int
+  spentAt        DateTime
+  note           String?
+  voucherAssetId String?
+  createdAt      DateTime       @default(now())
+
+  tenant       Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project      Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  voucherAsset Asset?  @relation("ExpenseVoucherAsset", fields: [voucherAssetId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, projectId])
+  @@map("project_expenses")
+}
+
+// ── M7: Archive, Storage, AI Polish ──────────────────────────────────────
+
+model AssetRetentionPolicy {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  projectId           String   @unique
+  retentionDays       Int
+  archiveAfterDays    Int      @default(0)
+  notifyBeforeDays    Int      @default(30)
+  allowCoupleDownload Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("asset_retention_policies")
+}
+
+model RetentionReminder {
+  id        String                  @id @default(cuid())
+  tenantId  String
+  projectId String
+  assetId   String?
+  title     String
+  remindAt  DateTime
+  status    RetentionReminderStatus @default(pending)
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  asset   Asset?  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status, remindAt])
+  @@map("retention_reminders")
+}
+
+model ArchivePackage {
+  id              String               @id @default(cuid())
+  tenantId        String
+  projectId       String
+  type            ArchivePackageType
+  title           String
+  status          ArchivePackageStatus @default(queued)
+  objectKey       String?
+  sizeBytes       Int?
+  expiresAt       DateTime?
+  errorMessage    String?
+  createdByUserId String
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  items   ArchivePackageItem[]
+
+  @@index([tenantId, projectId, status])
+  @@map("archive_packages")
+}
+
+model ArchivePackageItem {
+  id        String   @id @default(cuid())
+  packageId String
+  assetId   String
+  createdAt DateTime @default(now())
+
+  package ArchivePackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  asset   Asset          @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([packageId, assetId])
+  @@map("archive_package_items")
+}
+
+model AiTemplate {
+  id        String             @id @default(cuid())
+  tenantId  String?
+  code      String
+  name      String
+  category  AiTemplateCategory
+  prompt    String
+  isBuiltIn Boolean            @default(false)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, code])
+  @@map("ai_templates")
+}
+
+model AiOutputVersion {
+  id        String   @id @default(cuid())
+  outputId  String
+  version   Int
+  title     String
+  content   String
+  note      String?
+  createdAt DateTime @default(now())
+
+  output AiOutput @relation(fields: [outputId], references: [id], onDelete: Cascade)
+
+  @@unique([outputId, version])
+  @@map("ai_output_versions")
+}
+
+// ── M8: Platform, Mini-foundation ──────────────────────────────────────────
+
+model PlanPackage {
+  id                String            @id @default(cuid())
+  code              String            @unique
+  name              String
+  description       String?
+  monthlyPriceCents Int
+  yearlyPriceCents  Int
+  maxProjects       Int
+  maxMembers        Int
+  storageGb         Int
+  aiCreditsMonthly  Int
+  features          Json
+  status            PlanPackageStatus @default(draft)
+  sortOrder         Int               @default(100)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  subscriptions TenantSubscription[]
+
+  @@index([status, sortOrder])
+  @@map("plan_packages")
+}
+
+model TenantSubscription {
+  id            String                   @id @default(cuid())
+  tenantId      String                   @unique
+  planPackageId String
+  billingCycle  BillingCycle
+  status        TenantSubscriptionStatus @default(trialing)
+  startsAt      DateTime
+  renewsAt      DateTime?
+  canceledAt    DateTime?
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  planPackage PlanPackage @relation(fields: [planPackageId], references: [id])
+
+  @@index([planPackageId])
+  @@index([status])
+  @@map("tenant_subscriptions")
+}
+
+model PlatformSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  group     String
+  label     String
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([group])
+  @@map("platform_settings")
+}
+
+model ChannelBinding {
+  id        String                @id @default(cuid())
+  tenantId  String?
+  channel   PlatformChannelType
+  name      String
+  appId     String
+  status    PlatformChannelStatus @default(draft)
+  config    Json
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, channel, appId])
+  @@index([channel, status])
+  @@map("channel_bindings")
+}
+
+model VendorProfile {
+  id              String         @id @default(cuid())
+  tenantId        String
+  name            String
+  category        VendorCategory
+  city            String
+  contactName     String?
+  contactPhone    String?
+  description     String?
+  tags            String[]
+  status          VendorStatus   @default(draft)
+  createdByUserId String
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy User   @relation("VendorCreatedBy", fields: [createdByUserId], references: [id])
+  cases     PublicCase[]
+
+  @@index([tenantId, category, status])
+  @@index([city])
+  @@map("vendor_profiles")
+}
+
+model PublicCase {
+  id              String           @id @default(cuid())
+  tenantId        String
+  projectId       String?          @unique
+  vendorId        String?
+  title           String
+  summary         String?
+  content         String
+  coverAssetId    String?
+  status          PublicCaseStatus @default(draft)
+  publishedAt     DateTime?
+  createdByUserId String
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  tenant    Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  project   Project?       @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  vendor    VendorProfile? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  createdBy User           @relation("PublicCaseCreatedBy", fields: [createdByUserId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([vendorId])
+  @@map("public_cases")
+}
+
+model MaterialCategory {
+  id        String     @id @default(cuid())
+  tenantId  String
+  name      String
+  sortOrder Int        @default(0)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  materials Material[]
+
+  @@index([tenantId])
+  @@map("material_categories")
+}
+
+model Material {
+  id         String         @id @default(cuid())
+  categoryId String
+  name       String
+  status     MaterialStatus @default(missing)
+  quantity   Int?
+  note       String?
+  sortOrder  Int            @default(0)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  category   MaterialCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  taskItems  TaskMaterial[]
+
+  @@index([categoryId])
+  @@map("materials")
+}
+
+model TaskMaterial {
+  id         String   @id @default(cuid())
+  taskId     String
+  materialId String
+  confirmed  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, materialId])
+  @@map("task_materials")
+}
+
+model TaskAssignee {
+  id       String @id @default(cuid())
+  taskId   String
+  memberId String
+
+  task     Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  member   TenantMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, memberId])
+  @@map("task_assignees")
+}
