@@ -5,6 +5,7 @@ export type Role = {
   description?: string | null;
   scope: string;
   isBuiltIn: boolean;
+  tenant?: { id: string; name: string } | null;
   menus?: { menuItem: { id: string; label: string } }[];
   _count?: { members: number };
 };

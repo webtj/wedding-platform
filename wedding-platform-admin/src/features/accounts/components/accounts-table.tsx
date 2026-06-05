@@ -50,7 +50,6 @@ export function AccountsTable() {
     page: parseAsInteger.withDefault(1),
     perPage: parseAsInteger.withDefault(10),
     search: parseAsString.withDefault(''),
-    tenantId: parseAsString.withDefault(''),
     roleCode: parseAsString.withDefault('')
   });
   const [searchInput, setSearchInput] = useState(params.search);
@@ -63,7 +62,6 @@ export function AccountsTable() {
     page: params.page,
     limit: params.perPage,
     ...(params.search && { search: params.search }),
-    ...(params.tenantId && { tenantId: params.tenantId }),
     ...(params.roleCode && { roleCode: params.roleCode })
   };
 
@@ -91,22 +89,6 @@ export function AccountsTable() {
             />
           </div>
           <Select
-            value={params.tenantId || '__all__'}
-            onValueChange={(v) => setParams({ tenantId: v === '__all__' ? '' : v, page: 1 })}
-          >
-            <SelectTrigger className='w-[160px]'>
-              <SelectValue placeholder='全部租户' />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value='__all__'>全部租户</SelectItem>
-              {opts?.tenants.map((t) => (
-                <SelectItem key={t.id} value={t.id}>
-                  {t.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
             value={params.roleCode || '__all__'}
             onValueChange={(v) => setParams({ roleCode: v === '__all__' ? '' : v, page: 1 })}
           >
@@ -132,7 +114,6 @@ export function AccountsTable() {
             <TableRow>
               <TableHead>账号</TableHead>
               <TableHead>姓名</TableHead>
-              <TableHead>所属租户</TableHead>
               <TableHead>角色</TableHead>
               <TableHead>状态</TableHead>
               <TableHead>操作</TableHead>
@@ -141,13 +122,17 @@ export function AccountsTable() {
           <TableBody>
             {data.items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className='h-24 text-center text-muted-foreground'>
+                <TableCell colSpan={5} className='h-24 text-center text-muted-foreground'>
                   暂无数据
                 </TableCell>
               </TableRow>
             ) : (
               data.items.map((account) => (
-                <AccountRow key={account.id} account={account} opts={opts} />
+                <AccountRow
+                  key={account.id}
+                  account={account}
+                  opts={opts}
+                />
               ))
             )}
           </TableBody>
@@ -197,7 +182,6 @@ function AccountRow({
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  const tenantNames = account.tenantMembers?.map((m) => m.tenant?.name ?? '-').join(', ') || '-';
   const roles =
     account.tenantMembers
       ?.flatMap((m) => m.roles.map((r) => ({ code: r.role.code, name: r.role.name })))
@@ -211,7 +195,6 @@ function AccountRow({
         </div>
       </TableCell>
       <TableCell className='font-medium'>{account.displayName}</TableCell>
-      <TableCell className='text-muted-foreground text-sm'>{tenantNames}</TableCell>
       <TableCell>
         <div className='flex flex-wrap gap-1'>
           {roles.map((r) => (
@@ -229,16 +212,12 @@ function AccountRow({
       </TableCell>
       <TableCell>
         <div className='flex items-center gap-1'>
-          {!account.isPlatformAdmin && (
-            <Button variant='ghost' size='sm' onClick={() => setEditOpen(true)}>
-              <Icons.edit className='h-3.5 w-3.5' />
-            </Button>
-          )}
-          {!account.isPlatformAdmin && (
-            <Button variant='ghost' size='sm' onClick={() => setDeleteOpen(true)}>
-              <Icons.trash className='h-3.5 w-3.5' />
-            </Button>
-          )}
+          <Button variant='ghost' size='sm' onClick={() => setEditOpen(true)}>
+            <Icons.edit className='h-3.5 w-3.5' />
+          </Button>
+          <Button variant='ghost' size='sm' onClick={() => setDeleteOpen(true)}>
+            <Icons.trash className='h-3.5 w-3.5' />
+          </Button>
         </div>
         <EditAccountDialog
           open={editOpen}
@@ -472,7 +451,6 @@ function AddAccountDialog({
   const [passwordError, setPasswordError] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [selectedRoles, setSelectedRoles] = useState<Set<string>>(new Set());
-  const [selectedTenant, setSelectedTenant] = useState('');
 
   function toggleRole(roleId: string) {
     const next = new Set(selectedRoles);
@@ -482,8 +460,7 @@ function AddAccountDialog({
   }
 
   function handleSave() {
-    if (!identifier.trim() || !displayName.trim() || selectedRoles.size === 0 || !selectedTenant)
-      return;
+    if (!identifier.trim() || !displayName.trim() || selectedRoles.size === 0) return;
     if (password.length < 8) {
       setPasswordError('密码至少 8 位');
       return;
@@ -501,8 +478,7 @@ function AddAccountDialog({
         identifier: identifier.trim(),
         password,
         displayName: displayName.trim(),
-        roleIds: Array.from(selectedRoles),
-        tenantId: selectedTenant
+        roleIds: Array.from(selectedRoles)
       },
       {
         onSuccess: () => {
@@ -511,7 +487,6 @@ function AddAccountDialog({
           setPassword('');
           setDisplayName('');
           setSelectedRoles(new Set());
-          setSelectedTenant('');
         }
       }
     );
@@ -572,21 +547,6 @@ function AddAccountDialog({
                   placeholder='显示名称'
                 />
               </div>
-              <div className='space-y-2'>
-                <Label>归属租户 *</Label>
-                <Select value={selectedTenant} onValueChange={setSelectedTenant}>
-                  <SelectTrigger>
-                    <SelectValue placeholder='请选择租户' />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {opts?.tenants.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
             <div className='space-y-2'>
               <Label>角色 *</Label>
@@ -615,8 +575,7 @@ function AddAccountDialog({
                 !identifier.trim() ||
                 !password ||
                 !displayName.trim() ||
-                selectedRoles.size === 0 ||
-                !selectedTenant
+                selectedRoles.size === 0
               }
             >
               {create.isPending ? '创建中...' : '创建'}

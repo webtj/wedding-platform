@@ -55,7 +55,7 @@ export async function login(identifier: string, password: string) {
   const data = (await res.json()) as {
     accessToken: string;
     refreshToken: string;
-    user: { id: string; displayName: string; isPlatformAdmin: boolean };
+    user: { id: string; displayName: string };
   };
 
   saveTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken });
@@ -64,6 +64,7 @@ export async function login(identifier: string, password: string) {
 
 let cachedMe: CurrentUserResponse | null = null;
 let pendingMe: Promise<CurrentUserResponse> | null = null;
+const AUTH_ME_INVALIDATED_EVENT = 'wedding-auth-me-invalidated';
 
 export function getCachedMe(): CurrentUserResponse | null {
   return cachedMe;
@@ -90,6 +91,16 @@ export function invalidateMe() {
   cachedMe = null;
   pendingMe = null;
 }
+
+export function notifyAuthMeInvalidated() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.dispatchEvent(new Event(AUTH_ME_INVALIDATED_EVENT));
+}
+
+export { AUTH_ME_INVALIDATED_EVENT };
 
 export async function logout() {
   invalidateMe();

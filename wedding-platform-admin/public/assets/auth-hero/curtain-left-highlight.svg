@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1350" viewBox="0 0 1200 1350" fill="none">
+  <defs>
+    <filter id="blur"><feGaussianBlur stdDeviation="5"/></filter>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff8d2" stop-opacity="0.90"/>
+      <stop offset="0.45" stop-color="#e8c774" stop-opacity="0.40"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.04"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="1350" fill="black"/>
+  <path d="M900 0C844 185 884 370 790 560C704 738 710 1018 560 1350" stroke="url(#gold)" stroke-width="22" stroke-linecap="round" filter="url(#blur)"/>
+  <path d="M742 0C704 220 735 412 640 626C548 833 510 1110 430 1350" stroke="#fff7e0" stroke-opacity="0.32" stroke-width="9" stroke-linecap="round"/>
+</svg>

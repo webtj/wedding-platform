@@ -2,7 +2,6 @@ export type Account = {
   id: string;
   displayName: string;
   status: string;
-  isPlatformAdmin: boolean;
   authAccounts?: { identifier: string }[];
   tenantMembers?: {
     id: string;

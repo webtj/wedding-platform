@@ -2,20 +2,57 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
+import { useState } from 'react';
 import { queryOptions } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { KanbanBoard } from '@/components/kanban/KanbanBoard';
+import { ProjectTimelineView } from '@/features/projects/components/project-timeline-view';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Icons } from '@/components/icons';
 import { toDateDisplay } from '@/lib/date-format';
 import PageContainer from '@/components/layout/page-container';
 
+interface ProjectDetail {
+  id: string;
+  tenantId: string;
+  projectNo: string;
+  brideName: string;
+  groomName: string;
+  weddingDate: string;
+  ceremonyType: string | null;
+  venue: string | null;
+  guestCount: number | null;
+  guestCountFinal: number | null;
+  colorTheme: string | null;
+  style: string | null;
+  specialRequirements: string | null;
+  plannerId: string | null;
+  status: string;
+  members: Array<{
+    id: string;
+    userId: string;
+    role: string;
+    user: { id: string; displayName: string };
+  }>;
+  tasks: Array<{
+    id: string;
+    title: string;
+    status: string;
+    assigneeType: string;
+    dueDate: string | null;
+  }>;
+}
+
 const projectQ = (id: string) =>
-  queryOptions({ queryKey: ['project', id], queryFn: () => apiClient<any>(`/projects/${id}`) });
+  queryOptions({ queryKey: ['project', id], queryFn: () => apiClient<ProjectDetail>(`/projects/${id}`) });
+
+type ViewMode = 'kanban' | 'timeline';
 
 export default function ProjectDetailPage() {
   const { projectId } = useParams() as { projectId: string };
   const { data: proj } = useQuery(projectQ(projectId));
+  const [viewMode, setViewMode] = useState<ViewMode>('kanban');
 
   const weddingDate = proj?.weddingDate ? new Date(proj.weddingDate) : null;
   const days = weddingDate ? Math.ceil((weddingDate.getTime() - Date.now()) / 86400000) : null;
@@ -43,7 +80,34 @@ export default function ProjectDetailPage() {
               </span>
             )}
           </div>
-          <KanbanBoard projectId={projectId} />
+
+          {/* View toggle */}
+          <div className='flex items-center gap-1 p-1 bg-muted rounded-lg w-fit'>
+            <Button
+              variant={viewMode === 'kanban' ? 'default' : 'ghost'}
+              size='sm'
+              onClick={() => setViewMode('kanban')}
+              className='gap-1.5'
+            >
+              <Icons.kanban className='h-3.5 w-3.5' />
+              看板
+            </Button>
+            <Button
+              variant={viewMode === 'timeline' ? 'default' : 'ghost'}
+              size='sm'
+              onClick={() => setViewMode('timeline')}
+              className='gap-1.5'
+            >
+              <Icons.calendar className='h-3.5 w-3.5' />
+              时间线
+            </Button>
+          </div>
+
+          {viewMode === 'kanban' ? (
+            <KanbanBoard projectId={projectId} />
+          ) : (
+            <ProjectTimelineView projectId={projectId} />
+          )}
         </div>
       )}
     </PageContainer>

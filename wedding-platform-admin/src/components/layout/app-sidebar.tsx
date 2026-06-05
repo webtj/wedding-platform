@@ -25,13 +25,13 @@ import {
   SidebarRail
 } from '@/components/ui/sidebar';
 import { UserAvatarProfile } from '@/components/user-avatar-profile';
-import { useDynamicNavGroups } from '@/config/nav-config';
+import { useDynamicNavGroups, getProjectNavGroups } from '@/config/nav-config';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { useUser } from '@clerk/nextjs';
 import { useFilteredNavGroups } from '@/hooks/use-nav';
 import { SignOutButton } from '@clerk/nextjs';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { useParams, usePathname, useRouter } from 'next/navigation';
 import * as React from 'react';
 import { Icons } from '../icons';
 import { OrgSwitcher } from '../org-switcher';
@@ -41,7 +41,12 @@ export default function AppSidebar() {
   const { isOpen } = useMediaQuery();
   const { user } = useUser();
   const router = useRouter();
-  const filteredGroups = useFilteredNavGroups(useDynamicNavGroups());
+  const { projectId } = useParams() as { projectId?: string };
+  const baseGroups = useDynamicNavGroups();
+  const allGroups = projectId
+    ? [...getProjectNavGroups(projectId), ...baseGroups]
+    : baseGroups;
+  const filteredGroups = useFilteredNavGroups(allGroups);
 
   React.useEffect(() => {
     // Side effects based on sidebar state changes
@@ -148,14 +153,6 @@ export default function AppSidebar() {
                   <DropdownMenuItem onClick={() => router.push('/studio/profile')}>
                     <Icons.account className='mr-2 h-4 w-4' />
                     个人信息
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => router.push('/studio/notifications')}>
-                    <Icons.notification className='mr-2 h-4 w-4' />
-                    通知
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => router.push('/studio/settings')}>
-                    <Icons.settings className='mr-2 h-4 w-4' />
-                    设置
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />

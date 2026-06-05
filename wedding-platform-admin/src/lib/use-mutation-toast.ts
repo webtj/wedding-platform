@@ -14,12 +14,12 @@ export function useMutationToast<TData, TError, TVars, TContext>(
     ...rest,
     onSuccess(data, vars, ctx) {
       if (successMsg) toast.success(successMsg);
-      (origSuccess as any)?.(data, vars, ctx);
+      if (origSuccess) (origSuccess as (d: TData, v: TVars, c: TContext | undefined) => void)(data, vars, ctx);
     },
     onError(err, vars, ctx) {
       const msg = errorMsg ?? (err instanceof Error ? err.message : '操作失败');
       toast.error(msg);
-      (origError as any)?.(err, vars, ctx);
+      if (origError) (origError as (e: TError, v: TVars, c: TContext | undefined) => void)(err, vars, ctx);
     }
   });
 }

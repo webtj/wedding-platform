@@ -743,6 +743,7 @@ export default function DemoForm() {
                             value={field.state.value}
                             onChange={(e) => field.handleChange(e.target.value)}
                             className='h-9 w-12 cursor-pointer rounded-md border p-1'
+                            aria-label='选择颜色'
                           />
                           <Input
                             value={field.state.value}

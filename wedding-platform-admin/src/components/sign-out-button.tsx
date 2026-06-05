@@ -25,8 +25,12 @@ export function SignOutButton({ redirectUrl = '/auth/sign-in', children }: Props
   );
 
   return (
-    <span onClick={handleClick} className='cursor-pointer'>
+    <button
+      type='button'
+      onClick={handleClick}
+      className='cursor-pointer border-0 bg-transparent p-0 text-inherit'
+    >
       {children ?? 'Sign out'}
-    </span>
+    </button>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 import PageContainer from '@/components/layout/page-container';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useAuth, useOrganizationList } from '@clerk/nextjs';
 import { Icons } from '@/components/icons';

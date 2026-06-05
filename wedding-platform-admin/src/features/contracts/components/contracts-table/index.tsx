@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { parseAsInteger, parseAsString, useQueryStates } from 'nuqs';
@@ -183,11 +184,6 @@ export function ContractsTable() {
 }
 
 function ContractRow({ contract }: { contract: Contract }) {
-  const voidCt = useMutationToast({
-    ...voidContractMutation,
-    successMsg: '合同已撤销',
-    errorMsg: '撤销失败'
-  });
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [projectOpen, setProjectOpen] = useState(false);
@@ -439,6 +435,7 @@ function EditContractDialog({
               rows={4}
               className='border-input bg-card text-foreground focus-visible:ring-ring flex w-full rounded-lg border px-3 py-2 text-sm focus-visible:ring-1 focus-visible:outline-none resize-y'
               placeholder='填写服务内容和条款...'
+              aria-label='服务内容'
             />
           </div>
           <div className='grid grid-cols-2 gap-3'>
@@ -648,10 +645,13 @@ function PreviewContractDialog({
           {contract.signatureData && (
             <div className='border-t pt-4'>
               <h4 className='font-semibold mb-2'>客户签名</h4>
-              <img
-                src={contract.signatureData}
+              <Image
+                src={contract.signatureData.startsWith('data:image/png') || contract.signatureData.startsWith('data:image/jpeg') ? contract.signatureData : ''}
                 alt='客户签名'
                 className='max-w-[300px] border-b border-gray-400 pb-2'
+                width={300}
+                height={100}
+                unoptimized
               />
             </div>
           )}
@@ -702,7 +702,7 @@ function ConvertToProjectDialog({
         specialRequirements: specialRequirements || undefined
       });
       window.location.reload();
-    } catch (e) {
+    } catch {
       /* toast handled */
     }
   }
@@ -783,6 +783,7 @@ function ConvertToProjectDialog({
               rows={2}
               className='border-input bg-card text-foreground focus-visible:ring-ring flex w-full rounded-lg border px-3 py-2 text-sm focus-visible:ring-1 focus-visible:outline-none resize-y'
               placeholder='新人的特殊需求或注意事项...'
+              aria-label='特殊要求'
             />
           </div>
         </div>

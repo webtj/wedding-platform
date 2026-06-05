@@ -7,6 +7,7 @@ export type Lead = {
   sourceChannel: string;
   status: string;
   weddingDate: string | null;
+  budgetCents: number | null;
   note: string | null;
   consultationTime: string | null;
   lostReason?: string | null;
@@ -40,6 +41,7 @@ export type LeadMutationPayload = {
   sourceChannel?: string;
   status?: string;
   weddingDate?: string;
+  budgetCents?: number;
   note?: string;
   consultationTime?: string;
   lostReason?: string;

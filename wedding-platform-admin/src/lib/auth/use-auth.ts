@@ -13,6 +13,9 @@ export function useAuth() {
     orgId: ctx.orgId,
     isSignedIn: ctx.isSignedIn,
     isLoaded: ctx.isLoaded,
+    isPlatformAdmin: ctx.isPlatformAdmin,
+    platformLevel: ctx.platformLevel,
+    permissions: ctx.permissions,
     getToken: ctx.getToken,
     signOut: ctx.signOut
   };

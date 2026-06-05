@@ -1,34 +1,41 @@
-import * as Sentry from '@sentry/nextjs';
+type SentryModule = typeof import('@sentry/nextjs');
+type SentryOptions = Parameters<SentryModule['init']>[0];
 
-const sentryOptions: Sentry.NodeOptions | Sentry.EdgeOptions = {
-  // Sentry DSN
-  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+let Sentry: SentryModule | null = null;
+let sentryLoadAttempted = false;
 
-  // Enable Spotlight in development
-  spotlight: process.env.NODE_ENV === 'development',
-
-  // Adds request headers and IP for users, for more info visit
-  sendDefaultPii: true,
-
-  // Adjust this value in production, or use tracesSampler for greater control
-  tracesSampleRate: 1,
-
-  // Setting this option to true will print useful information to the console while you're setting up Sentry.
-  debug: false
-};
-
-export async function register() {
-  if (!process.env.NEXT_PUBLIC_SENTRY_DISABLED) {
-    if (process.env.NEXT_RUNTIME === 'nodejs') {
-      // Node.js Sentry configuration
-      Sentry.init(sentryOptions);
-    }
-
-    if (process.env.NEXT_RUNTIME === 'edge') {
-      // Edge Sentry configuration
-      Sentry.init(sentryOptions);
-    }
+async function loadSentry(): Promise<SentryModule | null> {
+  if (sentryLoadAttempted) return Sentry;
+  sentryLoadAttempted = true;
+  try {
+    Sentry = await import('@sentry/nextjs');
+    return Sentry;
+  } catch (err) {
+    console.warn(
+      '[instrumentation] @sentry/nextjs is not available, skipping Sentry init:',
+      err instanceof Error ? err.message : err
+    );
+    return null;
   }
 }
 
-export const onRequestError = Sentry.captureRequestError;
+export async function register() {
+  if (process.env.NEXT_PUBLIC_SENTRY_DISABLED) return;
+
+  const sentry = await loadSentry();
+  if (!sentry) return;
+
+  const sentryOptions: SentryOptions = {
+    dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+    spotlight: process.env.NODE_ENV === 'development',
+    sendDefaultPii: true,
+    tracesSampleRate: 1,
+    debug: false
+  };
+
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    sentry.init(sentryOptions);
+  } else if (process.env.NEXT_RUNTIME === 'edge') {
+    sentry.init(sentryOptions);
+  }
+}

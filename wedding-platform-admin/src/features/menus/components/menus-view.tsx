@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useMutationToast } from '@/lib/use-mutation-toast';
 import { useState, useCallback, type ReactNode } from 'react';
 import {
@@ -113,22 +113,6 @@ function IconPicker({ value, onChange }: { value: string; onChange: (v: string) 
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function flattenTree(
-  items: MenuItem[],
-  depth = 0,
-  parentHidden = false
-): (MenuItem & { _depth: number; _parentHidden: boolean })[] {
-  const result: (MenuItem & { _depth: number; _parentHidden: boolean })[] = [];
-  for (const item of items) {
-    const hidden = parentHidden || !item.visible;
-    result.push({ ...item, _depth: depth, _parentHidden: hidden });
-    if (item.children?.length) {
-      result.push(...flattenTree(item.children, depth + 1, !item.visible));
-    }
-  }
-  return result;
-}
-
 function makeParentOptions(items: MenuItem[], excludeId?: string): MenuItem[] {
   const result: MenuItem[] = [];
   for (const item of items) {
@@ -146,11 +130,6 @@ function makeParentOptions(items: MenuItem[], excludeId?: string): MenuItem[] {
 
 export function MenusView() {
   const { data, isLoading } = useQuery(menusQueryOptions());
-  const reorder = useMutationToast({
-    ...reorderMenusMutation,
-    successMsg: '排序已保存',
-    errorMsg: '保存失败'
-  });
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggleExpand = useCallback((id: string) => {
     setExpanded((prev) => {
@@ -172,8 +151,6 @@ export function MenusView() {
       </div>
     );
   }
-
-  const allFlat = flattenTree(data);
 
   return (
     <div className='space-y-4'>

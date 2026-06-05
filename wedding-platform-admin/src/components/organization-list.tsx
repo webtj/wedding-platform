@@ -13,7 +13,7 @@ type Props = {
 export function OrganizationList({
   appearance: _appearance,
   afterSelectOrganizationUrl,
-  afterCreateOrganizationUrl
+  afterCreateOrganizationUrl: _afterCreateOrganizationUrl
 }: Props) {
   const { orgId } = useAuth();
   const { isLoaded, setActive, userMemberships } = useOrganizationList();
@@ -46,9 +46,10 @@ export function OrganizationList({
         const isActive = org.id === orgId;
 
         return (
-          <div
+          <button
+            type='button'
             key={membership.id}
-            className={`flex cursor-pointer items-center justify-between rounded-lg border p-4 transition-colors hover:bg-accent ${
+            className={`flex w-full items-center justify-between rounded-lg border p-4 text-left transition-colors hover:bg-accent ${
               isActive ? 'border-primary bg-accent' : ''
             }`}
             onClick={async () => {
@@ -65,7 +66,7 @@ export function OrganizationList({
               <p className='text-muted-foreground text-sm'>{membership.role}</p>
             </div>
             {isActive && <Icons.check className='h-4 w-4 text-primary' />}
-          </div>
+          </button>
         );
       })}
     </div>

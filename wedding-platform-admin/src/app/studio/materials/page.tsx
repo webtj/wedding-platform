@@ -73,7 +73,6 @@ export default function MaterialsPage() {
 
   const createCat = useMutationToast({ ...crCat, successMsg: '分类已创建' });
   const updateCat = useMutationToast({ ...upCat, successMsg: '已更新' });
-  const deleteCat = useMutationToast({ ...dlCat, successMsg: '分类已删除' });
   const createMat = useMutationToast({ ...crMat, successMsg: '物料已添加' });
   const updateMat = useMutationToast({ ...upMat, successMsg: '已更新' });
   const deleteMat = useMutationToast({ ...dlMat, successMsg: '物料已删除' });
@@ -216,8 +215,8 @@ function CategoryCard({
   onEdit: () => void;
   onDeleteRequest: () => void;
   onEditMat: (m: Material) => void;
-  updateMat: any;
-  deleteMat: any;
+  updateMat: { mutate: (vars: { id: string; data: Partial<Material> }) => void };
+  deleteMat: { mutate: (id: string) => void };
   search: string;
 }) {
   const [open, setOpen] = useState(true);
@@ -239,6 +238,9 @@ function CategoryCard({
       <div
         className='flex items-center gap-3 px-4 py-2.5 cursor-pointer select-none'
         onClick={() => setOpen(!open)}
+        onKeyDown={(e) => e.key === 'Enter' && setOpen(!open)}
+        role='button'
+        tabIndex={0}
       >
         <Icons.chevronRight
           className={`h-4 w-4 text-muted-foreground transition-transform duration-200 flex-shrink-0 ${expanded ? 'rotate-90' : ''}`}
@@ -262,7 +264,7 @@ function CategoryCard({
             </div>
           )}
         </div>
-        <div className='flex items-center gap-0.5' onClick={(e) => e.stopPropagation()}>
+        <div className='flex items-center gap-0.5' onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.key === 'Enter' && e.stopPropagation()} role='button' tabIndex={0}>
           <QuickAddMat catId={cat.id} onAdded={() => refetch()} />
           <Button variant='ghost' size='sm' className='h-7 text-xs' onClick={onEdit}>
             编辑
@@ -330,6 +332,9 @@ function MatChip({
           : 'border-amber-200 bg-amber-50/40 hover:border-amber-300'
       }`}
       onClick={onToggle}
+      onKeyDown={(e) => e.key === 'Enter' && onToggle()}
+      role='button'
+      tabIndex={0}
     >
       {isAvail ? (
         <Icons.circleCheck className='h-4 w-4 text-emerald-500 flex-shrink-0' />
@@ -345,6 +350,9 @@ function MatChip({
       <div
         className='hidden group-hover:flex items-center gap-0.5 flex-shrink-0'
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.key === 'Enter' && e.stopPropagation()}
+        role='button'
+        tabIndex={0}
       >
         <Button variant='ghost' size='sm' className='h-5 text-xs px-1' onClick={onEdit}>
           编辑
@@ -441,7 +449,7 @@ function CategoryDialog({
         </DialogHeader>
         <div className='space-y-2'>
           <Label>名称</Label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+          <Input value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <DialogFooter>
           <Button variant='outline' onClick={() => onOpenChange(false)}>
@@ -459,7 +467,7 @@ function CategoryDialog({
 function MatDialog({
   open,
   onOpenChange,
-  categoryId,
+  categoryId: _categoryId,
   initial,
   onSave
 }: {
@@ -495,7 +503,7 @@ function MatDialog({
         <div className='flex flex-col gap-4'>
           <div className='space-y-2'>
             <Label>名称</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+            <Input value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div className='grid grid-cols-2 gap-3'>
             <div className='space-y-2'>

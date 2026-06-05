@@ -21,7 +21,7 @@ import {
 import { updateTemplate, duplicateTemplate } from '@/features/templates/api/service';
 import { mutationOptions } from '@tanstack/react-query';
 import { getQueryClient } from '@/lib/query-client';
-import type { TemplateFilters } from '@/features/templates/api/types';
+import type { TemplateFilters, ProcessTemplate, TemplateStage, TemplateTask } from '@/features/templates/api/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,7 +52,7 @@ export default function TemplatesPage() {
   const debounce = useDebouncedCallback((v: string) => setParams({ search: v }), 400);
   const [createOpen, setCreateOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [editTpl, setEditTpl] = useState<any>(null);
+  const [editTpl, setEditTpl] = useState<ProcessTemplate | null>(null);
   const [delStageId, setDelStageId] = useState<string | null>(null);
   const [delTplId, setDelTplId] = useState<string | null>(null);
 
@@ -182,7 +182,7 @@ function TemplateCard({
   onDeleteRequest,
   onDeleteStage
 }: {
-  template: any;
+  template: ProcessTemplate;
   expanded: boolean;
   onToggle: () => void;
   onEdit: () => void;
@@ -196,7 +196,7 @@ function TemplateCard({
   });
   const stages = detail?.stages ?? [];
   const stageCount = stages.length;
-  const taskCount = stages.reduce((s: number, st: any) => s + (st.tasks?.length ?? 0), 0);
+  const taskCount = stages.reduce((s: number, st: TemplateStage) => s + (st.tasks?.length ?? 0), 0);
 
   // Local state for name/desc to avoid flashing
   const [localName, setLocalName] = useState(template.name);
@@ -231,6 +231,9 @@ function TemplateCard({
           : 'cursor-pointer hover:-translate-y-1 hover:shadow-md hover:border-muted-foreground/20'
       }`}
       onClick={() => !expanded && onToggle()}
+      onKeyDown={(e) => e.key === 'Enter' && !expanded && onToggle()}
+      role='button'
+      tabIndex={0}
     >
       {/* Left accent border — collapsed only */}
       {!expanded && (
@@ -241,6 +244,9 @@ function TemplateCard({
         <div
           className='absolute top-4 right-4 flex gap-1 z-10'
           onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.key === 'Enter' && e.stopPropagation()}
+          role='button'
+          tabIndex={0}
         >
           <button
             className='w-8 h-8 rounded-lg border bg-card flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors'
@@ -323,7 +329,7 @@ function TemplateCard({
         {/* Flow viz — collapsed only */}
         {!expanded && stages.length > 0 && (
           <div className='flex items-center gap-0 py-1 overflow-x-auto'>
-            {stages.map((s: any, i: number) => (
+            {stages.map((s, i) => (
               <div key={s.id} className='flex items-center flex-shrink-0'>
                 <div className='flex flex-col items-center'>
                   <div className='w-2.5 h-2.5 rounded-full border-2 border-primary bg-primary/10' />
@@ -365,7 +371,7 @@ function ExpandedEditor({
   onRefresh,
   onDeleteStage
 }: {
-  template: any;
+  template: ProcessTemplate;
   onRefresh: () => void;
   onDeleteStage: (sid: string) => void;
 }) {
@@ -373,7 +379,7 @@ function ExpandedEditor({
   const [activeId, setActiveId] = useState(stages[0]?.id ?? null);
   const [editingStageId, setEditingStageId] = useState<string | null>(null);
   const updS = useMutationToast({ ...updateStageMutation, successMsg: '已更新' });
-  const current = stages.find((s: any) => s.id === activeId);
+  const current = stages.find((s) => s.id === activeId);
   const addT = useMutationToast({ ...addTaskMutation, successMsg: '任务已添加' });
   const [newTitle, setNewTitle] = useState('');
 
@@ -388,11 +394,14 @@ function ExpandedEditor({
           <div className='relative'>
             {/* Vertical line — behind the circles, not through them */}
             <div className='absolute left-[13px] top-[22px] bottom-[22px] w-0.5 bg-border' />
-            {stages.map((s: any, i: number) => (
+            {stages.map((s, i) => (
               <div
                 key={s.id}
                 className={`relative pl-9 py-1.5 cursor-pointer`}
                 onClick={() => setActiveId(s.id)}
+                onKeyDown={(e) => e.key === 'Enter' && setActiveId(s.id)}
+                role='button'
+                tabIndex={0}
               >
                 {/* Numbered circle — sits ON TOP of the line */}
                 <div
@@ -423,7 +432,6 @@ function ExpandedEditor({
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') setEditingStageId(null);
                       }}
-                      autoFocus
                       onClick={(e) => e.stopPropagation()}
                     />
                   ) : (
@@ -472,7 +480,7 @@ function ExpandedEditor({
             {(current.tasks ?? []).length === 0 && (
               <p className='text-sm text-muted-foreground text-center py-6'>此阶段暂无子任务</p>
             )}
-            {(current.tasks ?? []).map((task: any, i: number) => (
+            {(current.tasks ?? []).map((task, i) => (
               <TaskRow key={task.id} task={task} index={i + 1} onRefresh={onRefresh} />
             ))}
             <div className='flex items-center gap-2'>
@@ -529,7 +537,7 @@ function ExpandedEditor({
   );
 }
 
-function TaskRow({ task, index, onRefresh }: { task: any; index: number; onRefresh: () => void }) {
+function TaskRow({ task, index, onRefresh }: { task: TemplateTask; index: number; onRefresh: () => void }) {
   const upd = useMutationToast({ ...updateTaskMutation, successMsg: '已更新' });
   const del = useMutationToast({ ...deleteTaskMutation, successMsg: '已删除' });
   const prio = String(task.priority || 3);
@@ -544,6 +552,7 @@ function TaskRow({ task, index, onRefresh }: { task: any; index: number; onRefre
         className='flex-1 min-w-[100px] text-sm font-medium border border-transparent bg-transparent hover:border-border focus:border-primary rounded-md px-2 py-1 outline-none transition-colors'
         value={task.title}
         onChange={(e) => upd.mutate({ taskId: task.id, data: { title: e.target.value } })}
+        aria-label='任务标题'
       />
       <select
         className={`text-[11px] font-semibold border rounded-full px-2 py-0.5 outline-none cursor-pointer flex-shrink-0 ${PRIO[prio] ?? PRIO['3']}`}
@@ -566,6 +575,7 @@ function TaskRow({ task, index, onRefresh }: { task: any; index: number; onRefre
           onChange={(e) =>
             upd.mutate({ taskId: task.id, data: { offsetDays: +e.target.value || 0 } })
           }
+          aria-label='偏移天数'
         />
         <span>天</span>
       </div>
@@ -585,7 +595,7 @@ function TemplateMemberSelect({
   onRefresh
 }: {
   taskId: string;
-  assignees: any[];
+  assignees: TemplateTask['assignees'];
   onRefresh: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -594,11 +604,11 @@ function TemplateMemberSelect({
     queryFn: () => apiClient<{ id: string; displayName: string }[]>('/tenant-members'),
     staleTime: 2 * 60 * 1000
   });
-  const assigneeIds = new Set(assignees.map((a: any) => a.memberId));
+  const assigneeIds = new Set((assignees ?? []).map((a) => a.memberId));
 
   async function toggle(memberId: string) {
     if (assigneeIds.has(memberId)) {
-      const a = assignees.find((x: any) => x.memberId === memberId);
+      const a = (assignees ?? []).find((x) => x.memberId === memberId);
       if (a) await apiClient(`/templates/task-assignees/${a.id}`, { method: 'DELETE' });
     } else {
       await apiClient(`/templates/tasks/${taskId}/assignees`, {
@@ -614,8 +624,8 @@ function TemplateMemberSelect({
       <PopoverTrigger asChild>
         <Button variant='outline' size='sm' className='h-7 text-[11px] gap-1 px-2 font-normal'>
           <Icons.user className='h-3 w-3' />
-          {assignees.length > 0 ? (
-            <span>{assignees.length}人</span>
+          {(assignees ?? []).length > 0 ? (
+            <span>{(assignees ?? []).length}人</span>
           ) : (
             <span className='text-muted-foreground'>指派</span>
           )}
@@ -623,15 +633,18 @@ function TemplateMemberSelect({
       </PopoverTrigger>
       <PopoverContent className='w-48 p-0' align='start'>
         <div className='max-h-48 overflow-y-auto p-1'>
-          {(members ?? []).map((m: any) => (
-            <label
+          {(members ?? []).map((m) => (
+            <div
               key={m.id}
               className='flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-xs'
               onClick={() => toggle(m.id)}
+              onKeyDown={(e) => e.key === 'Enter' && toggle(m.id)}
+              role='button'
+              tabIndex={0}
             >
               <Checkbox checked={assigneeIds.has(m.id)} className='h-3.5 w-3.5' />
               {m.displayName}
-            </label>
+            </div>
           ))}
           {(!members || members.length === 0) && (
             <p className='text-xs text-muted-foreground text-center py-3'>暂无成员</p>
@@ -649,7 +662,7 @@ function CreateDialog({
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  onSave: (d: any) => void;
+  onSave: (d: { name: string; description?: string; category?: string }) => void;
 }) {
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
@@ -663,7 +676,7 @@ function CreateDialog({
         <div className='flex flex-col gap-4'>
           <div className='space-y-2'>
             <Label>名称</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+            <Input value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div className='space-y-2'>
             <Label>分类</Label>
@@ -707,7 +720,7 @@ function EditDialog({
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  tpl: any;
+  tpl: ProcessTemplate;
 }) {
   const [name, setName] = useState(tpl.name);
   const [desc, setDesc] = useState(tpl.description ?? '');

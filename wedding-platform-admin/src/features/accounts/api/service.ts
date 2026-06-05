@@ -21,7 +21,7 @@ export async function createAccount(data: {
   password: string;
   displayName: string;
   roleIds: string[];
-  tenantId: string;
+  tenantId?: string;
 }) {
   return apiClient<Account>('/super/users', { method: 'POST', body: JSON.stringify(data) });
 }

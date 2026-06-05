@@ -25,14 +25,6 @@ export type Contract = {
   signatureData?: string | null;
   signedAt?: string | null;
   updatedAt?: string;
-  payments?: {
-    id: string;
-    amountCents: number;
-    status: string;
-    method?: string | null;
-    paidAt?: string | null;
-    note?: string | null;
-  }[];
 };
 
 export type ContractFilters = {
@@ -70,10 +62,4 @@ export type CreateContractPayload = {
   contractNo: string;
   title: string;
   amountCents: number;
-};
-
-export type CreatePaymentPayload = {
-  amountCents: number;
-  method: string;
-  note?: string;
 };

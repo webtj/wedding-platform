@@ -20,10 +20,25 @@ function convertMenuItem(item: MenuItemData): NavItem {
 export function menusToNavGroups(menus: MenuItemData[]): NavGroup[] {
   if (!menus || menus.length === 0) return [];
 
-  return [
-    {
+  // Separate platform and tenant menus
+  const platformMenus = menus.filter((m) => m.scope === 'platform');
+  const tenantMenus = menus.filter((m) => m.scope !== 'platform');
+
+  const groups: NavGroup[] = [];
+
+  if (platformMenus.length > 0) {
+    groups.push({
+      label: '平台',
+      items: platformMenus.map(convertMenuItem)
+    });
+  }
+
+  if (tenantMenus.length > 0) {
+    groups.push({
       label: '',
-      items: menus.map(convertMenuItem)
-    }
-  ];
+      items: tenantMenus.map(convertMenuItem)
+    });
+  }
+
+  return groups;
 }

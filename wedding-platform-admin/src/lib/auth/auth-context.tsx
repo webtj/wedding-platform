@@ -10,7 +10,13 @@ import {
   type ReactNode
 } from 'react';
 import { useRouter } from 'next/navigation';
-import { fetchMe, invalidateMe, logout, getCachedMe } from './auth-client';
+import {
+  fetchMe,
+  invalidateMe,
+  logout,
+  getCachedMe,
+  AUTH_ME_INVALIDATED_EVENT
+} from './auth-client';
 import { getActiveTenantId, setActiveTenantId } from './auth-storage';
 import type {
   AuthUser,
@@ -39,6 +45,9 @@ type AuthState = {
   }>;
   menus: MenuItemData[];
   me: CurrentUserResponse | null;
+  isPlatformAdmin: boolean;
+  platformLevel?: 'super' | 'admin';
+  permissions: string[];
 };
 
 const initialState: AuthState = {
@@ -52,7 +61,9 @@ const initialState: AuthState = {
   organizations: [],
   memberships: [],
   menus: [],
-  me: null
+  me: null,
+  isPlatformAdmin: false,
+  permissions: []
 };
 
 type AuthContextValue = AuthState & {
@@ -83,7 +94,7 @@ function mapOrganization(tenant: CurrentUserResponse['tenants'][number]): AuthOr
     slug: null,
     imageUrl: '',
     hasImage: false,
-    address: (tenant as any).address ?? null
+    address: tenant.address ?? null
   };
 }
 
@@ -91,7 +102,7 @@ function mapMembership(tenant: CurrentUserResponse['tenants'][number]): AuthMemb
   return {
     id: tenant.memberId,
     role: tenant.roles[0] ?? 'member',
-    permissions: [],
+    permissions: tenant.permissions ?? [],
     organization: mapOrganization(tenant)
   };
 }
@@ -103,7 +114,7 @@ function platformAdminOrg(): AuthOrganization {
 function platformAdminMembership(): AuthMembership {
   return {
     id: '__platform__',
-    role: 'super_admin',
+    role: 'platform_admin',
     permissions: ['*'],
     organization: platformAdminOrg()
   };
@@ -112,7 +123,7 @@ function platformAdminMembership(): AuthMembership {
 function collectPermissions(me: CurrentUserResponse, tenantId: string): string[] {
   if (me.isPlatformAdmin) return ['*'];
   const tenant = me.tenants.find((t) => t.id === tenantId);
-  return tenant?.roles ?? [];
+  return tenant?.permissions ?? [];
 }
 
 // ── Provider ───────────────────────────────────────────────────────────────
@@ -131,28 +142,36 @@ export function ClerkProvider({
       const activeId = getActiveTenantId();
       const org = activeId ? cached.tenants.find((t) => t.id === activeId) : cached.tenants[0];
       const finalOrg = org ?? cached.tenants[0];
-      const isPlatformAdminNoTenant = cached.isPlatformAdmin && cached.tenants.length === 0;
+      const isPlatformAdmin = cached.isPlatformAdmin;
+      const platformOrg = platformAdminOrg();
       return {
         isLoaded: true,
         isSignedIn: true,
         userId: cached.id,
-        orgId: isPlatformAdminNoTenant ? '__platform__' : (finalOrg?.id ?? null),
+        orgId: activeId && activeId !== '__platform__'
+          ? (finalOrg?.id ?? (isPlatformAdmin ? '__platform__' : null))
+          : (isPlatformAdmin ? '__platform__' : (finalOrg?.id ?? null)),
         user: mapUser(cached),
-        organization: isPlatformAdminNoTenant
-          ? platformAdminOrg()
+        organization: isPlatformAdmin && (!activeId || activeId === '__platform__')
+          ? platformOrg
           : finalOrg
             ? mapOrganization(finalOrg)
             : null,
-        membership: isPlatformAdminNoTenant
+        membership: isPlatformAdmin && (!activeId || activeId === '__platform__')
           ? platformAdminMembership()
           : finalOrg
             ? mapMembership(finalOrg)
             : null,
-        organizations: isPlatformAdminNoTenant
-          ? [platformAdminOrg()]
+        organizations: isPlatformAdmin
+          ? [platformOrg, ...cached.tenants.map(mapOrganization)]
           : cached.tenants.map(mapOrganization),
-        memberships: isPlatformAdminNoTenant
-          ? [platformAdminMembership()]
+        memberships: isPlatformAdmin
+          ? [platformAdminMembership(), ...cached.tenants.map((t) => ({
+              id: t.memberId,
+              role: t.roles[0] ?? 'member',
+              permissions: collectPermissions(cached, t.id),
+              organization: mapOrganization(t)
+            }))]
           : cached.tenants.map((t) => ({
               id: t.memberId,
               role: t.roles[0] ?? 'member',
@@ -160,7 +179,10 @@ export function ClerkProvider({
               organization: mapOrganization(t)
             })),
         menus: finalOrg?.menus ?? [],
-        me: cached
+        me: cached,
+        isPlatformAdmin: cached.isPlatformAdmin ?? false,
+        platformLevel: cached.platformLevel,
+        permissions: finalOrg?.permissions ?? []
       };
     }
     return initialState;
@@ -172,28 +194,36 @@ export function ClerkProvider({
       const activeId = getActiveTenantId();
       const org = activeId ? me.tenants.find((t) => t.id === activeId) : me.tenants[0];
       const finalOrg = org ?? me.tenants[0];
-      const isPlatformAdminNoTenant = me.isPlatformAdmin && me.tenants.length === 0;
+      const isPlatformAdmin = me.isPlatformAdmin;
+      const platformOrg = platformAdminOrg();
       setState({
         isLoaded: true,
         isSignedIn: true,
         userId: me.id,
-        orgId: isPlatformAdminNoTenant ? '__platform__' : (finalOrg?.id ?? null),
+        orgId: activeId && activeId !== '__platform__'
+          ? (finalOrg?.id ?? (isPlatformAdmin ? '__platform__' : null))
+          : (isPlatformAdmin ? '__platform__' : (finalOrg?.id ?? null)),
         user: mapUser(me),
-        organization: isPlatformAdminNoTenant
-          ? platformAdminOrg()
+        organization: isPlatformAdmin && (!activeId || activeId === '__platform__')
+          ? platformOrg
           : finalOrg
             ? mapOrganization(finalOrg)
             : null,
-        membership: isPlatformAdminNoTenant
+        membership: isPlatformAdmin && (!activeId || activeId === '__platform__')
           ? platformAdminMembership()
           : finalOrg
             ? mapMembership(finalOrg)
             : null,
-        organizations: isPlatformAdminNoTenant
-          ? [platformAdminOrg()]
+        organizations: isPlatformAdmin
+          ? [platformOrg, ...me.tenants.map(mapOrganization)]
           : me.tenants.map(mapOrganization),
-        memberships: isPlatformAdminNoTenant
-          ? [platformAdminMembership()]
+        memberships: isPlatformAdmin
+          ? [platformAdminMembership(), ...me.tenants.map((t) => ({
+              id: t.memberId,
+              role: t.roles[0] ?? 'member',
+              permissions: collectPermissions(me, t.id),
+              organization: mapOrganization(t)
+            }))]
           : me.tenants.map((t) => ({
               id: t.memberId,
               role: t.roles[0] ?? 'member',
@@ -201,7 +231,10 @@ export function ClerkProvider({
               organization: mapOrganization(t)
             })),
         menus: finalOrg?.menus ?? [],
-        me
+        me,
+        isPlatformAdmin: me.isPlatformAdmin ?? false,
+        platformLevel: me.platformLevel,
+        permissions: finalOrg?.permissions ?? []
       });
     } catch {
       setState({ ...initialState, isLoaded: true });
@@ -214,6 +247,15 @@ export function ClerkProvider({
       bootstrap();
     }
   }, [state.isLoaded, bootstrap]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = () => {
+      void bootstrap();
+    };
+    window.addEventListener(AUTH_ME_INVALIDATED_EVENT, handler);
+    return () => window.removeEventListener(AUTH_ME_INVALIDATED_EVENT, handler);
+  }, [bootstrap]);
 
   const getToken = useCallback(async () => {
     const { getAccessToken } = await import('./auth-storage');
@@ -241,7 +283,8 @@ export function ClerkProvider({
           ...m,
           permissions: collectPermissions(state.me!, m.organization.id)
         })),
-        menus: tenant.menus ?? []
+        menus: tenant.menus ?? [],
+        permissions: tenant.permissions ?? []
       }));
     },
     [state.me]

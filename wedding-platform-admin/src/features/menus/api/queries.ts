@@ -1,5 +1,6 @@
 import { queryOptions, mutationOptions } from '@tanstack/react-query';
 import { getQueryClient } from '@/lib/query-client';
+import { invalidateMe, notifyAuthMeInvalidated } from '@/lib/auth/auth-client';
 import { getMenus, createMenu, updateMenu, deleteMenu, reorderMenus } from './service';
 import type { MenuItem } from './types';
 
@@ -15,20 +16,36 @@ export const menusQueryOptions = () =>
 
 export const createMenuMutation = mutationOptions({
   mutationFn: (data: Parameters<typeof createMenu>[0]) => createMenu(data),
-  onSuccess: () => getQueryClient().invalidateQueries({ queryKey: menuKeys.all })
+  onSuccess: () => {
+    getQueryClient().invalidateQueries({ queryKey: menuKeys.all });
+    invalidateMe();
+    notifyAuthMeInvalidated();
+  }
 });
 
 export const updateMenuMutation = mutationOptions({
   mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => updateMenu(id, data),
-  onSuccess: () => getQueryClient().invalidateQueries({ queryKey: menuKeys.all })
+  onSuccess: () => {
+    getQueryClient().invalidateQueries({ queryKey: menuKeys.all });
+    invalidateMe();
+    notifyAuthMeInvalidated();
+  }
 });
 
 export const deleteMenuMutation = mutationOptions({
   mutationFn: (id: string) => deleteMenu(id),
-  onSuccess: () => getQueryClient().invalidateQueries({ queryKey: menuKeys.all })
+  onSuccess: () => {
+    getQueryClient().invalidateQueries({ queryKey: menuKeys.all });
+    invalidateMe();
+    notifyAuthMeInvalidated();
+  }
 });
 
 export const reorderMenusMutation = mutationOptions({
   mutationFn: (items: { id: string; sortOrder: number }[]) => reorderMenus(items),
-  onSuccess: () => getQueryClient().invalidateQueries({ queryKey: menuKeys.all })
+  onSuccess: () => {
+    getQueryClient().invalidateQueries({ queryKey: menuKeys.all });
+    invalidateMe();
+    notifyAuthMeInvalidated();
+  }
 });

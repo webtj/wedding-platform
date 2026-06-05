@@ -7,7 +7,7 @@ export default function Page() {
   return (
     <PageContainer
       pageTitle='角色管理'
-      pageDescription='管理平台角色，分配权限码和菜单。内置角色不可删除。'
+      pageDescription='管理角色的权限分配，配置每个角色的功能访问范围。'
     >
       <RolesViewPage />
     </PageContainer>

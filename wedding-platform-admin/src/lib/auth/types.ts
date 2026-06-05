@@ -32,6 +32,7 @@ export type MenuItemData = {
   icon?: string | null;
   sortOrder: number;
   parentId?: string | null;
+  scope?: 'platform' | 'tenant';
   children?: {
     id: string;
     label: string;
@@ -45,11 +46,14 @@ export type CurrentUserResponse = {
   id: string;
   displayName: string;
   isPlatformAdmin: boolean;
+  platformLevel?: 'super' | 'admin';
   tenants: Array<{
     id: string;
     name: string;
+    address?: string | null;
     memberId: string;
     roles: string[];
+    permissions: string[];
     menus: MenuItemData[];
   }>;
 };

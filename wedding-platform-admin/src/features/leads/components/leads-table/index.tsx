@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
   DropdownMenu,
@@ -11,15 +11,17 @@ import {
 import { parseAsInteger, parseAsString, useQueryStates } from 'nuqs';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import { useMutationToast } from '@/lib/use-mutation-toast';
+import { toast } from 'sonner';
 import { useOrganization } from '@clerk/nextjs';
+import { useAppForm } from '@/components/ui/tanstack-form';
 import {
   leadsQueryOptions,
   createLeadMutation,
   updateLeadMutation,
   deleteLeadMutation,
-  convertLeadMutation
+  leadKeys
 } from '../../api/queries';
-import type { Lead, LeadFilters } from '../../api/types';
+import type { Lead, LeadFilters, LeadMutationPayload } from '../../api/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -373,42 +375,38 @@ function AddLeadDialog() {
     successMsg: '意向单已创建',
     errorMsg: '创建失败'
   });
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [sourceChannel, setSourceChannel] = useState('other');
-  const [weddingDate, setWeddingDate] = useState('');
-  const [note, setNote] = useState('');
-  const [emailError, setEmailError] = useState('');
 
-  function handleSave() {
-    if (!name.trim()) return;
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setEmailError('邮箱格式不正确');
-      return;
-    }
-    setEmailError('');
-    create.mutate(
-      {
-        name: name.trim(),
-        phone: phone || undefined,
-        email: email || undefined,
-        sourceChannel,
-        weddingDate: weddingDate || undefined,
-        note: note || undefined
-      } as any,
-      {
-        onSuccess: () => {
-          setOpen(false);
-          setName('');
-          setPhone('');
-          setEmail('');
-          setNote('');
-          setWeddingDate('');
+  const form = useAppForm({
+    defaultValues: {
+      name: '',
+      phone: '',
+      email: '',
+      sourceChannel: 'other',
+      weddingDate: '',
+      budgetYuan: 0,
+      note: ''
+    },
+    onSubmit: async ({ value }) => {
+      if (!value.name.trim()) return;
+      create.mutate(
+        {
+          name: value.name.trim(),
+          phone: value.phone || undefined,
+          email: value.email || undefined,
+          sourceChannel: value.sourceChannel,
+          weddingDate: value.weddingDate || undefined,
+          budgetCents: value.budgetYuan ? Math.round(value.budgetYuan * 100) : undefined,
+          note: value.note || undefined
+        } satisfies LeadMutationPayload,
+        {
+          onSuccess: () => {
+            setOpen(false);
+            form.reset();
+          }
         }
-      }
-    );
-  }
+      );
+    }
+  });
 
   return (
     <>
@@ -422,80 +420,65 @@ function AddLeadDialog() {
             <DialogTitle>新增意向单</DialogTitle>
             <DialogDescription>记录新的客户咨询意向</DialogDescription>
           </DialogHeader>
-          <div className='flex flex-col gap-4 max-h-[60vh] overflow-y-auto'>
-            <div className='space-y-2'>
-              <Label>客户名称 *</Label>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+          <form.AppForm>
+            <form.Form className='flex flex-col gap-4 max-h-[60vh] overflow-y-auto p-0 mx-0'>
+              <form.TextField
+                name='name'
+                label='客户名称 *'
                 placeholder='客户姓名或称呼'
+                required
               />
-            </div>
-            <div className='grid grid-cols-2 gap-3'>
-              <div className='space-y-2'>
-                <Label>电话</Label>
-                <Input
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder='手机号'
-                />
-              </div>
-              <div className='space-y-2'>
-                <Label>邮箱</Label>
-                <Input
+              <div className='grid grid-cols-2 gap-3'>
+                <form.TextField name='phone' label='电话' placeholder='手机号' />
+                <form.TextField
+                  name='email'
+                  label='邮箱'
                   type='email'
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    setEmailError('');
-                  }}
                   placeholder='email@example.com'
+                  validators={{
+                    onBlur: ({ value }: { value: string }) => {
+                      if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+                        return '邮箱格式不正确';
+                      }
+                      return undefined;
+                    }
+                  }}
                 />
               </div>
-            </div>
-            {emailError && <p className='text-sm text-destructive'>{emailError}</p>}
-            <div className='grid grid-cols-2 gap-3'>
-              <div className='space-y-2'>
-                <Label>来源</Label>
-                <Select value={sourceChannel} onValueChange={setSourceChannel}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(SOURCE_LABEL).map(([k, v]) => (
-                      <SelectItem key={k} value={k}>
-                        {v}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className='space-y-2'>
-                <Label>婚期</Label>
-                <Input
-                  type='date'
-                  value={weddingDate}
-                  onChange={(e) => setWeddingDate(e.target.value)}
+              <div className='grid grid-cols-2 gap-3'>
+                <form.SelectField
+                  name='sourceChannel'
+                  label='来源'
+                  options={Object.entries(SOURCE_LABEL).map(([k, v]) => ({
+                    value: k,
+                    label: v
+                  }))}
                 />
+                <form.TextField name='weddingDate' label='婚期' type='text' placeholder='YYYY-MM-DD' />
               </div>
-            </div>
-            <div className='space-y-2'>
-              <Label>备注</Label>
-              <Input
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder='客户需求备注'
+              <form.TextField
+                name='budgetYuan'
+                label='预算（元）'
+                type='number'
+                placeholder='客户预算'
               />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant='outline' onClick={() => setOpen(false)}>
-              取消
-            </Button>
-            <Button onClick={handleSave} disabled={create.isPending || !name.trim()}>
-              {create.isPending ? '创建中...' : '创建'}
-            </Button>
-          </DialogFooter>
+              <form.TextField name='note' label='备注' placeholder='客户需求备注' />
+              <DialogFooter>
+                <Button variant='outline' type='button' onClick={() => setOpen(false)}>
+                  取消
+                </Button>
+                <form.Subscribe
+                  selector={(state) => [state.canSubmit, state.isSubmitting, state.values.name] as const}
+                >
+                  {([canSubmit, isSubmitting, name]) => (
+                    <Button type='submit' disabled={!canSubmit || !String(name).trim()}>
+                      {isSubmitting ? '创建中...' : '创建'}
+                    </Button>
+                  )}
+                </form.Subscribe>
+              </DialogFooter>
+            </form.Form>
+          </form.AppForm>
         </DialogContent>
       </Dialog>
     </>
@@ -518,31 +501,37 @@ function EditLeadDialog({
     successMsg: '已更新',
     errorMsg: '更新失败'
   });
-  const [name, setName] = useState(lead.name ?? '');
-  const [phone, setPhone] = useState(lead.phone ?? '');
-  const [email, setEmail] = useState(lead.email ?? '');
-  const [sourceChannel, setSourceChannel] = useState(lead.sourceChannel ?? 'other');
-  const [status, setStatus] = useState(lead.status ?? 'new');
-  const [weddingDate, setWeddingDate] = useState(toDateInput(lead.weddingDate));
-  const [note, setNote] = useState(lead.note ?? '');
 
-  function handleSave() {
-    update.mutate(
-      {
-        id: lead.id,
-        data: {
-          name: name || undefined,
-          phone: phone || undefined,
-          email: email || undefined,
-          sourceChannel,
-          status,
-          weddingDate: weddingDate || undefined,
-          note: note || undefined
-        } as any
-      },
-      { onSuccess: () => onOpenChange(false) }
-    );
-  }
+  const form = useAppForm({
+    defaultValues: {
+      name: lead.name ?? '',
+      phone: lead.phone ?? '',
+      email: lead.email ?? '',
+      sourceChannel: lead.sourceChannel ?? 'other',
+      status: lead.status ?? 'new',
+      weddingDate: toDateInput(lead.weddingDate),
+      budgetYuan: lead.budgetCents ? lead.budgetCents / 100 : 0,
+      note: lead.note ?? ''
+    },
+    onSubmit: async ({ value }) => {
+      update.mutate(
+        {
+          id: lead.id,
+          data: {
+            name: value.name || undefined,
+            phone: value.phone || undefined,
+            email: value.email || undefined,
+            sourceChannel: value.sourceChannel,
+            status: value.status,
+            weddingDate: value.weddingDate || undefined,
+            budgetCents: value.budgetYuan ? Math.round(value.budgetYuan * 100) : undefined,
+            note: value.note || undefined
+          } satisfies LeadMutationPayload
+        },
+        { onSuccess: () => onOpenChange(false) }
+      );
+    }
+  });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -551,76 +540,52 @@ function EditLeadDialog({
           <DialogTitle>编辑意向单</DialogTitle>
           <DialogDescription>修改客户信息和跟进状态</DialogDescription>
         </DialogHeader>
-        <div className='flex flex-col gap-4 max-h-[60vh] overflow-y-auto'>
-          <div className='grid grid-cols-2 gap-3'>
-            <div className='space-y-2'>
-              <Label>客户名称</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} />
+        <form.AppForm>
+          <form.Form className='flex flex-col gap-4 max-h-[60vh] overflow-y-auto p-0 mx-0'>
+            <div className='grid grid-cols-2 gap-3'>
+              <form.TextField name='name' label='客户名称' />
+              <form.TextField name='phone' label='电话' />
             </div>
-            <div className='space-y-2'>
-              <Label>电话</Label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
-            </div>
-          </div>
-          <div className='grid grid-cols-2 gap-3'>
-            <div className='space-y-2'>
-              <Label>邮箱</Label>
-              <Input type='email' value={email} onChange={(e) => setEmail(e.target.value)} />
-            </div>
-            <div className='space-y-2'>
-              <Label>来源</Label>
-              <Select value={sourceChannel} onValueChange={setSourceChannel}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(SOURCE_LABEL).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>
-                      {v}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className='grid grid-cols-2 gap-3'>
-            <div className='space-y-2'>
-              <Label>状态</Label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_OPTIONS.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>
-                      {s.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className='space-y-2'>
-              <Label>婚期</Label>
-              <Input
-                type='date'
-                value={weddingDate}
-                onChange={(e) => setWeddingDate(e.target.value)}
+            <div className='grid grid-cols-2 gap-3'>
+              <form.TextField name='email' label='邮箱' type='email' />
+              <form.SelectField
+                name='sourceChannel'
+                label='来源'
+                options={Object.entries(SOURCE_LABEL).map(([k, v]) => ({
+                  value: k,
+                  label: v
+                }))}
               />
             </div>
-          </div>
-          <div className='space-y-2'>
-            <Label>备注</Label>
-            <Input value={note} onChange={(e) => setNote(e.target.value)} />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant='outline' onClick={() => onOpenChange(false)}>
-            取消
-          </Button>
-          <Button onClick={handleSave} disabled={update.isPending}>
-            {update.isPending ? '保存中...' : '保存'}
-          </Button>
-        </DialogFooter>
+            <div className='grid grid-cols-2 gap-3'>
+              <form.SelectField
+                name='status'
+                label='状态'
+                options={STATUS_OPTIONS}
+              />
+              <form.TextField name='weddingDate' label='婚期' type='text' placeholder='YYYY-MM-DD' />
+            </div>
+            <form.TextField
+              name='budgetYuan'
+              label='预算（元）'
+              type='number'
+              placeholder='客户预算'
+            />
+            <form.TextField name='note' label='备注' />
+            <DialogFooter>
+              <Button variant='outline' type='button' onClick={() => onOpenChange(false)}>
+                取消
+              </Button>
+              <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting] as const}>
+                {([canSubmit, isSubmitting]) => (
+                  <Button type='submit' disabled={!canSubmit || update.isPending}>
+                    {isSubmitting || update.isPending ? '保存中...' : '保存'}
+                  </Button>
+                )}
+              </form.Subscribe>
+            </DialogFooter>
+          </form.Form>
+        </form.AppForm>
       </DialogContent>
     </Dialog>
   );
@@ -678,6 +643,7 @@ function CreateContractDialog({
   lead: Lead;
 }) {
   const { organization } = useOrganization();
+  const queryClient = useQueryClient();
 
   const randomPart = Array.from(
     { length: 8 },
@@ -695,7 +661,7 @@ function CreateContractDialog({
   const [deposit, setDeposit] = useState('');
   const [serviceContent, setServiceContent] = useState('');
   const [companyName, setCompanyName] = useState(organization?.name ?? '');
-  const [companyAddress, setCompanyAddress] = useState((organization as any)?.address ?? '');
+  const [companyAddress, setCompanyAddress] = useState((organization as unknown as Record<string, string>)?.address ?? '');
 
   async function handleSave() {
     if (!contractNo.trim() || !title.trim() || !amount) return;
@@ -715,8 +681,13 @@ function CreateContractDialog({
         companyName: companyName || undefined,
         companyAddress: companyAddress || undefined
       });
-      window.location.reload();
-    } catch (e) {}
+      queryClient.invalidateQueries({ queryKey: leadKeys.all });
+      toast.success('合同创建成功');
+      onOpenChange(false);
+    } catch (error) {
+      toast.error('创建合同失败，请重试');
+      console.error('Contract creation failed:', error);
+    }
   }
 
   return (
@@ -783,6 +754,7 @@ function CreateContractDialog({
               rows={4}
               className='border-input bg-card text-foreground focus-visible:ring-ring flex w-full rounded-lg border px-3 py-2 text-sm focus-visible:ring-1 focus-visible:outline-none resize-y'
               placeholder='填写服务内容和条款...'
+              aria-label='服务内容'
             />
           </div>
           <div className='grid grid-cols-2 gap-3'>
@@ -806,126 +778,6 @@ function CreateContractDialog({
           </Button>
           <Button onClick={handleSave} disabled={!contractNo.trim() || !title.trim() || !amount}>
             创建合同
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ── Convert Dialog (保留用于合同管理中的转项目) ────────────────────────────
-
-function ConvertDialog({
-  open,
-  onOpenChange,
-  lead
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  lead: Lead;
-}) {
-  const convert = useMutationToast({
-    ...convertLeadMutation,
-    successMsg: '已转为项目',
-    errorMsg: '转换失败'
-  });
-  const [brideName, setBrideName] = useState(lead.name ?? '');
-  const [groomName, setGroomName] = useState('');
-  const [weddingDate, setWeddingDate] = useState(toDateInput(lead.weddingDate));
-  const [ceremonyType, setCeremonyType] = useState('');
-  const [venue, setVenue] = useState('');
-  const [guestCount, setGuestCount] = useState('');
-  const [colorTheme, setColorTheme] = useState('');
-
-  function handleSave() {
-    if (!brideName.trim() || !groomName.trim() || !weddingDate) return;
-    convert.mutate(
-      {
-        id: lead.id,
-        data: {
-          brideName: brideName.trim(),
-          groomName: groomName.trim(),
-          weddingDate,
-          ceremonyType: ceremonyType || undefined,
-          venue: venue || undefined,
-          guestCount: guestCount ? Number(guestCount) : undefined,
-          colorTheme: colorTheme || undefined
-        }
-      },
-      { onSuccess: () => onOpenChange(false) }
-    );
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>转为项目</DialogTitle>
-          <DialogDescription>确认客户信息，创建正式项目</DialogDescription>
-        </DialogHeader>
-        <div className='flex flex-col gap-4'>
-          <div className='grid grid-cols-2 gap-3'>
-            <div className='space-y-2'>
-              <Label>新娘姓名 *</Label>
-              <Input value={brideName} onChange={(e) => setBrideName(e.target.value)} />
-            </div>
-            <div className='space-y-2'>
-              <Label>新郎姓名 *</Label>
-              <Input value={groomName} onChange={(e) => setGroomName(e.target.value)} />
-            </div>
-          </div>
-          <div className='grid grid-cols-2 gap-3'>
-            <div className='space-y-2'>
-              <Label>婚期 *</Label>
-              <Input
-                type='date'
-                value={weddingDate}
-                onChange={(e) => setWeddingDate(e.target.value)}
-              />
-            </div>
-            <div className='space-y-2'>
-              <Label>场地</Label>
-              <Input value={venue} onChange={(e) => setVenue(e.target.value)} />
-            </div>
-          </div>
-          <div className='grid grid-cols-2 gap-3'>
-            <div className='space-y-2'>
-              <Label>仪式类型</Label>
-              <Input
-                value={ceremonyType}
-                onChange={(e) => setCeremonyType(e.target.value)}
-                placeholder='中式/西式/户外/目的地'
-              />
-            </div>
-            <div className='space-y-2'>
-              <Label>色系</Label>
-              <Input
-                value={colorTheme}
-                onChange={(e) => setColorTheme(e.target.value)}
-                placeholder='红金/粉白/蓝白'
-              />
-            </div>
-          </div>
-          <div className='grid grid-cols-2 gap-3'>
-            <div className='space-y-2'>
-              <Label>宾客数</Label>
-              <Input
-                type='number'
-                value={guestCount}
-                onChange={(e) => setGuestCount(e.target.value)}
-              />
-            </div>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant='outline' onClick={() => onOpenChange(false)}>
-            取消
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={convert.isPending || !brideName.trim() || !groomName.trim() || !weddingDate}
-          >
-            {convert.isPending ? '转换中...' : '确认转换'}
           </Button>
         </DialogFooter>
       </DialogContent>

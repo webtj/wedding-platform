@@ -4,8 +4,7 @@ import type {
   ContractFilters,
   ContractResponse,
   ContractMutationPayload,
-  CreateContractPayload,
-  CreatePaymentPayload
+  CreateContractPayload
 } from './types';
 
 export async function getContracts(filters: ContractFilters): Promise<ContractResponse> {
@@ -39,13 +38,6 @@ export async function createContractFromLead(leadId: string, data: Record<string
 export async function updateContract(id: string, data: ContractMutationPayload) {
   return apiClient<Contract>(`/contracts/${id}`, {
     method: 'PATCH',
-    body: JSON.stringify(data)
-  });
-}
-
-export async function addPayment(contractId: string, data: CreatePaymentPayload) {
-  return apiClient<unknown>(`/contracts/${contractId}/payments`, {
-    method: 'POST',
     body: JSON.stringify(data)
   });
 }

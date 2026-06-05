@@ -24,8 +24,8 @@ export const contractByIdOptions = (id: string) =>
 
 import { mutationOptions } from '@tanstack/react-query';
 import { getQueryClient } from '@/lib/query-client';
-import { updateContract, addPayment, voidContract, deleteContract } from './service';
-import type { ContractMutationPayload, CreatePaymentPayload } from './types';
+import { updateContract, voidContract, deleteContract } from './service';
+import type { ContractMutationPayload } from './types';
 
 export const updateContractMutation = mutationOptions({
   mutationFn: ({ id, data }: { id: string; data: ContractMutationPayload }) =>
@@ -40,11 +40,5 @@ export const deleteContractMutation = mutationOptions({
 
 export const voidContractMutation = mutationOptions({
   mutationFn: (id: string) => voidContract(id),
-  onSuccess: () => getQueryClient().invalidateQueries({ queryKey: contractKeys.all })
-});
-
-export const addPaymentMutation = mutationOptions({
-  mutationFn: ({ contractId, data }: { contractId: string; data: CreatePaymentPayload }) =>
-    addPayment(contractId, data),
   onSuccess: () => getQueryClient().invalidateQueries({ queryKey: contractKeys.all })
 });

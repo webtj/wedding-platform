@@ -1,9 +1,8 @@
 'use client';
 
-import { useQuery, useMutation, queryOptions } from '@tanstack/react-query';
-import { mutationToast } from '@/lib/toast';
+import { useQuery } from '@tanstack/react-query';
 import { useMutationToast } from '@/lib/use-mutation-toast';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { parseAsInteger, parseAsString, useQueryStates } from 'nuqs';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import {
@@ -15,20 +14,14 @@ import {
   updateRoleMutation,
   deleteRoleMutation
 } from '../api/queries';
-import { apiClient } from '@/lib/api-client';
+import { useAuthContext } from '@/lib/auth/auth-context';
 import type { Role, MenuTreeNode } from '../api/types';
+import type { MenuItemData } from '@/lib/auth/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
 import { Icons } from '@/components/icons';
 import {
   Table,
@@ -47,25 +40,30 @@ import {
   DialogTitle
 } from '@/components/ui/dialog';
 
-// ── Main Table ─────────────────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────
 
-const tenantsQuery = () =>
-  queryOptions({
-    queryKey: ['super-tenants-list'],
-    queryFn: () =>
-      apiClient<{ items: { id: string; name: string }[] }>('/super/tenants?pageSize=1000'),
-    staleTime: 5 * 60 * 1000
-  });
+function collectMenuIds(menus: MenuItemData[]): Set<string> {
+  const ids = new Set<string>();
+  for (const m of menus) {
+    ids.add(m.id);
+    if (m.children) {
+      for (const c of m.children) {
+        ids.add(c.id);
+      }
+    }
+  }
+  return ids;
+}
+
+// ── Main Table ─────────────────────────────────────────────────────────────
 
 export function RolesTable() {
   const [params, setParams] = useQueryStates({
     page: parseAsInteger.withDefault(1),
     perPage: parseAsInteger.withDefault(10),
-    search: parseAsString.withDefault(''),
-    tenantId: parseAsString.withDefault('')
+    search: parseAsString.withDefault('')
   });
   const [searchInput, setSearchInput] = useState(params.search);
-  const { data: tenantsData } = useQuery(tenantsQuery());
 
   const debouncedSearch = useDebouncedCallback((value: string) => {
     setParams({ search: value, page: 1 });
@@ -74,8 +72,7 @@ export function RolesTable() {
   const filters = {
     page: params.page,
     limit: params.perPage,
-    ...(params.search && { search: params.search }),
-    ...(params.tenantId && { tenantId: params.tenantId })
+    ...(params.search && { search: params.search })
   };
   const { data, isLoading } = useQuery(rolesQueryOptions(filters));
 
@@ -85,35 +82,17 @@ export function RolesTable() {
   return (
     <div className='space-y-4'>
       <div className='flex items-center justify-between gap-3'>
-        <div className='flex items-center gap-3 flex-1'>
-          <div className='relative flex-1 max-w-sm'>
-            <Icons.search className='absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
-            <Input
-              placeholder='搜索角色名称或代码...'
-              value={searchInput}
-              onChange={(e) => {
-                setSearchInput(e.target.value);
-                debouncedSearch(e.target.value);
-              }}
-              className='pl-9'
-            />
-          </div>
-          <Select
-            value={params.tenantId || '__all__'}
-            onValueChange={(v) => setParams({ tenantId: v === '__all__' ? '' : v, page: 1 })}
-          >
-            <SelectTrigger className='w-[180px]'>
-              <SelectValue placeholder='全部角色' />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value='__all__'>全部角色</SelectItem>
-              {tenantsData?.items?.map((t) => (
-                <SelectItem key={t.id} value={t.id}>
-                  {t.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className='relative flex-1 max-w-sm'>
+          <Icons.search className='absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
+          <Input
+            placeholder='搜索角色名称或代码...'
+            value={searchInput}
+            onChange={(e) => {
+              setSearchInput(e.target.value);
+              debouncedSearch(e.target.value);
+            }}
+            className='pl-9'
+          />
         </div>
         <AddRoleDialog />
       </div>
@@ -134,12 +113,17 @@ export function RolesTable() {
           <TableBody>
             {data.items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className='h-24 text-center text-muted-foreground'>
+                <TableCell
+                  colSpan={7}
+                  className='h-24 text-center text-muted-foreground'
+                >
                   暂无数据
                 </TableCell>
               </TableRow>
             ) : (
-              data.items.map((role) => <RoleRow key={role.id} role={role} />)
+              data.items.map((role) => (
+                <RoleRow key={role.id} role={role} />
+              ))
             )}
           </TableBody>
         </Table>
@@ -176,9 +160,13 @@ export function RolesTable() {
 // ── Row ────────────────────────────────────────────────────────────────────
 
 function RoleRow({ role }: { role: Role }) {
+  const { menus } = useAuthContext();
   const [permsOpen, setPermsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+
+  // Users can only assign menus they themselves have access to
+  const allowedMenuIds = collectMenuIds(menus);
 
   return (
     <TableRow>
@@ -199,7 +187,12 @@ function RoleRow({ role }: { role: Role }) {
         >
           {role.menus?.length ?? 0} 个菜单
         </button>
-        <MenuPermsDialog open={permsOpen} onOpenChange={setPermsOpen} role={role} />
+        <MenuPermsDialog
+          open={permsOpen}
+          onOpenChange={setPermsOpen}
+          role={role}
+          allowedMenuIds={allowedMenuIds}
+        />
       </TableCell>
       <TableCell className='text-muted-foreground'>{role._count?.members ?? 0}</TableCell>
       <TableCell>
@@ -225,11 +218,13 @@ function RoleRow({ role }: { role: Role }) {
 function MenuPermsDialog({
   open,
   onOpenChange,
-  role
+  role,
+  allowedMenuIds
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   role: Role;
+  allowedMenuIds: Set<string>;
 }) {
   const { data: allMenus } = useQuery({ ...allMenusQueryOptions(), enabled: open });
   const { data: roleMenus } = useQuery({ ...roleMenusQueryOptions(role.id), enabled: open });
@@ -239,15 +234,19 @@ function MenuPermsDialog({
     errorMsg: '保存失败'
   });
 
-  const roleMenuIds = new Set(roleMenus?.map((m) => m.id) ?? []);
+  const roleMenuIds = useMemo(
+    () => new Set(roleMenus?.map((m) => m.id) ?? []),
+    [roleMenus]
+  );
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  // Reset selection when dialog opens
+  // Reset selection when dialog opens or roleMenus data arrives
   useEffect(() => {
-    if (open) setSelected(new Set(roleMenuIds));
-  }, [open]);
+    if (open && roleMenus) setSelected(new Set(roleMenuIds));
+  }, [open, roleMenus, roleMenuIds]);
 
   function toggle(id: string, children: MenuTreeNode[] | undefined) {
+    if (!allowedMenuIds.has(id)) return;
     const next = new Set(selected);
     if (next.has(id)) {
       next.delete(id);
@@ -257,16 +256,6 @@ function MenuPermsDialog({
       children?.forEach((c) => addBranch(next, c));
     }
     setSelected(next);
-  }
-
-  function removeBranch(set: Set<string>, node: MenuTreeNode) {
-    set.delete(node.id);
-    node.children?.forEach((c) => removeBranch(set, c));
-  }
-
-  function addBranch(set: Set<string>, node: MenuTreeNode) {
-    set.add(node.id);
-    node.children?.forEach((c) => addBranch(set, c));
   }
 
   function handleSave() {
@@ -286,13 +275,14 @@ function MenuPermsDialog({
           </DialogDescription>
         </DialogHeader>
         <div className='overflow-y-auto max-h-[50vh] space-y-1 py-2'>
-          {allMenus?.map((menu) => (
+          {allMenus?.map((menu: MenuTreeNode) => (
             <MenuTreeRow
               key={menu.id}
               node={menu}
               selected={selected}
               onToggle={toggle}
               depth={0}
+              allowedIds={allowedMenuIds}
             />
           ))}
           {(!allMenus || allMenus.length === 0) && (
@@ -312,26 +302,43 @@ function MenuPermsDialog({
   );
 }
 
+function removeBranch(set: Set<string>, node: MenuTreeNode) {
+  set.delete(node.id);
+  node.children?.forEach((c) => removeBranch(set, c));
+}
+
+function addBranch(set: Set<string>, node: MenuTreeNode) {
+  set.add(node.id);
+  node.children?.forEach((c) => addBranch(set, c));
+}
+
 function MenuTreeRow({
   node,
   selected,
   onToggle,
-  depth
+  depth,
+  allowedIds
 }: {
   node: MenuTreeNode;
   selected: Set<string>;
   onToggle: (id: string, children: MenuTreeNode[] | undefined) => void;
   depth: number;
+  allowedIds: Set<string>;
 }) {
   const checked = selected.has(node.id);
+  const isAllowed = allowedIds.has(node.id);
 
   return (
     <div>
       <label
-        className='flex items-center gap-2 py-1 hover:bg-accent rounded px-1 cursor-pointer'
+        className={`flex items-center gap-2 py-1 rounded px-1 ${isAllowed ? 'hover:bg-accent cursor-pointer' : 'opacity-40 cursor-not-allowed'}`}
         style={{ paddingLeft: `${depth * 20 + 4}px` }}
       >
-        <Checkbox checked={checked} onCheckedChange={() => onToggle(node.id, node.children)} />
+        <Checkbox
+          checked={checked}
+          disabled={!isAllowed}
+          onCheckedChange={() => isAllowed && onToggle(node.id, node.children)}
+        />
         <span className='text-sm'>{node.label}</span>
       </label>
       {node.children?.map((child) => (
@@ -341,6 +348,7 @@ function MenuTreeRow({
           selected={selected}
           onToggle={onToggle}
           depth={depth + 1}
+          allowedIds={allowedIds}
         />
       ))}
     </div>

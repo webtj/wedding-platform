@@ -1,23 +1,21 @@
 'use client';
 
 /**
- * Fully client-side hook for filtering navigation items based on RBAC
+ * Client-side hook for filtering navigation items based on permissions.
  *
- * This hook uses Clerk's client-side hooks to check permissions, roles, and organization
- * without any server calls. This is perfect for navigation visibility (UX only).
+ * Menus from the backend are already scoped (platform vs tenant), so this
+ * hook only applies additional access checks when `item.access` is set
+ * on static/kbar nav items. Permission and role checks use the auth
+ * context (backed by /api/identity/me) instead of Clerk hooks.
  *
- * Performance:
- * - All checks are synchronous (no server calls)
- * - Instant filtering
- * - No loading states
- * - No UI flashing
+ * Performance: all checks are synchronous, no server calls, no loading states.
  *
  * Note: For actual security (API routes, server actions), always use server-side checks.
  * This is only for UI visibility.
  */
 
 import { useMemo } from 'react';
-import { useOrganization, useUser } from '@clerk/nextjs';
+import { useAuthContext } from '@/lib/auth/auth-context';
 import type { NavItem, NavGroup } from '@/types';
 
 /**
@@ -27,113 +25,67 @@ import type { NavItem, NavGroup } from '@/types';
  * @returns Filtered items
  */
 export function useFilteredNavItems(items: NavItem[]) {
-  const { organization, membership } = useOrganization();
-  const { user } = useUser();
+  const { permissions, membership, orgId } = useAuthContext();
 
-  // Memoize context and permissions
-  const accessContext = useMemo(() => {
-    const permissions = membership?.permissions || [];
-    const role = membership?.role;
+  const accessContext = useMemo(
+    () => ({
+      permissions,
+      role: membership?.role,
+      hasOrg: !!orgId
+    }),
+    [permissions, membership?.role, orgId]
+  );
 
-    return {
-      organization: organization ?? undefined,
-      user: user ?? undefined,
-      permissions: permissions as string[],
-      role: role ?? undefined,
-      hasOrg: !!organization
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- using stable primitives to avoid infinite re-renders from unstable Clerk object refs
-  }, [organization?.id, user?.id, membership?.permissions, membership?.role]);
-
-  // Filter items synchronously (all client-side)
   const filteredItems = useMemo(() => {
     return items
       .filter((item) => {
-        // No access restrictions
-        if (!item.access) {
-          return true;
-        }
+        if (!item.access) return true;
 
-        // Check requireOrg
-        if (item.access.requireOrg && !accessContext.hasOrg) {
-          return false;
-        }
+        if (item.access.requireOrg && !accessContext.hasOrg) return false;
 
-        // Check permission
         if (item.access.permission) {
-          if (!accessContext.hasOrg) {
-            return false;
-          }
-          if (!accessContext.permissions.includes(item.access.permission)) {
+          if (!accessContext.hasOrg) return false;
+          if (
+            !accessContext.permissions.includes(item.access.permission) &&
+            !accessContext.permissions.includes('*')
+          ) {
             return false;
           }
         }
 
-        // Check role
         if (item.access.role) {
-          if (!accessContext.hasOrg) {
-            return false;
-          }
-          if (accessContext.role !== item.access.role) {
-            return false;
-          }
+          if (!accessContext.hasOrg) return false;
+          if (accessContext.role !== item.access.role) return false;
         }
-
-        // Note: Plans and features require server-side checks with Clerk's has() function
-        // For navigation visibility, you can either:
-        // 1. Store plan/feature info in organization metadata (client-accessible)
-        // 2. Use server actions (current approach)
-        // 3. Skip plan/feature checks for navigation (recommended for performance)
-
-        // Plan/feature checks require server-side verification
-        // Navigation shows item; page-level protection handles access
 
         return true;
       })
       .map((item) => {
-        // Recursively filter child items
         if (item.items && item.items.length > 0) {
           const filteredChildren = item.items.filter((childItem) => {
-            // No access restrictions
-            if (!childItem.access) {
-              return true;
-            }
+            if (!childItem.access) return true;
 
-            // Check requireOrg
-            if (childItem.access.requireOrg && !accessContext.hasOrg) {
-              return false;
-            }
+            if (childItem.access.requireOrg && !accessContext.hasOrg) return false;
 
-            // Check permission
             if (childItem.access.permission) {
-              if (!accessContext.hasOrg) {
-                return false;
-              }
-              if (!accessContext.permissions.includes(childItem.access.permission)) {
+              if (!accessContext.hasOrg) return false;
+              if (
+                !accessContext.permissions.includes(childItem.access.permission) &&
+                !accessContext.permissions.includes('*')
+              ) {
                 return false;
               }
             }
 
-            // Check role
             if (childItem.access.role) {
-              if (!accessContext.hasOrg) {
-                return false;
-              }
-              if (accessContext.role !== childItem.access.role) {
-                return false;
-              }
+              if (!accessContext.hasOrg) return false;
+              if (accessContext.role !== childItem.access.role) return false;
             }
-
-            // Plan/feature checks require server-side verification
-            // Navigation shows item; page-level protection handles access
 
             return true;
           });
 
-          return {
-            ...item,
-            items: filteredChildren
-          };
+          return { ...item, items: filteredChildren };
         }
 
         return item;

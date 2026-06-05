@@ -22,7 +22,7 @@ export async function assignRoleMenus(roleId: string, menuIds: string[]) {
   });
 }
 
-export async function getAllMenus(): Promise<MenuTreeNode[]> {
+export async function getAllMenuTree(): Promise<MenuTreeNode[]> {
   return apiClient<MenuTreeNode[]>('/super/menus');
 }
 

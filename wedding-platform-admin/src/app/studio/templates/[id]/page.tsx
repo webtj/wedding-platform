@@ -169,7 +169,6 @@ export default function TemplateEditorPage() {
               value={sName}
               onChange={(e) => setSName(e.target.value)}
               placeholder='如：基础信息确认'
-              autoFocus
               onKeyDown={(e) =>
                 e.key === 'Enter' &&
                 sName.trim() &&
@@ -238,7 +237,7 @@ export default function TemplateEditorPage() {
 function SortableStage({
   stage,
   index,
-  isLast
+  isLast: _isLast
 }: {
   stage: TemplateStage;
   index: number;
@@ -303,12 +302,14 @@ function SortableStage({
               onBlur={saveName}
               onKeyDown={(e) => e.key === 'Enter' && saveName()}
               className='h-8 text-sm font-semibold flex-1'
-              autoFocus
             />
           ) : (
             <span
               className='font-semibold flex-1 cursor-pointer hover:text-primary transition-colors'
               onClick={() => setEditing(true)}
+              onKeyDown={(e) => e.key === 'Enter' && setEditing(true)}
+              role='button'
+              tabIndex={0}
             >
               {stage.name}
             </span>
@@ -360,6 +361,9 @@ function TaskRow({ task }: { task: TemplateTask }) {
     <div
       className='flex items-center gap-3 px-4 py-2 text-sm hover:bg-secondary/20 transition-colors cursor-pointer group'
       onClick={() => setEditing(true)}
+      onKeyDown={(e) => e.key === 'Enter' && setEditing(true)}
+      role='button'
+      tabIndex={0}
     >
       <span className='w-1.5 h-1.5 rounded-full bg-muted-foreground/40 flex-shrink-0' />
       <div className='flex-1 min-w-0 flex items-center gap-3'>
@@ -438,6 +442,9 @@ function EditTaskInline({ task, onClose }: { task: TemplateTask; onClose: () => 
     <div
       className='px-4 py-3 space-y-2.5 bg-secondary/5 border-b'
       onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.key === 'Enter' && e.stopPropagation()}
+      role='button'
+      tabIndex={0}
     >
       <Input
         ref={ref}

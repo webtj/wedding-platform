@@ -1,7 +1,7 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { useState, useCallback } from 'react';
 import { queryOptions, mutationOptions } from '@tanstack/react-query';
 import { getQueryClient } from '@/lib/query-client';
 import { apiClient } from '@/lib/api-client';
@@ -28,13 +28,32 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Icons } from '@/components/icons';
 import { KanbanColumn } from './KanbanColumn';
+import { TaskCard } from './TaskCard';
+import type { KanbanStage, KanbanTask } from './types';
+import {
+  DndContext,
+  DragOverlay,
+  closestCorners,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragStartEvent,
+  type DragEndEvent,
+  type DragOverEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable';
 
 const kanbanKeys = { byProject: (pid: string) => ['kanban', pid] as const };
 
 const kanbanQ = (pid: string) =>
   queryOptions({
     queryKey: kanbanKeys.byProject(pid),
-    queryFn: () => apiClient<{ stages: any[] }>(`/projects/${pid}/kanban`)
+    queryFn: () => apiClient<{ stages: KanbanStage[] }>(`/projects/${pid}/kanban`)
   });
 
 const S_BADGE: Record<string, string> = {
@@ -43,29 +62,158 @@ const S_BADGE: Record<string, string> = {
   done: 'bg-blue-100 text-blue-700 border-blue-300',
   skipped: 'bg-gray-100 text-gray-500'
 };
-const S_LABEL: Record<string, string> = {
-  pending: '未开始',
-  active: '进行中',
-  done: '已完成',
-  skipped: '已跳过'
-};
 
 export function KanbanBoard({ projectId }: { projectId: string }) {
   const { data, isLoading, refetch } = useQuery(kanbanQ(projectId));
   const [applyOpen, setApplyOpen] = useState(false);
   const [addStageOpen, setAddStageOpen] = useState(false);
+  const [activeTask, setActiveTask] = useState<KanbanTask | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor)
+  );
+
+  const reorderMutation = useMutation({
+    mutationFn: (tasks: Array<{ id: string; stageId: string; sortOrder: number }>) =>
+      apiClient('/tasks/reorder', { method: 'POST', body: JSON.stringify({ tasks }) }),
+    onSuccess: () => {
+      getQueryClient().invalidateQueries({ queryKey: kanbanKeys.byProject(projectId) });
+    }
+  });
+
+  const findStageIdForTask = useCallback(
+    (taskId: string): string | null => {
+      if (!data?.stages) return null;
+      for (const stage of data.stages) {
+        if (stage.tasks?.some((t) => t.id === taskId)) return stage.id;
+      }
+      return null;
+    },
+    [data?.stages]
+  );
+
+  const handleDragStart = useCallback(
+    (event: DragStartEvent) => {
+      const task = data?.stages
+        ?.flatMap((s) => s.tasks ?? [])
+        .find((t) => t.id === event.active.id);
+      if (task) setActiveTask(task);
+    },
+    [data?.stages]
+  );
+
+  const handleDragOver = useCallback(
+    (event: DragOverEvent) => {
+      const { active, over } = event;
+      if (!over || !data?.stages) return;
+
+      const activeStageId = findStageIdForTask(active.id as string);
+      const overStageId =
+        data.stages.find((s) => s.id === over.id)?.id ?? findStageIdForTask(over.id as string);
+
+      if (!activeStageId || !overStageId || activeStageId === overStageId) return;
+
+      // Optimistically move task between stages in local state
+      const newStages = data.stages.map((stage) => ({
+        ...stage,
+        tasks: [...(stage.tasks ?? [])]
+      }));
+
+      const fromStage = newStages.find((s) => s.id === activeStageId);
+      const toStage = newStages.find((s) => s.id === overStageId);
+      if (!fromStage || !toStage) return;
+
+      const taskIndex = fromStage.tasks.findIndex((t) => t.id === active.id);
+      if (taskIndex === -1) return;
+
+      const [movedTask] = fromStage.tasks.splice(taskIndex, 1);
+      if (!movedTask) return;
+
+      // Determine insert position in target stage
+      const overIndex = toStage.tasks.findIndex((t) => t.id === over.id);
+      if (overIndex >= 0) {
+        toStage.tasks.splice(overIndex, 0, movedTask);
+      } else {
+        toStage.tasks.push(movedTask);
+      }
+
+      // Update counts
+      fromStage.taskCount = fromStage.tasks.length;
+      fromStage.doneCount = fromStage.tasks.filter((t) => t.status === 'done').length;
+      toStage.taskCount = toStage.tasks.length;
+      toStage.doneCount = toStage.tasks.filter((t) => t.status === 'done').length;
+
+      getQueryClient().setQueryData(kanbanKeys.byProject(projectId), { stages: newStages });
+    },
+    [data?.stages, findStageIdForTask, projectId]
+  );
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      setActiveTask(null);
+
+      if (!over || !data?.stages) return;
+
+      const activeStageId = findStageIdForTask(active.id as string);
+      const overStageId =
+        data.stages.find((s) => s.id === over.id)?.id ?? findStageIdForTask(over.id as string);
+
+      if (!activeStageId || !overStageId) return;
+
+      // Build the reorder payload: all tasks in affected stages with updated sort orders
+      const reorderPayload: Array<{ id: string; stageId: string; sortOrder: number }> = [];
+
+      const targetStage = data.stages.find((s) => s.id === overStageId);
+      if (!targetStage?.tasks) return;
+
+      // If same stage, also handle reorder within
+      if (activeStageId === overStageId) {
+        const tasks = targetStage.tasks;
+        const activeIndex = tasks.findIndex((t) => t.id === active.id);
+        const overIndex = tasks.findIndex((t) => t.id === over.id);
+
+        if (activeIndex === overIndex) return;
+
+        const reordered = arrayMove(tasks, activeIndex, overIndex);
+        reordered.forEach((task, index) => {
+          reorderPayload.push({ id: task.id, stageId: overStageId, sortOrder: index });
+        });
+      } else {
+        // Cross-stage: update all tasks in the target stage
+        targetStage.tasks.forEach((task, index) => {
+          reorderPayload.push({ id: task.id, stageId: overStageId, sortOrder: index });
+        });
+        // Also update the source stage's remaining tasks
+        const sourceStage = data.stages.find((s) => s.id === activeStageId);
+        if (sourceStage?.tasks) {
+          sourceStage.tasks
+            .filter((t) => t.id !== active.id)
+            .forEach((task, index) => {
+              reorderPayload.push({ id: task.id, stageId: activeStageId, sortOrder: index });
+            });
+        }
+      }
+
+      if (reorderPayload.length > 0) {
+        reorderMutation.mutate(reorderPayload);
+      }
+    },
+    [data?.stages, findStageIdForTask, reorderMutation]
+  );
 
   if (isLoading || !data)
     return <div className='py-20 text-center text-sm text-muted-foreground'>加载中...</div>;
 
   const stages = data.stages ?? [];
-  const allTasks = stages.flatMap((s: any) => s.tasks ?? []);
+  const allTasks: KanbanTask[] = stages.flatMap((s) => s.tasks ?? []);
   const total = allTasks.length;
-  const done = allTasks.filter((t: any) => t.status === 'done').length;
-  const inProgress = allTasks.filter((t: any) => t.status === 'in_progress').length;
-  const blocked = allTasks.filter((t: any) => t.isBlocked).length;
+  const done = allTasks.filter((t) => t.status === 'done').length;
+  const inProgress = allTasks.filter((t) => t.status === 'in_progress').length;
+  const blocked = allTasks.filter((t) => t.isBlocked).length;
   const overdue = allTasks.filter(
-    (t: any) => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'done'
+    (t) => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'done'
   ).length;
   const progress = total > 0 ? Math.round((done / total) * 100) : 0;
 
@@ -76,12 +224,12 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
         <Card>
           <CardContent className='py-5'>
             <div className='flex items-start gap-0 overflow-x-auto'>
-              {stages.map((s: any, i: number) => {
+              {stages.map((s, i) => {
                 const pct = s.taskCount > 0 ? Math.round((s.doneCount / s.taskCount) * 100) : 0;
                 const isDone = pct === 100 && s.taskCount > 0;
                 const isActive =
                   s.status === 'active' ||
-                  (s.tasks ?? []).some((t: any) => t.status === 'in_progress');
+                  (s.tasks ?? []).some((t) => t.status === 'in_progress');
                 const isCurrent = isActive && !isDone;
                 const color = isDone ? 'done' : isCurrent ? 'active' : 'pending';
                 return (
@@ -168,11 +316,40 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
 
       {/* Kanban Columns */}
       {stages.length > 0 ? (
-        <div className='flex gap-4 overflow-x-auto pb-4'>
-          {stages.map((stage: any) => (
-            <KanbanColumn key={stage.id} stage={stage} projectId={projectId} onRefresh={refetch} />
-          ))}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+        >
+          <div className='flex gap-4 overflow-x-auto pb-4'>
+            {stages.map((stage) => {
+              const taskIds = (stage.tasks ?? []).map((t) => t.id);
+              return (
+                <SortableContext
+                  key={stage.id}
+                  items={taskIds}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <KanbanColumn stage={stage} projectId={projectId} onRefresh={refetch} />
+                </SortableContext>
+              );
+            })}
+          </div>
+          <DragOverlay>
+            {activeTask ? (
+              <div className='opacity-90 rotate-2 scale-105'>
+                <TaskCard
+                  task={activeTask}
+                  projectId={projectId}
+                  onRefresh={refetch}
+                  isDragOverlay
+                />
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
       ) : (
         <div className='py-16 text-center text-muted-foreground border-2 border-dashed rounded-xl'>
           <p className='text-sm mb-2'>暂无阶段和任务</p>
@@ -273,7 +450,7 @@ function ApplyTemplateDialog({
               <SelectValue placeholder='选择流程模板...' />
             </SelectTrigger>
             <SelectContent>
-              {(data?.items ?? []).map((t: any) => (
+              {(data?.items ?? []).map((t) => (
                 <SelectItem key={t.id} value={t.id}>
                   {t.name}
                   {t.category ? ` (${t.category})` : ''}
@@ -335,7 +512,7 @@ function AddStageDialog({
         </DialogHeader>
         <div className='space-y-2'>
           <Label>名称</Label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+          <Input value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <DialogFooter>
           <Button variant='outline' onClick={() => onOpenChange(false)}>

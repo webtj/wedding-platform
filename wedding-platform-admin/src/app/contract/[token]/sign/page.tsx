@@ -1,12 +1,12 @@
 'use client';
 
+import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { SignaturePad } from '@/components/signature-pad';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
@@ -55,8 +55,8 @@ export default function SignContractPage() {
         const res = await fetch(`/api/contracts/sign/${token}`);
         if (!res.ok) throw new Error('合同不存在或已失效');
         setContract(await res.json());
-      } catch (e: any) {
-        setError(e.message);
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : '未知错误');
       } finally {
         setLoading(false);
       }
@@ -123,10 +123,13 @@ export default function SignContractPage() {
               签署时间：{contract.signedAt ? toDateDisplay(contract.signedAt) : '-'}
             </p>
             {contract.signatureData && (
-              <img
-                src={contract.signatureData}
+              <Image
+                src={contract.signatureData.startsWith('data:image/png') || contract.signatureData.startsWith('data:image/jpeg') ? contract.signatureData : ''}
                 alt='签名'
                 className='mx-auto mt-3 max-w-[300px] border-b border-gray-400 pb-2'
+                width={300}
+                height={100}
+                unoptimized
               />
             )}
           </div>

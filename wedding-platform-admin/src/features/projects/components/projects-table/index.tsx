@@ -4,8 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { parseAsInteger, parseAsString, useQueryStates } from 'nuqs';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
-import { useMutationToast } from '@/lib/use-mutation-toast';
-import { projectsQueryOptions, updateProjectMutation } from '../../api/queries';
+import { projectsQueryOptions } from '../../api/queries';
 import type { Project, ProjectFilters } from '../../api/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,12 +16,6 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
 import { Icons } from '@/components/icons';
 import { toDateDisplay } from '@/lib/date-format';
 import { useRouter } from 'next/navigation';
@@ -41,7 +34,6 @@ const SC: Record<string, string> = {
 const SL: Record<string, string> = Object.fromEntries(STATUS.map((s) => [s.value, s.label]));
 
 export function ProjectsTable() {
-  const router = useRouter();
   const [params, setParams] = useQueryStates({
     page: parseAsInteger.withDefault(1),
     perPage: parseAsInteger.withDefault(12),
@@ -152,7 +144,6 @@ export function ProjectsTable() {
 
 function ProjectCard({ project }: { project: Project }) {
   const r = useRouter();
-  const up = useMutationToast({ ...updateProjectMutation, successMsg: '状态已更新' });
   const wd = project.weddingDate ? new Date(project.weddingDate) : null;
   const days = wd ? Math.ceil((wd.getTime() - Date.now()) / 86400000) : null;
   const overdue = days !== null && days < 0;
@@ -162,7 +153,15 @@ function ProjectCard({ project }: { project: Project }) {
   return (
     <div
       className='group border rounded-lg bg-card hover:border-primary/30 hover:shadow-sm transition-all cursor-pointer flex flex-col'
+      role='link'
+      tabIndex={0}
       onClick={() => r.push(`/studio/projects/${project.id}`)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          r.push(`/studio/projects/${project.id}`);
+        }
+      }}
     >
       <div className='p-3.5 flex-1 flex flex-col gap-2.5'>
         {/* Top line: code + status */}
@@ -220,37 +219,27 @@ function ProjectCard({ project }: { project: Project }) {
       </div>
 
       {/* Actions bar */}
-      <div
-        className='flex items-center gap-1 px-3 py-2 border-t bg-secondary/20'
-        onClick={(e) => e.stopPropagation()}
-      >
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant='ghost' size='sm' className='h-6 text-[11px] px-1.5'>
-              {SL[project.status]}
-              <Icons.chevronsDown className='ml-0.5 h-2.5 w-2.5' />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='start' className='w-24'>
-            {STATUS.filter((s) => s.value !== project.status).map((s) => (
-              <DropdownMenuItem
-                key={s.value}
-                onClick={() => up.mutate({ id: project.id, data: { status: s.value } })}
-                className='text-xs'
-              >
-                <Badge variant='outline' className={`${SC[s.value] ?? ''} mr-1.5 text-[10px]`}>
-                  {s.label}
-                </Badge>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <div className='flex-1' />
+      <div className='flex items-center gap-1 px-3 py-2 border-t bg-secondary/20'>
         <Button
           variant='ghost'
           size='sm'
           className='h-6 text-[11px] px-1.5'
-          onClick={() => r.push(`/studio/projects/${project.id}/edit`)}
+          onClick={(e) => {
+            e.stopPropagation();
+            r.push(`/studio/projects/${project.id}/designer`);
+          }}
+        >
+          <Icons.sparkles className='mr-1 h-3 w-3' />
+          设计器
+        </Button>
+        <Button
+          variant='ghost'
+          size='sm'
+          className='h-6 text-[11px] px-1.5'
+          onClick={(e) => {
+            e.stopPropagation();
+            r.push(`/studio/projects/${project.id}/edit`);
+          }}
         >
           <Icons.edit className='mr-1 h-3 w-3' />
           编辑
@@ -259,7 +248,10 @@ function ProjectCard({ project }: { project: Project }) {
           variant='ghost'
           size='sm'
           className='h-6 text-[11px] px-1.5'
-          onClick={() => r.push(`/studio/projects/${project.id}`)}
+          onClick={(e) => {
+            e.stopPropagation();
+            r.push(`/studio/projects/${project.id}`);
+          }}
         >
           查看
           <Icons.chevronRight className='ml-0.5 h-3 w-3' />

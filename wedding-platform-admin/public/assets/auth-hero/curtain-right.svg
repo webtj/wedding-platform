@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1350" viewBox="0 0 1200 1350" fill="none">
+  <defs>
+    <linearGradient id="fabric" x1="1" y1="0" x2="0" y2="0">
+      <stop offset="0" stop-color="#fffaf1" stop-opacity="0.94"/>
+      <stop offset="0.35" stop-color="#f8e2d8" stop-opacity="0.70"/>
+      <stop offset="0.72" stop-color="#fff8f0" stop-opacity="0.36"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.05"/>
+    </linearGradient>
+    <filter id="noise" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.012 0.075" numOctaves="5" seed="101"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 0.86 0 0 0 0 0.80 0 0 0 0.12 0"/>
+      <feBlend mode="screen" in2="SourceGraphic"/>
+    </filter>
+    <filter id="soft" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur stdDeviation="0.65"/>
+    </filter>
+  </defs>
+  <path d="M1200 0H180C230 142 193 297 282 458C346 574 294 796 408 955C518 1109 650 1220 690 1350H1200V0Z" fill="url(#fabric)" filter="url(#noise)"/>
+  <g stroke-linecap="round" filter="url(#soft)">
+    <path d="M298 0C356 188 317 367 410 560C496 738 490 1016 640 1350" stroke="#fff9ef" stroke-opacity="0.60" stroke-width="13"/>
+    <path d="M458 0C496 220 465 412 560 626C652 833 690 1110 770 1350" stroke="#e7b6b4" stroke-opacity="0.28" stroke-width="9"/>
+    <path d="M634 0C662 242 642 452 714 682C780 896 850 1130 898 1350" stroke="#fffdf8" stroke-opacity="0.28" stroke-width="7"/>
+    <path d="M828 0C860 210 830 452 892 704C950 944 990 1160 1040 1350" stroke="#e6b2b0" stroke-opacity="0.19" stroke-width="10"/>
+  </g>
+</svg>

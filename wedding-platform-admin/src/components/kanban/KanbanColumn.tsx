@@ -23,8 +23,10 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog';
-import { Icons } from '@/components/icons';
 import { TaskCard } from './TaskCard';
+import type { KanbanStage } from './types';
+import { useDroppable } from '@dnd-kit/core';
+import { cn } from '@/lib/utils';
 
 const S_COLOR: Record<string, string> = {
   pending: 'bg-slate-100 text-slate-700',
@@ -39,18 +41,26 @@ const S_LABEL: Record<string, string> = {
   skipped: '已跳过'
 };
 
-type Props = { stage: any; projectId: string; onRefresh: () => void };
+type Props = { stage: KanbanStage; projectId: string; onRefresh: () => void };
 
 export function KanbanColumn({ stage, projectId, onRefresh }: Props) {
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const pct = stage.taskCount > 0 ? Math.round((stage.doneCount / stage.taskCount) * 100) : 0;
 
+  const { setNodeRef, isOver } = useDroppable({ id: stage.id });
+
   return (
-    <div className='flex-shrink-0 w-72 bg-secondary/30 rounded-xl p-3 flex flex-col'>
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'flex-shrink-0 w-72 rounded-xl p-3 flex flex-col transition-colors',
+        isOver ? 'bg-primary/5 ring-2 ring-primary/30' : 'bg-secondary/30'
+      )}
+    >
       <div className='flex items-center justify-between mb-2'>
         <h3 className='font-semibold text-sm'>{stage.name}</h3>
-        <Badge variant='outline' className={`text-xs ${S_COLOR[stage.status] ?? ''}`}>
-          {S_LABEL[stage.status] ?? stage.status}
+        <Badge variant='outline' className={`text-xs ${S_COLOR[stage.status ?? ''] ?? ''}`}>
+          {S_LABEL[stage.status ?? ''] ?? stage.status}
         </Badge>
       </div>
       <div className='h-1 bg-border rounded-full mb-1'>
@@ -63,10 +73,15 @@ export function KanbanColumn({ stage, projectId, onRefresh }: Props) {
         {stage.doneCount}/{stage.taskCount}
       </span>
 
-      <div className='flex flex-col gap-2 flex-1'>
-        {stage.tasks?.map((task: any) => (
+      <div className='flex flex-col gap-2 flex-1 min-h-[60px]'>
+        {stage.tasks?.map((task) => (
           <TaskCard key={task.id} task={task} projectId={projectId} onRefresh={onRefresh} />
         ))}
+        {isOver && (stage.tasks?.length ?? 0) === 0 && (
+          <div className='border-2 border-dashed border-primary/40 rounded-lg py-6 text-center text-xs text-primary/60'>
+            放置到此处
+          </div>
+        )}
       </div>
 
       <Button
@@ -108,7 +123,7 @@ function CreateTaskDialog({
 
   const createTask = useMutationToast({
     ...mutationOptions({
-      mutationFn: (data: any) =>
+      mutationFn: (data: { title: string; stageId: string; assigneeType: string; dueDate?: string; priority: number }) =>
         apiClient(`/projects/${projectId}/tasks`, { method: 'POST', body: JSON.stringify(data) }),
       onSuccess: () => getQueryClient().invalidateQueries({ queryKey: ['kanban', projectId] })
     }),
@@ -166,9 +181,11 @@ function CreateTaskDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value='1'>次要</SelectItem>
-                  <SelectItem value='2'>一般</SelectItem>
-                  <SelectItem value='3'>重要</SelectItem>
+                  <SelectItem value='1'>最低</SelectItem>
+                  <SelectItem value='2'>次要</SelectItem>
+                  <SelectItem value='3'>一般</SelectItem>
+                  <SelectItem value='4'>重要</SelectItem>
+                  <SelectItem value='5'>紧急</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -3,6 +3,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { fontVariables } from '@/components/themes/font.config';
 import { DEFAULT_THEME, THEMES } from '@/components/themes/theme.config';
 import ThemeProvider from '@/components/themes/theme-provider';
+import ThemeColorSync from '@/components/themes/theme-color-sync';
 import { cn } from '@/lib/utils';
 import type { Metadata, Viewport } from 'next';
 import { cookies } from 'next/headers';
@@ -16,8 +17,8 @@ const META_THEME_COLORS = {
 };
 
 export const metadata: Metadata = {
-  title: 'Next Shadcn',
-  description: 'Basic dashboard with Next.js and Shadcn'
+  title: '婚礼 SaaS 平台',
+  description: '婚策管理平台 — 从获客到交付的一站式工作台'
 };
 
 export const viewport: Viewport = {
@@ -32,20 +33,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang='en' suppressHydrationWarning data-theme={themeToApply}>
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              try {
-                // Set meta theme color
-                if (localStorage.theme === 'dark' || ((!('theme' in localStorage) || localStorage.theme === 'system') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '${META_THEME_COLORS.dark}')
-                }
-              } catch (_) {}
-            `
-          }}
-        />
-      </head>
+      <head></head>
       <body
         className={cn(
           'bg-background overflow-x-hidden overscroll-none font-sans antialiased',
@@ -58,9 +46,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             attribute='class'
             defaultTheme='system'
             enableSystem
-            disableTransitionOnChange
-            enableColorScheme
           >
+            <ThemeColorSync darkColor={META_THEME_COLORS.dark} />
             <Providers activeThemeValue={themeToApply}>
               <Toaster />
               {children}

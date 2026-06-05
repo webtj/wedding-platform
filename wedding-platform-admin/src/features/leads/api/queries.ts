@@ -1,7 +1,7 @@
 import { queryOptions, mutationOptions } from '@tanstack/react-query';
 import { getQueryClient } from '@/lib/query-client';
 import { getLeads, getLeadById, createLead, updateLead, deleteLead, convertLead } from './service';
-import type { Lead, LeadFilters } from './types';
+import type { Lead, LeadFilters, LeadResponse } from './types';
 
 export type { Lead };
 
@@ -25,7 +25,28 @@ export const createLeadMutation = mutationOptions({
 export const updateLeadMutation = mutationOptions({
   mutationFn: ({ id, data }: { id: string; data: Parameters<typeof updateLead>[1] }) =>
     updateLead(id, data),
-  onSuccess: () => getQueryClient().invalidateQueries({ queryKey: leadKeys.all })
+  onMutate: async ({ id, data }) => {
+    const queryClient = getQueryClient();
+    await queryClient.cancelQueries({ queryKey: leadKeys.all });
+    const previousLeads = queryClient.getQueriesData<LeadResponse>({ queryKey: leadKeys.all });
+    queryClient.setQueriesData<LeadResponse>({ queryKey: leadKeys.all }, (old) => {
+      if (!old) return old;
+      return {
+        ...old,
+        items: old.items.map((lead) => (lead.id === id ? { ...lead, ...data } : lead))
+      };
+    });
+    return { previousLeads };
+  },
+  onError: (_err, _vars, context) => {
+    const queryClient = getQueryClient();
+    if (context?.previousLeads) {
+      for (const [key, data] of context.previousLeads) {
+        queryClient.setQueryData(key, data);
+      }
+    }
+  },
+  onSettled: () => getQueryClient().invalidateQueries({ queryKey: leadKeys.all })
 });
 
 export const deleteLeadMutation = mutationOptions({

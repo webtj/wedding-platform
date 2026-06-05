@@ -1,7 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { queryOptions, mutationOptions } from '@tanstack/react-query';
 import { getQueryClient } from '@/lib/query-client';
@@ -12,7 +13,6 @@ import { MaterialPickerDialog } from '@/components/materials/MaterialPickerDialo
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -36,8 +36,8 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Icons } from '@/components/icons';
-import { toDateDisplay } from '@/lib/date-format';
 import PageContainer from '@/components/layout/page-container';
+import { ProjectTimelineEditor } from '@/features/projects/components/project-timeline-editor';
 import {
   DndContext,
   closestCenter,
@@ -49,13 +49,26 @@ import {
 import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { restrictToHorizontalAxis } from '@dnd-kit/modifiers';
+import type { KanbanStage, KanbanTask, KanbanAssignee, KanbanTaskMaterial } from '@/components/kanban/types';
+import type { ProcessTemplate } from '@/features/templates/api/types';
+
+interface ProjectData {
+  id: string;
+  brideName: string;
+  groomName: string;
+  weddingDate?: string | null;
+  venue?: string | null;
+  projectNo?: string | null;
+  createdAt?: string;
+  appliedTemplateId?: string | null;
+}
 
 const projectQ = (id: string) =>
-  queryOptions({ queryKey: ['project', id], queryFn: () => apiClient<any>(`/projects/${id}`) });
+  queryOptions({ queryKey: ['project', id], queryFn: () => apiClient<ProjectData>(`/projects/${id}`) });
 const kanbanQ = (pid: string) =>
   queryOptions({
     queryKey: ['kanban', pid],
-    queryFn: () => apiClient<any>(`/projects/${pid}/kanban`)
+    queryFn: () => apiClient<{ stages: KanbanStage[] }>(`/projects/${pid}/kanban`)
   });
 
 export default function ProjectEditPage() {
@@ -81,13 +94,13 @@ export default function ProjectEditPage() {
 
   useEffect(() => {
     if (tab === '物料清单') refetch();
-  }, [tab]);
+  }, [tab, refetch]);
 
-  const stages: any[] = kanban?.stages ?? [];
-  const allTasks = stages.flatMap((s: any) => s.tasks ?? []);
-  const active = stages.find((s: any) => s.id === selectedId);
+  const stages: KanbanStage[] = useMemo(() => kanban?.stages ?? [], [kanban?.stages]);
+  const allTasks: KanbanTask[] = stages.flatMap((s) => s.tasks ?? []);
+  const active = stages.find((s) => s.id === selectedId);
   const rawTasks = selectedId ? (active?.tasks ?? []) : allTasks;
-  const tasks = rawTasks.filter((t: any) => {
+  const tasks = rawTasks.filter((t) => {
     if (taskSearch && !t.title.toLowerCase().includes(taskSearch.toLowerCase())) return false;
     if (taskPrioFilter !== '__all__' && String(t.priority || 3) !== taskPrioFilter) return false;
     return true;
@@ -112,15 +125,15 @@ export default function ProjectEditPage() {
   useEffect(() => {
     if (stages.length === 0) return;
     const todayStr = new Date().toISOString().slice(0, 10);
-    const urgentStage = stages.find((s: any) =>
+    const urgentStage = stages.find((s) =>
       (s.tasks ?? []).some(
-        (t: any) => t.status !== 'done' && t.dueDate && t.dueDate.slice(0, 10) <= todayStr
+        (t) => t.status !== 'done' && t.dueDate && t.dueDate.slice(0, 10) <= todayStr
       )
     );
     setSelectedId(urgentStage?.id ?? stages[0].id);
-  }, [stages.length > 0]);
+  }, [stages]);
 
-  function handleDragEnd(e: DragEndEvent) {
+  const handleDragEnd = useCallback((e: DragEndEvent) => {
     const { active: a, over } = e;
     if (!over || a.id === over.id) return;
     const oldI = stages.findIndex((s) => s.id === a.id);
@@ -142,9 +155,9 @@ export default function ProjectEditPage() {
         })
       )
     ).then(() => refetch());
-  }
+  }, [stages, refetch]);
 
-  function moveStage(id: string, dir: number) {
+  const moveStage = useCallback((id: string, dir: number) => {
     const i = stages.findIndex((s) => s.id === id);
     const j = i + dir;
     if (j < 0 || j >= stages.length) return;
@@ -159,7 +172,7 @@ export default function ProjectEditPage() {
         })
       )
     ).then(() => refetch());
-  }
+  }, [stages, refetch]);
 
   const isError = projError || kanbanError;
 
@@ -168,9 +181,9 @@ export default function ProjectEditPage() {
       <PageContainer pageTitle=''>
         <div className='flex flex-col items-center justify-center py-32 gap-3'>
           <p className='text-sm text-muted-foreground'>加载失败，项目不存在或无权访问</p>
-          <a href='/studio/projects' className='text-sm text-primary hover:underline'>
+          <Link href='/studio/projects' className='text-sm text-primary hover:underline'>
             返回项目列表
-          </a>
+          </Link>
         </div>
       </PageContainer>
     );
@@ -186,16 +199,16 @@ export default function ProjectEditPage() {
     );
   }
 
-  const currentTemplate = (templates?.items ?? []).find((t: any) => t.id === selectedTplId);
+  const currentTemplate = (templates?.items ?? []).find((t: ProcessTemplate) => t.id === selectedTplId);
 
   return (
     <PageContainer pageTitle=''>
       <div className='space-y-6 w-full min-w-0'>
         {/* Breadcrumb + Header */}
         <div className='flex items-center gap-2 text-[13px] text-muted-foreground'>
-          <a href='/studio/dashboard' className='hover:text-foreground transition-colors'>
+          <Link href='/studio/overview' className='hover:text-foreground transition-colors'>
             工作台
-          </a>
+          </Link>
           <Icons.chevronRight className='h-3.5 w-3.5' />
           <span className='text-foreground'>
             {proj.brideName} & {proj.groomName}
@@ -250,7 +263,7 @@ export default function ProjectEditPage() {
                 <SelectValue placeholder='选择模板...' />
               </SelectTrigger>
               <SelectContent>
-                {(templates?.items ?? []).map((t: any) => (
+                {(templates?.items ?? []).map((t) => (
                   <SelectItem key={t.id} value={t.id}>
                     {t.name}
                   </SelectItem>
@@ -267,17 +280,17 @@ export default function ProjectEditPage() {
             >
               应用模板
             </Button>
-            <a href='/studio/templates'>
+            <Link href='/studio/templates'>
               <Button variant='outline' size='sm' className='h-8 text-xs'>
                 添加模板
               </Button>
-            </a>
+            </Link>
           </div>
         </div>
 
         {/* Tabs */}
         <div className='flex gap-0 border-b'>
-          {['流程管理', '物料清单', '标注评论'].map((l) => (
+          {['流程管理', '时间线', '物料清单', '标注评论'].map((l) => (
             <button
               key={l}
               onClick={() => setTab(l)}
@@ -312,7 +325,7 @@ export default function ProjectEditPage() {
                       className='flex gap-2 overflow-x-auto py-2 px-1 mb-5'
                       style={{ scrollbarWidth: 'thin' }}
                     >
-                      {stages.map((s: any, i: number) => (
+                      {stages.map((s, i) => (
                         <StageCard
                           key={s.id}
                           stage={s}
@@ -373,7 +386,7 @@ export default function ProjectEditPage() {
                     </p>
                   ) : (
                     <div className='flex flex-col gap-2'>
-                      {tasks.map((t: any) => (
+                      {tasks.map((t) => (
                         <TaskRow key={t.id} task={t} projectId={projectId} onRefresh={refetch} />
                       ))}
                     </div>
@@ -383,6 +396,7 @@ export default function ProjectEditPage() {
             )}
           </div>
         )}
+        {tab === '时间线' && <ProjectTimelineEditor projectId={projectId} />}
         {tab === '物料清单' && <MaterialsTab stages={stages} selectedId={selectedId} />}
         {tab === '标注评论' && (
           <div className='py-16 text-center text-muted-foreground text-sm'>即将上线</div>
@@ -412,9 +426,9 @@ function StageCard({
   onMoveLeft,
   onMoveRight,
   onRefresh,
-  projectId
+  projectId: _projectId
 }: {
-  stage: any;
+  stage: KanbanStage;
   index: number;
   total: number;
   selected: boolean;
@@ -431,12 +445,12 @@ function StageCard({
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(stage.name);
   const [delOpen, setDelOpen] = useState(false);
-  const sDone = stage.tasks?.filter((t: any) => t.status === 'done').length ?? 0;
+  const sDone = stage.tasks?.filter((t) => t.status === 'done').length ?? 0;
   const sTotal = stage.tasks?.length ?? 0;
   const allDone = sTotal > 0 && sDone === sTotal;
   const todayStr = new Date().toISOString().slice(0, 10);
   const hasUrgent = (stage.tasks ?? []).some(
-    (t: any) => t.status !== 'done' && t.dueDate && t.dueDate.slice(0, 10) <= todayStr
+    (t) => t.status !== 'done' && t.dueDate && t.dueDate.slice(0, 10) <= todayStr
   );
 
   function saveName() {
@@ -469,6 +483,9 @@ function StageCard({
                   : 'border-border bg-card hover:border-primary/50'
           }`}
           onClick={onSelect}
+          onKeyDown={(e) => e.key === 'Enter' && onSelect()}
+          role='button'
+          tabIndex={0}
         >
           <div className='p-2'>
             {/* Header: status dot + number + drag */}
@@ -492,6 +509,9 @@ function StageCard({
                 {...listeners}
                 className='cursor-grab active:cursor-grabbing ml-auto p-0.5 text-muted-foreground/40 hover:text-muted-foreground'
                 onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.key === 'Enter' && e.stopPropagation()}
+                role='button'
+                tabIndex={0}
               >
                 <Icons.gripVertical className='h-3 w-3' />
               </div>
@@ -505,7 +525,6 @@ function StageCard({
                 onBlur={saveName}
                 onKeyDown={(e) => e.key === 'Enter' && saveName()}
                 className='h-6 text-xs font-semibold px-1 py-0'
-                autoFocus
                 onClick={(e) => e.stopPropagation()}
               />
             ) : (
@@ -548,6 +567,8 @@ function StageCard({
             <div
               className='flex items-center justify-between mt-2 pt-2 border-t border-border/50'
               onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.key === 'Enter' && e.stopPropagation()}
+              role='presentation'
             >
               <div className='flex items-center gap-0.5'>
                 <button
@@ -649,6 +670,9 @@ function AddStageCard({
     <div
       className='flex-shrink-0 w-[140px] rounded-xl border-2 border-primary bg-card p-3 flex flex-col gap-2'
       onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.key === 'Enter' && e.stopPropagation()}
+      role='button'
+      tabIndex={0}
     >
       <Input
         value={name}
@@ -656,7 +680,6 @@ function AddStageCard({
         onKeyDown={(e) => e.key === 'Enter' && save()}
         placeholder='阶段名称'
         className='h-6 text-xs'
-        autoFocus
       />
       <div className='flex gap-1'>
         <Button size='sm' className='h-6 text-[10px] flex-1' onClick={save} disabled={!name.trim()}>
@@ -712,7 +735,6 @@ function AddTaskInline({
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && save()}
         className='h-7 text-xs flex-1'
-        autoFocus
       />
       <Button size='sm' className='h-7 text-xs' onClick={save}>
         添加
@@ -730,7 +752,7 @@ function MemberSelect({
   onRefresh
 }: {
   taskId: string;
-  assignees: any[];
+  assignees: KanbanAssignee[];
   onRefresh: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -739,11 +761,11 @@ function MemberSelect({
     queryFn: () => apiClient<{ id: string; displayName: string }[]>('/tenant-members'),
     staleTime: 2 * 60 * 1000
   });
-  const assigneeIds = new Set(assignees.map((a: any) => a.memberId));
+  const assigneeIds = new Set(assignees.map((a) => a.memberId));
 
   async function toggleMember(memberId: string) {
     if (assigneeIds.has(memberId)) {
-      const a = assignees.find((a: any) => a.memberId === memberId);
+      const a = assignees.find((a) => a.memberId === memberId);
       if (a) await apiClient(`/task-assignees/${a.id}`, { method: 'DELETE' });
     } else {
       await apiClient(`/tasks/${taskId}/assignees`, {
@@ -772,21 +794,25 @@ function MemberSelect({
           <input
             className='w-full text-xs border rounded px-2 py-1 outline-none focus:border-primary'
             placeholder='搜索成员...'
-            onChange={(e) => {
+            aria-label='搜索成员'
+            onChange={(_e) => {
               /* filter */
             }}
           />
         </div>
         <div className='max-h-48 overflow-y-auto p-1'>
-          {(members ?? []).map((m: any) => (
-            <label
+          {(members ?? []).map((m) => (
+            <div
               key={m.id}
               className='flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-xs'
               onClick={() => toggleMember(m.id)}
+              onKeyDown={(e) => e.key === 'Enter' && toggleMember(m.id)}
+              role='button'
+              tabIndex={0}
             >
               <Checkbox checked={assigneeIds.has(m.id)} className='h-3.5 w-3.5' />
               {m.displayName}
-            </label>
+            </div>
           ))}
           {(!members || members.length === 0) && (
             <p className='text-xs text-muted-foreground text-center py-3'>暂无成员</p>
@@ -802,13 +828,13 @@ function TaskRow({
   projectId,
   onRefresh
 }: {
-  task: any;
+  task: KanbanTask;
   projectId: string;
   onRefresh: () => void;
 }) {
   const upd = useMutationToast({
     ...mutationOptions({
-      mutationFn: (data: any) =>
+      mutationFn: (data: Record<string, unknown>) =>
         apiClient(`/tasks/${task.id}`, { method: 'PATCH', body: JSON.stringify(data) }),
       onSuccess: () => {
         getQueryClient().invalidateQueries({ queryKey: ['kanban', projectId] });
@@ -829,7 +855,7 @@ function TaskRow({
   const { data: taskMats, refetch: refetchMats } = useQuery(
     queryOptions({
       queryKey: ['task-materials', task.id],
-      queryFn: () => apiClient<any[]>(`/tasks/${task.id}/materials`)
+      queryFn: () => apiClient<KanbanTaskMaterial[]>(`/tasks/${task.id}/materials`)
     })
   );
   const [matOpen, setMatOpen] = useState(false);
@@ -861,7 +887,7 @@ function TaskRow({
             value={task.title}
             onChange={(e) => upd.mutate({ title: e.target.value })}
           />
-          {visibleMats.map((tm: any) => {
+          {visibleMats.map((tm) => {
             const isMissing = tm.material?.status === 'missing';
             return (
               <Badge
@@ -893,7 +919,7 @@ function TaskRow({
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align='start' className='w-48 max-h-60 overflow-y-auto'>
-                {overflowMats.map((tm: any) => {
+                {overflowMats.map((tm) => {
                   const isMissing = tm.material?.status === 'missing';
                   return (
                     <DropdownMenuItem
@@ -957,8 +983,8 @@ function TaskRow({
             onChange={(e) => upd.mutate({ dueDate: e.target.value })}
           />
           <MemberSelect taskId={task.id} assignees={task.assignees ?? []} onRefresh={onRefresh} />
-          {task.assignees?.length > 0 &&
-            task.assignees.map((a: any) => (
+          {(task.assignees ?? []).length > 0 &&
+            (task.assignees ?? []).map((a) => (
               <Badge key={a.id} variant='outline' className='text-[10px] gap-1'>
                 {a.member?.displayName}
                 <button
@@ -977,7 +1003,7 @@ function TaskRow({
             </Badge>
           )}
           <button
-            onClick={() => del.mutate(undefined as any)}
+            onClick={() => del.mutate(undefined as never)}
             className='p-0.5 rounded hover:bg-destructive/10 hover:text-destructive'
           >
             <Icons.trash className='h-3 w-3' />
@@ -988,7 +1014,7 @@ function TaskRow({
         open={matOpen}
         onOpenChange={setMatOpen}
         taskId={task.id}
-        linkedIds={new Set(mats.map((m: any) => m.materialId))}
+        linkedIds={new Set(mats.map((m) => m.materialId))}
         onLinked={() => {
           refetchMats();
           onRefresh();
@@ -1032,7 +1058,7 @@ function ApplyDialog({
   );
 }
 
-function MaterialsTab({ stages, selectedId }: { stages: any[]; selectedId: string | null }) {
+function MaterialsTab({ stages, selectedId }: { stages: KanbanStage[]; selectedId: string | null }) {
   const [activeCatId, setActiveCatId] = useState<string | null>(null);
   const [missingOnly, setMissingOnly] = useState(false);
   const targetStages = selectedId ? stages.filter((s) => s.id === selectedId) : stages;
@@ -1040,7 +1066,7 @@ function MaterialsTab({ stages, selectedId }: { stages: any[]; selectedId: strin
   // Deduplicate by materialId, collect all stage+task refs
   const matMap = new Map<
     string,
-    { material: any; refs: { stageName: string; taskTitle: string }[] }
+    { material: KanbanTaskMaterial['material'] & { category?: { id: string; name: string } }; refs: { stageName: string; taskTitle: string }[] }
   >();
   for (const s of targetStages) {
     for (const t of s.tasks ?? []) {

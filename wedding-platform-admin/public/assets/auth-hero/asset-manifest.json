@@ -1,0 +1,80 @@
+{
+  "name": "french-romance-auth-hero-99",
+  "version": "2.0.0",
+  "recommendedDestination": "public/assets/auth-hero",
+  "renderLevels": {
+    "3": "WebGL2 full cloth mesh + shader displacement + particles",
+    "2": "WebGL1/lite cloth mesh + reduced particles",
+    "1": "DOM/SVG curtains + Canvas 2D particles",
+    "0": "static fallback"
+  },
+  "assets": [
+    {
+      "file": "visual-target-selected.png",
+      "role": "visualTarget",
+      "required": true
+    },
+    {
+      "file": "background-clean-candidate.png",
+      "role": "cleanBackgroundCandidate",
+      "required": true,
+      "replaceForFinal": "background-clean.webp"
+    },
+    {
+      "file": "static-fallback-curtains-closed.png",
+      "role": "staticFallback",
+      "required": true
+    },
+    {
+      "file": "curtain-left.svg",
+      "role": "curtainTextureLeft",
+      "required": true,
+      "replaceForFinal": "curtain-left.png"
+    },
+    {
+      "file": "curtain-right.svg",
+      "role": "curtainTextureRight",
+      "required": true,
+      "replaceForFinal": "curtain-right.png"
+    },
+    {
+      "file": "curtain-left-displacement.svg",
+      "role": "displacementLeft",
+      "required": true,
+      "replaceForFinal": "curtain-left-displacement.png"
+    },
+    {
+      "file": "curtain-right-displacement.svg",
+      "role": "displacementRight",
+      "required": true,
+      "replaceForFinal": "curtain-right-displacement.png"
+    },
+    {
+      "file": "curtain-left-highlight.svg",
+      "role": "highlightLeft",
+      "required": true,
+      "replaceForFinal": "curtain-left-highlight.png"
+    },
+    {
+      "file": "curtain-right-highlight.svg",
+      "role": "highlightRight",
+      "required": true,
+      "replaceForFinal": "curtain-right-highlight.png"
+    },
+    {
+      "file": "particle-atlas.svg",
+      "role": "particleAtlas",
+      "required": true,
+      "replaceForFinal": "particle-atlas.webp"
+    }
+  ],
+  "palette": {
+    "ivory": "#FBF7EF",
+    "pearl": "#F4EFE8",
+    "blush": "#C87481",
+    "dustyRose": "#B86C78",
+    "champagne": "#E7C678",
+    "sage": "#A7B89A",
+    "ink": "#2F2825"
+  }
+}

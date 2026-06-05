@@ -1,10 +1,11 @@
 import { queryOptions, mutationOptions } from '@tanstack/react-query';
 import { getQueryClient } from '@/lib/query-client';
+import { invalidateMe, notifyAuthMeInvalidated } from '@/lib/auth/auth-client';
 import {
   getRoles,
   getRoleMenus,
   assignRoleMenus,
-  getAllMenus,
+  getAllMenuTree,
   createRole,
   updateRole,
   deleteRole
@@ -31,26 +32,42 @@ export const roleMenusQueryOptions = (roleId: string) =>
   });
 
 export const allMenusQueryOptions = () =>
-  queryOptions({ queryKey: roleKeys.allMenus(), queryFn: () => getAllMenus() });
+  queryOptions({ queryKey: roleKeys.allMenus(), queryFn: () => getAllMenuTree() });
 
 export const assignRoleMenusMutation = mutationOptions({
   mutationFn: ({ roleId, menuIds }: { roleId: string; menuIds: string[] }) =>
     assignRoleMenus(roleId, menuIds),
-  onSuccess: () => getQueryClient().invalidateQueries({ queryKey: roleKeys.all })
+  onSuccess: () => {
+    getQueryClient().invalidateQueries({ queryKey: roleKeys.all });
+    invalidateMe();
+    notifyAuthMeInvalidated();
+  }
 });
 
 export const createRoleMutation = mutationOptions({
   mutationFn: (data: Parameters<typeof createRole>[0]) => createRole(data),
-  onSuccess: () => getQueryClient().invalidateQueries({ queryKey: roleKeys.all })
+  onSuccess: () => {
+    getQueryClient().invalidateQueries({ queryKey: roleKeys.all });
+    invalidateMe();
+    notifyAuthMeInvalidated();
+  }
 });
 
 export const updateRoleMutation = mutationOptions({
   mutationFn: ({ id, data }: { id: string; data: { name?: string; description?: string } }) =>
     updateRole(id, data),
-  onSuccess: () => getQueryClient().invalidateQueries({ queryKey: roleKeys.all })
+  onSuccess: () => {
+    getQueryClient().invalidateQueries({ queryKey: roleKeys.all });
+    invalidateMe();
+    notifyAuthMeInvalidated();
+  }
 });
 
 export const deleteRoleMutation = mutationOptions({
   mutationFn: (id: string) => deleteRole(id),
-  onSuccess: () => getQueryClient().invalidateQueries({ queryKey: roleKeys.all })
+  onSuccess: () => {
+    getQueryClient().invalidateQueries({ queryKey: roleKeys.all });
+    invalidateMe();
+    notifyAuthMeInvalidated();
+  }
 });

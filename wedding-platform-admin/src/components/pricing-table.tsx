@@ -20,7 +20,7 @@ export function PricingTable({ for: _for }: Props) {
         </CardHeader>
         <CardContent>
           <p className='text-2xl font-bold'>免费</p>
-          <p className='text-muted-foreground mt-2 text-sm'>功能开发中，敬请期待。</p>
+          <p className='text-muted-foreground mt-2 text-sm'>包含基础功能，适合小型团队使用。</p>
         </CardContent>
       </Card>
       <Card className='border-primary'>
@@ -33,7 +33,7 @@ export function PricingTable({ for: _for }: Props) {
         </CardHeader>
         <CardContent>
           <p className='text-2xl font-bold'>¥999/月</p>
-          <p className='text-muted-foreground mt-2 text-sm'>功能开发中，敬请期待。</p>
+          <p className='text-muted-foreground mt-2 text-sm'>包含全部功能，优先技术支持。</p>
         </CardContent>
       </Card>
     </div>

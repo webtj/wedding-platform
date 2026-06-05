@@ -1,6 +1,8 @@
 import { apiClient } from '@/lib/api-client';
 import type { ProcessTemplate, TemplateFilters, TemplateStage, TemplateTask } from './types';
 
+export type Template = ProcessTemplate & { stages: TemplateStage[] };
+
 export async function getTemplates(filters: TemplateFilters) {
   const params = new URLSearchParams();
   if (filters.page) params.set('page', String(filters.page));
@@ -31,7 +33,7 @@ export async function deleteTemplate(id: string) {
 }
 
 export async function duplicateTemplate(id: string) {
-  return apiClient<any>(`/templates/${id}/duplicate`, { method: 'POST' });
+  return apiClient<Template>(`/templates/${id}/duplicate`, { method: 'POST' });
 }
 
 export async function addStage(

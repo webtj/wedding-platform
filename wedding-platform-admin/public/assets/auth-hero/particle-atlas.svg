@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <radialGradient id="dust" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(64 64) scale(48)">
+      <stop offset="0" stop-color="#fff8cf" stop-opacity="1"/>
+      <stop offset="0.32" stop-color="#e9c66f" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#e9c66f" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="petal" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(64 222) rotate(80) scale(56 28)">
+      <stop offset="0" stop-color="#fff9f2"/>
+      <stop offset="0.45" stop-color="#f2c4c4"/>
+      <stop offset="1" stop-color="#bd6878" stop-opacity="0.82"/>
+    </radialGradient>
+    <filter id="soft"><feGaussianBlur stdDeviation="0.6"/></filter>
+  </defs>
+  <rect width="512" height="512" fill="none"/>
+  <circle cx="64" cy="64" r="48" fill="url(#dust)"/>
+  <circle cx="176" cy="64" r="26" fill="url(#dust)" opacity="0.7"/>
+  <circle cx="276" cy="64" r="14" fill="#fff3bc" opacity="0.7"/>
+  <path d="M68 164C105 194 110 242 75 288C25 276 12 228 34 190C42 176 53 168 68 164Z" fill="url(#petal)" filter="url(#soft)"/>
+  <path d="M206 166C244 190 260 230 236 282C184 284 158 246 166 204C170 184 184 172 206 166Z" fill="url(#petal)" filter="url(#soft)" opacity="0.9"/>
+  <path d="M354 176C388 210 386 254 342 292C296 270 292 226 316 194C326 184 338 178 354 176Z" fill="url(#petal)" filter="url(#soft)" opacity="0.86"/>
+  <path d="M52 390C144 356 230 352 330 390" stroke="#fff8dc" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+  <path d="M96 430C182 408 286 418 432 392" stroke="#f3d489" stroke-width="2" stroke-linecap="round" opacity="0.38"/>
+</svg>

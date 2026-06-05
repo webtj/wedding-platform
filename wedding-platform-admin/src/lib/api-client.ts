@@ -1,3 +1,6 @@
+import { getRefreshToken, clearTokens } from '@/lib/auth/auth-storage';
+import { getErrorMessage, shouldToastError, type ApiErrorResponse } from '@/lib/error-codes';
+
 function getBaseUrl(): string {
   if (typeof window !== 'undefined') return '/api';
   return `${process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000'}/api`;
@@ -8,38 +11,99 @@ function getToken(): string | null {
   return window.localStorage.getItem('wedding_access_token');
 }
 
-export async function apiClient<T>(endpoint: string, options?: RequestInit): Promise<T> {
+async function tryRefreshToken(): Promise<string | null> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return null;
+  try {
+    const res = await fetch('/api/identity/refresh', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ refreshToken })
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { accessToken: string; refreshToken: string };
+    window.localStorage.setItem('wedding_access_token', data.accessToken);
+    window.localStorage.setItem('wedding_refresh_token', data.refreshToken);
+    return data.accessToken;
+  } catch {
+    return null;
+  }
+}
+
+export class ApiError extends Error {
+  code: string;
+  statusCode: number;
+  details?: unknown;
+
+  constructor(code: string, message: string, statusCode: number, details?: unknown) {
+    super(message);
+    this.name = 'ApiError';
+    this.code = code;
+    this.statusCode = statusCode;
+    this.details = details;
+  }
+}
+
+async function parseErrorBody(res: Response): Promise<Partial<ApiErrorResponse>> {
+  try {
+    return await res.json();
+  } catch {
+    return {};
+  }
+}
+
+export async function apiClient<T>(endpoint: string, options?: RequestInit & { silent?: boolean }): Promise<T> {
+  const silent = options?.silent ?? false;
   const headers = new Headers(options?.headers);
-  if (!headers.has('Content-Type')) {
+  // Allow callers to opt out of the default JSON content-type (e.g. for FormData uploads)
+  // by explicitly passing a Content-Type header set to a falsy value.
+  const rawHeaders = options?.headers as Record<string, string> | undefined;
+  const skipDefaultContentType = rawHeaders && 'Content-Type' in rawHeaders && !rawHeaders['Content-Type'];
+  if (skipDefaultContentType) {
+    headers.delete('Content-Type');
+  } else if (!headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
-  const token = getToken();
+  let token = getToken();
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const res = await fetch(`${getBaseUrl()}${endpoint}`, {
+  let res = await fetch(`${getBaseUrl()}${endpoint}`, {
     ...options,
     headers
   });
 
-  if (!res.ok) {
-    let message = `请求失败 (${res.status})`;
-    try {
-      const body = await res.json();
-      if (typeof body?.message === 'string') message = body.message;
-      else if (Array.isArray(body?.message)) message = body.message.join('; ');
-    } catch {
-      /* ignore parse errors */
+  if (res.status === 401 && typeof window !== 'undefined') {
+    token = await tryRefreshToken();
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+      res = await fetch(`${getBaseUrl()}${endpoint}`, {
+        ...options,
+        headers
+      });
     }
+  }
+
+  if (!res.ok) {
+    const body = await parseErrorBody(res);
+    const code = body.code ?? 'INTERNAL_ERROR';
+    const message = getErrorMessage(code, body.message);
 
     if (res.status === 401 && typeof window !== 'undefined') {
-      localStorage.removeItem('wedding_access_token');
-      localStorage.removeItem('wedding_refresh_token');
+      clearTokens();
       window.location.href = '/auth/sign-in';
     }
 
-    throw new Error(message);
+    if (!silent && shouldToastError(code) && typeof window !== 'undefined') {
+      const { toast } = await import('sonner');
+      toast.error(message, {
+        description: body.message && body.message !== message ? body.message.slice(0, 120) : undefined,
+        duration: 5000
+      });
+    }
+
+    throw new ApiError(code, message, res.status, body.details);
   }
 
   return res.json() as Promise<T>;

@@ -13,12 +13,12 @@ import {
 } from '@/features/materials/api/service';
 import { MaterialPickerDialog } from '@/components/materials/MaterialPickerDialog';
 import type { TaskMaterial } from '@/features/materials/api/types';
+import type { KanbanTask, KanbanAssignee, TenantMember, KanbanSubtask } from './types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog';
@@ -27,7 +27,7 @@ import { toDateDisplay } from '@/lib/date-format';
 import { TASK_STATUS_ICON, TASK_STATUS_LABEL } from '@/lib/task-constants';
 
 type Props = {
-  task: any;
+  task: KanbanTask;
   projectId: string;
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -47,7 +47,7 @@ export function TaskDetailSheet({ task, projectId, open, onOpenChange, onRefresh
 
   const updateTask = useMutationToast({
     ...mutationOptions({
-      mutationFn: (data: any) =>
+      mutationFn: (data: Record<string, unknown>) =>
         apiClient(`/tasks/${task.id}`, { method: 'PATCH', body: JSON.stringify(data) }),
       onSuccess: () => {
         getQueryClient().invalidateQueries({ queryKey: ['kanban', projectId] });
@@ -133,7 +133,7 @@ export function TaskDetailSheet({ task, projectId, open, onOpenChange, onRefresh
                 <Button
                   size='sm'
                   onClick={() =>
-                    completeTask.mutate(undefined as any, { onSuccess: () => onOpenChange(false) })
+                    completeTask.mutate(undefined as never, { onSuccess: () => onOpenChange(false) })
                   }
                   disabled={!canComplete}
                 >
@@ -153,6 +153,8 @@ export function TaskDetailSheet({ task, projectId, open, onOpenChange, onRefresh
             )}
 
             <AssigneesSection taskId={task.id} />
+
+            <ChecklistSection taskId={task.id} />
 
             <div className='border-t pt-4'>
               <div className='flex items-center justify-between mb-3'>
@@ -227,13 +229,13 @@ function AssigneesSection({ taskId }: { taskId: string }) {
   const { data: assignees, refetch } = useQuery(
     queryOptions({
       queryKey: ['task-assignees', taskId],
-      queryFn: () => apiClient<any[]>(`/tasks/${taskId}/assignees`)
+      queryFn: () => apiClient<KanbanAssignee[]>(`/tasks/${taskId}/assignees`)
     })
   );
   const { data: members } = useQuery(
     queryOptions({
       queryKey: ['tenant-members'],
-      queryFn: () => apiClient<any[]>('/tenant-members')
+      queryFn: () => apiClient<TenantMember[]>('/tenant-members')
     })
   );
   const [adding, setAdding] = useState(false);
@@ -257,8 +259,8 @@ function AssigneesSection({ taskId }: { taskId: string }) {
     })
   });
 
-  const assignedIds = new Set((assignees ?? []).map((a: any) => a.memberId));
-  const availableMembers = (members ?? []).filter((m: any) => !assignedIds.has(m.id));
+  const assignedIds = new Set((assignees ?? []).map((a) => a.memberId));
+  const availableMembers = (members ?? []).filter((m) => !assignedIds.has(m.id));
 
   return (
     <div className='border-t pt-4'>
@@ -278,7 +280,7 @@ function AssigneesSection({ taskId }: { taskId: string }) {
           {availableMembers.length === 0 ? (
             <p className='text-xs text-muted-foreground py-2'>所有成员已指派</p>
           ) : (
-            availableMembers.map((m: any) => (
+            availableMembers.map((m) => (
               <button
                 key={m.id}
                 onClick={() => addAssignee.mutate(m.id)}
@@ -291,7 +293,7 @@ function AssigneesSection({ taskId }: { taskId: string }) {
         </div>
       )}
       <div className='flex flex-wrap gap-1.5'>
-        {(assignees ?? []).map((a: any) => (
+        {(assignees ?? []).map((a) => (
           <Badge key={a.id} variant='secondary' className='text-xs gap-1 pr-1'>
             {a.member?.displayName ?? '成员'}
             <button onClick={() => removeAssignee.mutate(a.id)} className='hover:text-destructive'>
@@ -302,6 +304,149 @@ function AssigneesSection({ taskId }: { taskId: string }) {
         {(assignees ?? []).length === 0 && (
           <p className='text-xs text-muted-foreground'>未指派成员</p>
         )}
+      </div>
+    </div>
+  );
+}
+
+function ChecklistSection({ taskId }: { taskId: string }) {
+  const [newTitle, setNewTitle] = useState('');
+
+  const { data: subtasks, refetch } = useQuery(
+    queryOptions({
+      queryKey: ['subtasks', taskId],
+      queryFn: () => apiClient<KanbanSubtask[]>(`/tasks/${taskId}/subtasks`)
+    })
+  );
+
+  const createSubtask = useMutationToast({
+    ...mutationOptions({
+      mutationFn: (title: string) =>
+        apiClient<KanbanSubtask>(`/tasks/${taskId}/subtasks`, {
+          method: 'POST',
+          body: JSON.stringify({ title })
+        }),
+      onSuccess: () => {
+        setNewTitle('');
+        refetch();
+        getQueryClient().invalidateQueries({ queryKey: ['kanban'] });
+      }
+    }),
+    successMsg: '已添加'
+  });
+
+  const toggleSubtask = useMutationToast({
+    ...mutationOptions({
+      mutationFn: (subtaskId: string) =>
+        apiClient<KanbanSubtask>(`/subtasks/${subtaskId}/toggle`, { method: 'PATCH' }),
+      onSuccess: () => {
+        refetch();
+        getQueryClient().invalidateQueries({ queryKey: ['kanban'] });
+      }
+    })
+  });
+
+  const deleteSubtask = useMutationToast({
+    ...mutationOptions({
+      mutationFn: (subtaskId: string) =>
+        apiClient(`/subtasks/${subtaskId}`, { method: 'DELETE' }),
+      onSuccess: () => {
+        refetch();
+        getQueryClient().invalidateQueries({ queryKey: ['kanban'] });
+      }
+    })
+  });
+
+  const items = subtasks ?? [];
+  const completedCount = items.filter((s) => s.isCompleted).length;
+  const totalCount = items.length;
+
+  return (
+    <div className='border-t pt-4'>
+      <div className='flex items-center justify-between mb-3'>
+        <h4 className='font-semibold text-sm'>
+          检查清单
+          {totalCount > 0 && (
+            <span className='ml-1.5 text-xs text-muted-foreground font-normal'>
+              ({completedCount}/{totalCount})
+            </span>
+          )}
+        </h4>
+      </div>
+
+      {totalCount > 0 && (
+        <div className='w-full bg-secondary rounded-full h-1.5 mb-3'>
+          <div
+            className='bg-emerald-500 h-1.5 rounded-full transition-all'
+            style={{ width: `${totalCount > 0 ? (completedCount / totalCount) * 100 : 0}%` }}
+          />
+        </div>
+      )}
+
+      {items.length > 0 && (
+        <div className='space-y-1 mb-3'>
+          {items.map((s) => (
+            <div
+              key={s.id}
+              className='flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-accent/50 group text-sm'
+            >
+              <button
+                type='button'
+                onClick={() => toggleSubtask.mutate(s.id)}
+                className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                  s.isCompleted
+                    ? 'bg-emerald-500 border-emerald-500 text-white'
+                    : 'border-muted-foreground hover:border-primary'
+                }`}
+              >
+                {s.isCompleted && (
+                  <svg className='w-3 h-3' fill='none' viewBox='0 0 24 24' stroke='currentColor' strokeWidth={3}>
+                    <path strokeLinecap='round' strokeLinejoin='round' d='M5 13l4 4L19 7' />
+                  </svg>
+                )}
+              </button>
+              <span
+                className={`flex-1 ${
+                  s.isCompleted ? 'line-through text-muted-foreground' : ''
+                }`}
+              >
+                {s.title}
+              </span>
+              <button
+                type='button'
+                onClick={() => deleteSubtask.mutate(s.id)}
+                className='opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity'
+              >
+                <Icons.close className='h-3.5 w-3.5' />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className='flex gap-2'>
+        <input
+          type='text'
+          value={newTitle}
+          aria-label='添加子任务'
+          onChange={(e) => setNewTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && newTitle.trim()) {
+              createSubtask.mutate(newTitle.trim());
+            }
+          }}
+          placeholder='添加子任务...'
+          className='flex-1 h-8 text-sm rounded-md border bg-transparent px-3 outline-none focus:border-primary'
+        />
+        <Button
+          variant='outline'
+          size='sm'
+          className='h-8'
+          disabled={!newTitle.trim()}
+          onClick={() => createSubtask.mutate(newTitle.trim())}
+        >
+          添加
+        </Button>
       </div>
     </div>
   );

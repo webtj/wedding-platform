@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { Icons } from '@/components/icons';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -12,22 +13,34 @@ import { useRouter } from 'next/navigation';
 
 const MAX_VISIBLE = 5;
 
-const actionRoutes: Record<string, string> = {
-  view: '/studio/workspaces',
-  'view-product': '/studio/product',
-  billing: '/admin/billing',
-  open: '/studio/kanban',
-  'open-chat': '/studio/chat'
-};
-
 export function NotificationCenter() {
-  const { notifications, markAsRead, markAllAsRead, unreadCount } = useNotificationStore();
+  const {
+    bellNotifications,
+    markAsRead,
+    markAllAsRead,
+    unreadCount,
+    fetchBellNotifications,
+    fetchUnreadCount
+  } = useNotificationStore();
   const router = useRouter();
-  const count = unreadCount();
-  const visibleNotifications = notifications.slice(0, MAX_VISIBLE);
+  const count = unreadCount;
+  const visibleNotifications = bellNotifications.slice(0, MAX_VISIBLE);
+
+  useEffect(() => {
+    fetchUnreadCount();
+    // Poll for new notifications every 30 seconds
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, [fetchUnreadCount]);
+
+  const handleOpen = (open: boolean) => {
+    if (open) {
+      fetchBellNotifications({ page: 1, pageSize: MAX_VISIBLE });
+    }
+  };
 
   return (
-    <Popover>
+    <Popover onOpenChange={handleOpen}>
       <PopoverTrigger asChild>
         <Button variant='ghost' size='icon' className='relative h-8 w-8'>
           <Icons.notification className='h-4 w-4' />
@@ -65,7 +78,7 @@ export function NotificationCenter() {
         </div>
         <Separator />
         <ScrollArea className='h-[400px]'>
-          {notifications.length === 0 ? (
+          {bellNotifications.length === 0 ? (
             <div className='flex flex-col items-center justify-center py-12'>
               <Icons.notification className='text-muted-foreground/40 mb-2 h-8 w-8' />
               <p className='text-muted-foreground text-sm'>No notifications yet</p>
@@ -78,15 +91,13 @@ export function NotificationCenter() {
                   id={notification.id}
                   title={notification.title}
                   body={notification.body}
-                  status={notification.status}
+                  status={notification.readAt ? 'read' : 'unread'}
                   createdAt={notification.createdAt}
-                  actions={notification.actions}
                   onMarkAsRead={markAsRead}
-                  onAction={(notifId, actionId) => {
-                    const route = actionRoutes[actionId];
-                    if (route) {
-                      markAsRead(notifId);
-                      router.push(route);
+                  onAction={(_notifId, _actionId) => {
+                    if (notification.link) {
+                      markAsRead(notification.id);
+                      router.push(notification.link);
                     }
                   }}
                 />

@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { queryOptions } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { getCategories, getMaterials } from '@/features/materials/api/service';
+import type { Material, MaterialCategory } from '@/features/materials/api/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -43,8 +44,8 @@ export function MaterialPickerDialog({ open, onOpenChange, taskId, linkedIds, on
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const cats = categories ?? [];
-  const filtered = (matData?.items ?? []).filter((m: any) => {
+  const cats: MaterialCategory[] = categories ?? [];
+  const filtered = (matData?.items ?? []).filter((m: Material) => {
     if (linkedIds.has(m.id)) return false;
     if (search) {
       if (!m.name.toLowerCase().includes(search.toLowerCase())) return false;
@@ -53,7 +54,7 @@ export function MaterialPickerDialog({ open, onOpenChange, taskId, linkedIds, on
     }
     return true;
   });
-  const filteredIds = new Set(filtered.map((m: any) => m.id));
+  const filteredIds = new Set(filtered.map((m: Material) => m.id));
   const selectedInFilter = [...selected].filter((id) => filteredIds.has(id));
   const allSelected = filtered.length > 0 && selectedInFilter.length === filtered.length;
   const someSelected = selectedInFilter.length > 0 && !allSelected;
@@ -62,13 +63,13 @@ export function MaterialPickerDialog({ open, onOpenChange, taskId, linkedIds, on
     if (allSelected) {
       setSelected((prev) => {
         const n = new Set(prev);
-        filtered.forEach((m: any) => n.delete(m.id));
+        filtered.forEach((m: Material) => n.delete(m.id));
         return n;
       });
     } else {
       setSelected((prev) => {
         const n = new Set(prev);
-        filtered.forEach((m: any) => n.add(m.id));
+        filtered.forEach((m: Material) => n.add(m.id));
         return n;
       });
     }
@@ -105,7 +106,7 @@ export function MaterialPickerDialog({ open, onOpenChange, taskId, linkedIds, on
             >
               全部
             </button>
-            {cats.map((c: any) => (
+            {cats.map((c: MaterialCategory) => (
               <button
                 key={c.id}
                 onClick={() => {
@@ -131,7 +132,7 @@ export function MaterialPickerDialog({ open, onOpenChange, taskId, linkedIds, on
               />
             </div>
             <div className='flex-1 overflow-y-auto space-y-1 pr-1'>
-              {filtered.map((m: any) => (
+              {filtered.map((m: Material) => (
                 <label
                   key={m.id}
                   className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border text-xs cursor-pointer transition-colors hover:bg-secondary/30 ${selected.has(m.id) ? 'bg-primary/5 border-primary/30' : ''}`}
@@ -147,6 +148,7 @@ export function MaterialPickerDialog({ open, onOpenChange, taskId, linkedIds, on
                         return n;
                       })
                     }
+                    aria-label={`选择 ${m.name}`}
                     className='w-3.5 h-3.5 rounded accent-primary'
                   />
                   <span className='flex-1 truncate'>{m.name}</span>
