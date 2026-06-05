@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { PlatformAdminGuard } from '../common/auth/platform-admin.guard';
+import { PlatformGuard } from '../common/auth/platform.guard';
 import { IdentityModule } from '../identity/identity.module';
 import { TenantsController } from './tenants.controller';
 import { TenantsService } from './tenants.service';
@@ -7,7 +7,7 @@ import { TenantsService } from './tenants.service';
 @Module({
   imports: [IdentityModule],
   controllers: [TenantsController],
-  providers: [TenantsService, PlatformAdminGuard],
+  providers: [TenantsService, PlatformGuard],
   exports: [TenantsService]
 })
 export class TenantsModule {}

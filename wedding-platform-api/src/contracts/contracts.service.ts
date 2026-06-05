@@ -1,7 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { randomBytes } from 'crypto';
+import { Injectable } from '@nestjs/common';
+import { AppError } from '../common/errors/app-error';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
-import type { CreateContractDto, CreateContractItemDto, CreatePaymentRecordDto, UpdateContractDto } from './dto';
+import type { CreateContractDto, UpdateContractDto } from './dto';
 
 @Injectable()
 export class ContractsService {
@@ -13,8 +15,19 @@ export class ContractsService {
   list(input: { tenantId: string; projectId: string }) {
     return this.prisma.contract.findMany({
       where: { tenantId: input.tenantId, projectId: input.projectId },
-      include: { items: true, payments: true },
       orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  recent(input: { tenantId: string }) {
+    return this.prisma.contract.findMany({
+      where: { tenantId: input.tenantId },
+      include: {
+        project: { select: { id: true, projectNo: true, brideName: true, groomName: true } },
+        lead: { select: { id: true, leadNo: true, name: true } }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5
     });
   }
 
@@ -36,8 +49,6 @@ export class ContractsService {
       this.prisma.contract.findMany({
         where,
         include: {
-          items: true,
-          payments: true,
           project: { select: { id: true, projectNo: true, brideName: true, groomName: true } },
           lead: { select: { id: true, leadNo: true, name: true, phone: true } }
         },
@@ -63,8 +74,6 @@ export class ContractsService {
         phone: input.data.phone,
         weddingDate: input.data.weddingDate ? new Date(input.data.weddingDate) : undefined,
         venue: input.data.venue,
-        amountCents: input.data.amountCents,
-        depositCents: input.data.depositCents,
         serviceContent: input.data.serviceContent,
         companyName: input.data.companyName,
         companyAddress: input.data.companyAddress,
@@ -85,16 +94,16 @@ export class ContractsService {
   async getById(input: { tenantId: string; contractId: string }) {
     const c = await this.prisma.contract.findFirst({
       where: { id: input.contractId, tenantId: input.tenantId },
-      include: { items: true, payments: true, project: { select: { id: true, brideName: true, groomName: true } } }
+      include: { project: { select: { id: true, brideName: true, groomName: true } } }
     });
-    if (!c) throw new NotFoundException('Contract not found');
+    if (!c) throw AppError.notFound('Contract', input.contractId);
     return c;
   }
 
   async update(input: { tenantId: string; userId: string; contractId: string; data: UpdateContractDto }) {
     const contract = await this.prisma.contract.findFirst({ where: { id: input.contractId, tenantId: input.tenantId } });
     if (!contract) {
-      throw new NotFoundException('Contract not found');
+      throw AppError.notFound('Contract', input.contractId);
     }
     const updated = await this.prisma.contract.update({
       where: { id: input.contractId, tenantId: input.tenantId },
@@ -115,70 +124,21 @@ export class ContractsService {
     return updated;
   }
 
-  async addItem(input: { tenantId: string; userId: string; contractId: string; data: CreateContractItemDto }) {
-    const contract = await this.prisma.contract.findFirst({ where: { id: input.contractId, tenantId: input.tenantId } });
-    if (!contract) {
-      throw new NotFoundException('Contract not found');
-    }
-    const totalCents = Math.round(input.data.quantity * input.data.unitPriceCents);
-    const item = await this.prisma.contractItem.create({
-      data: {
-        contractId: input.contractId,
-        name: input.data.name,
-        quantity: input.data.quantity,
-        unitPriceCents: input.data.unitPriceCents,
-        totalCents,
-        note: input.data.note
-      }
-    });
-    await this.audit.record({
-      tenantId: input.tenantId,
-      userId: input.userId,
-      action: 'contract_item.create',
-      entity: 'contract',
-      entityId: input.contractId,
-      metadata: { projectId: contract.projectId ?? "", itemId: item.id }
-    });
-    return item;
-  }
-
-  async addPayment(input: { tenantId: string; userId: string; contractId: string; data: CreatePaymentRecordDto }) {
-    const contract = await this.prisma.contract.findFirst({ where: { id: input.contractId, tenantId: input.tenantId } });
-    if (!contract) {
-      throw new NotFoundException('Contract not found');
-    }
-    const payment = await this.prisma.paymentRecord.create({
-      data: {
-        tenantId: input.tenantId,
-        projectId: contract.projectId ?? "",
-        contractId: input.contractId,
-        amountCents: input.data.amountCents,
-        paidAt: new Date(input.data.paidAt),
-        method: input.data.method,
-        note: input.data.note,
-        voucherAssetId: input.data.voucherAssetId
-      }
-    });
-    await this.audit.record({
-      tenantId: input.tenantId,
-      userId: input.userId,
-      action: 'payment.create',
-      entity: 'payment_record',
-      entityId: payment.id,
-      metadata: { projectId: contract.projectId ?? "", contractId: input.contractId }
-    });
-    return payment;
-  }
-
   async getBySignToken(token: string) {
     const contract = await this.prisma.contract.findUnique({ where: { signToken: token } });
-    if (!contract) throw new NotFoundException('合同不存在或已失效');
+    if (!contract) throw AppError.notFound('Contract', token);
+    if (contract.signTokenExpiresAt && contract.signTokenExpiresAt < new Date()) {
+      throw AppError.badRequest('签署链接已过期');
+    }
     return contract;
   }
 
   async sign(token: string, signatureData: string) {
     const contract = await this.prisma.contract.findUnique({ where: { signToken: token } });
-    if (!contract) throw new NotFoundException('合同不存在');
+    if (!contract) throw AppError.notFound('Contract', token);
+    if (contract.signTokenExpiresAt && contract.signTokenExpiresAt < new Date()) {
+      throw AppError.badRequest('签署链接已过期');
+    }
     return this.prisma.contract.update({
       where: { id: contract.id },
       data: { status: 'signed', signedAt: new Date(), signatureData }
@@ -187,20 +147,43 @@ export class ContractsService {
 
   async reject(token: string, rejectReason: string) {
     const contract = await this.prisma.contract.findUnique({ where: { signToken: token } });
-    if (!contract) throw new NotFoundException('合同不存在');
+    if (!contract) throw AppError.notFound('Contract', token);
+    if (contract.signTokenExpiresAt && contract.signTokenExpiresAt < new Date()) {
+      throw AppError.badRequest('签署链接已过期');
+    }
     return this.prisma.contract.update({
       where: { id: contract.id },
       data: { status: 'voided', rejectedAt: new Date(), rejectReason }
     });
   }
 
+  async reissueSignToken(input: { tenantId: string; userId: string; contractId: string }) {
+    const contract = await this.prisma.contract.findFirst({
+      where: { id: input.contractId, tenantId: input.tenantId }
+    });
+    if (!contract) throw AppError.notFound('Contract', input.contractId);
+    const signToken = randomBytes(32).toString('hex');
+    const signTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const updated = await this.prisma.contract.update({
+      where: { id: input.contractId },
+      data: { signToken, signTokenExpiresAt }
+    });
+    await this.audit.record({
+      tenantId: input.tenantId,
+      userId: input.userId,
+      action: 'contract.reissue_sign_token',
+      entity: 'contract',
+      entityId: input.contractId,
+      metadata: {}
+    });
+    return updated;
+  }
+
   async delete(input: { tenantId: string; contractId: string }) {
     const contract = await this.prisma.contract.findFirst({
       where: { id: input.contractId, tenantId: input.tenantId }
     });
-    if (!contract) throw new NotFoundException('Contract not found');
-    await this.prisma.paymentRecord.deleteMany({ where: { contractId: input.contractId } });
-    await this.prisma.contractItem.deleteMany({ where: { contractId: input.contractId } });
+    if (!contract) throw AppError.notFound('Contract', input.contractId);
     await this.prisma.contract.delete({ where: { id: input.contractId, tenantId: input.tenantId } });
     return { id: contract.id, deleted: true };
   }
@@ -210,7 +193,7 @@ export class ContractsService {
       where: { id: input.contractId, tenantId: input.tenantId },
       include: { lead: true }
     });
-    if (!contract) throw new NotFoundException('Contract not found');
+    if (!contract) throw AppError.notFound('Contract', input.contractId);
 
     return this.prisma.$transaction(async (tx) => {
       if (contract.leadId) {
@@ -220,8 +203,6 @@ export class ContractsService {
         });
       }
 
-      await tx.paymentRecord.deleteMany({ where: { contractId: input.contractId } });
-      await tx.contractItem.deleteMany({ where: { contractId: input.contractId } });
       await tx.contract.delete({ where: { id: input.contractId, tenantId: input.tenantId } });
 
       await this.audit.record({

@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { PERMISSIONS } from '@wedding/shared';
+import { PERMISSIONS, createContractSchema } from '@wedding/shared';
 import { JwtAuthGuard } from '../common/auth/jwt-auth.guard';
 import { RequirePermissions } from '../common/auth/permissions.decorator';
 import { PermissionsGuard } from '../common/auth/permissions.guard';
@@ -88,7 +88,7 @@ export class LeadsController {
     return this.leadsService.createContract({
       tenantId: tenant.tenantId,
       leadId,
-      data: body as { contractNo: string; title: string; amountCents: number }
+      data: createContractSchema.parse(body)
     });
   }
 

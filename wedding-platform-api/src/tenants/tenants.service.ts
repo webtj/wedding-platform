@@ -6,13 +6,7 @@ import type { CreateTenantDto } from './dto';
 export class TenantsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  listForUser(input: { userId: string; isPlatformAdmin: boolean }) {
-    if (input.isPlatformAdmin) {
-      return this.prisma.tenant.findMany({
-        orderBy: { createdAt: 'desc' }
-      });
-    }
-
+  listForUser(input: { userId: string }) {
     return this.prisma.tenant.findMany({
       where: {
         members: {

@@ -3,8 +3,7 @@ import {
   createMaterialSchema, updateMaterialSchema,
   linkTaskMaterialSchema, confirmTaskMaterialSchema,
   type CreateMaterialCategoryInput, type UpdateMaterialCategoryInput,
-  type CreateMaterialInput, type UpdateMaterialInput,
-  type LinkTaskMaterialInput, type ConfirmTaskMaterialInput
+  type CreateMaterialInput, type UpdateMaterialInput
 } from '@wedding/shared';
 
 export {
@@ -16,5 +15,3 @@ export type CreateMaterialCategoryDto = CreateMaterialCategoryInput;
 export type UpdateMaterialCategoryDto = UpdateMaterialCategoryInput;
 export type CreateMaterialDto = CreateMaterialInput;
 export type UpdateMaterialDto = UpdateMaterialInput;
-export type LinkTaskMaterialDto = LinkTaskMaterialInput;
-export type ConfirmTaskMaterialDto = ConfirmTaskMaterialInput;

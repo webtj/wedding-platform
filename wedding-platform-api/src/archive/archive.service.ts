@@ -67,7 +67,6 @@ export class ArchiveService {
           select: {
             assets: true,
             tasks: true,
-            confirmations: true,
             aiOutputs: true,
             archivePackages: true
           }

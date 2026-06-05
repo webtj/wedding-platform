@@ -40,7 +40,7 @@ export class TasksController {
       tenantId: tenant.tenantId,
       userId: tenant.userId,
       taskId,
-      data: updateTaskSchema.parse(body)
+      data: updateTaskSchema.parse(body),
     });
   }
 
@@ -51,8 +51,18 @@ export class TasksController {
     return this.tasksService.complete({
       tenantId: tenant.tenantId,
       userId: tenant.userId,
-      taskId
+      taskId,
     });
+  }
+
+  @RequirePermissions(PERMISSIONS.TASK_ASSIGN)
+  @Post('tasks/reorder')
+  reorderTasks(
+    @Req() request: { auth?: AuthContext },
+    @Body() body: { tasks: Array<{ id: string; stageId: string; sortOrder: number }> }
+  ) {
+    const tenant = requireTenant(request.auth);
+    return this.tasksService.reorderTasks({ tenantId: tenant.tenantId, tasks: body.tasks });
   }
 
   @RequirePermissions(PERMISSIONS.TASK_READ)
@@ -77,5 +87,37 @@ export class TasksController {
   @Get('tenant-members')
   listMembers(@Req() r: { auth?: AuthContext }) {
     return this.tasksService.listMembers({ tenantId: requireTenant(r.auth).tenantId });
+  }
+
+  @RequirePermissions(PERMISSIONS.TASK_CREATE)
+  @Post('tasks/:taskId/subtasks')
+  createSubtask(
+    @Req() r: { auth?: AuthContext },
+    @Param('taskId') taskId: string,
+    @Body() body: { title: string }
+  ) {
+    const tenant = requireTenant(r.auth);
+    return this.tasksService.createSubtask({ tenantId: tenant.tenantId, taskId, title: body.title });
+  }
+
+  @RequirePermissions(PERMISSIONS.TASK_READ)
+  @Get('tasks/:taskId/subtasks')
+  listSubtasks(@Req() r: { auth?: AuthContext }, @Param('taskId') taskId: string) {
+    const tenant = requireTenant(r.auth);
+    return this.tasksService.listSubtasks({ tenantId: tenant.tenantId, taskId });
+  }
+
+  @RequirePermissions(PERMISSIONS.TASK_COMPLETE)
+  @Patch('subtasks/:subtaskId/toggle')
+  toggleSubtask(@Req() r: { auth?: AuthContext }, @Param('subtaskId') subtaskId: string) {
+    const tenant = requireTenant(r.auth);
+    return this.tasksService.toggleSubtask({ tenantId: tenant.tenantId, subtaskId });
+  }
+
+  @RequirePermissions(PERMISSIONS.TASK_ASSIGN)
+  @Delete('subtasks/:subtaskId')
+  deleteSubtask(@Req() r: { auth?: AuthContext }, @Param('subtaskId') subtaskId: string) {
+    const tenant = requireTenant(r.auth);
+    return this.tasksService.deleteSubtask({ tenantId: tenant.tenantId, subtaskId });
   }
 }

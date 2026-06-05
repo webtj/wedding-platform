@@ -1,11 +1,9 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { InvitationStatus, MemberStatus, NotificationType, ProjectMemberRole } from '@prisma/client';
+import { MemberStatus, NotificationType, ProjectMemberRole } from '@prisma/client';
 import { BUILT_IN_ROLES } from '@wedding/shared';
-import { randomBytes } from 'crypto';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
-import type { CreateCoupleInvitationDto } from './dto';
 
 @Injectable()
 export class ProjectsService {
@@ -15,12 +13,102 @@ export class ProjectsService {
     private readonly notifications: NotificationsService
   ) {}
 
-  listForUser(input: { tenantId: string; userId: string; isPlatformAdmin?: boolean }) {
-    return this.prisma.project.findMany({
-      where: { tenantId: input.tenantId },
-      include: { members: true },
-      orderBy: { weddingDate: 'asc' }
+  async getProjectTimeline(tenantId: string, projectId: string) {
+    const project = await this.prisma.project.findFirst({
+      where: { id: projectId, tenantId },
+      include: {
+        stages: {
+          include: {
+            tasks: {
+              include: { assignees: { include: { member: true } } },
+              orderBy: { dueDate: 'asc' },
+            },
+          },
+          orderBy: { sortOrder: 'asc' },
+        },
+        tasks: {
+          where: { stageId: null },
+          include: { assignees: { include: { member: true } } },
+          orderBy: { dueDate: 'asc' },
+        },
+      },
     });
+
+    if (!project) throw new NotFoundException('Project not found');
+
+    const weddingDate = new Date(project.weddingDate);
+    const today = new Date();
+    const daysUntilWedding = Math.ceil(
+      (weddingDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    const calcDaysUntilDue = (dueDate: Date | null) =>
+      dueDate
+        ? Math.ceil((new Date(dueDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+        : null;
+
+    return {
+      project: {
+        id: project.id,
+        projectNo: project.projectNo,
+        brideName: project.brideName,
+        groomName: project.groomName,
+        weddingDate: project.weddingDate,
+        venue: project.venue,
+        status: project.status,
+      },
+      weddingDate: project.weddingDate,
+      daysUntilWedding,
+      stages: project.stages.map((stage) => ({
+        id: stage.id,
+        name: stage.name,
+        status: stage.status,
+        sortOrder: stage.sortOrder,
+        tasks: stage.tasks.map((task) => ({
+          id: task.id,
+          title: task.title,
+          status: task.status,
+          priority: task.priority,
+          dueDate: task.dueDate,
+          isBlocked: task.isBlocked,
+          assigneeType: task.assigneeType,
+          assignees: task.assignees,
+          daysUntilDue: calcDaysUntilDue(task.dueDate),
+        })),
+      })),
+      unassignedTasks: project.tasks.map((task) => ({
+        id: task.id,
+        title: task.title,
+        status: task.status,
+        priority: task.priority,
+        dueDate: task.dueDate,
+        isBlocked: task.isBlocked,
+        assigneeType: task.assigneeType,
+        assignees: task.assignees,
+        daysUntilDue: calcDaysUntilDue(task.dueDate),
+      })),
+    };
+  }
+
+  async listForUser(input: { tenantId: string; page?: number; pageSize?: number }) {
+    const page = input.page ?? 1;
+    const pageSize = input.pageSize ?? 20;
+    const skip = (page - 1) * pageSize;
+
+    const where = { tenantId: input.tenantId };
+
+    const [items, total] = await Promise.all([
+      this.prisma.project.findMany({
+        where,
+        include: { members: true },
+        orderBy: { weddingDate: 'asc' },
+        skip,
+        take: pageSize,
+      }),
+      this.prisma.project.count({ where }),
+    ]);
+
+    return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
   }
 
   async get(input: { tenantId: string; userId: string; projectId: string }) {
@@ -31,149 +119,13 @@ export class ProjectsService {
       },
       include: {
         members: { include: { user: true } },
-        invitations: { orderBy: { createdAt: 'desc' } },
         tasks: { orderBy: { dueDate: 'asc' } },
-        confirmations: { orderBy: { createdAt: 'desc' } },
-        assets: { include: { annotations: true }, orderBy: { createdAt: 'desc' } }
+        assets: { orderBy: { createdAt: 'desc' } }
       }
     });
     if (!project) {
       throw new NotFoundException('Project not found');
     }
     return project;
-  }
-
-  async createInvitation(input: {
-    tenantId: string;
-    userId: string;
-    projectId: string;
-    data: CreateCoupleInvitationDto;
-  }) {
-    const project = await this.prisma.project.findFirst({
-      where: { id: input.projectId, tenantId: input.tenantId }
-    });
-    if (!project) {
-      throw new NotFoundException('Project not found');
-    }
-
-    const invitation = await this.prisma.coupleInvitation.create({
-      data: {
-        tenantId: input.tenantId,
-        projectId: input.projectId,
-        token: randomBytes(18).toString('hex'),
-        invitedName: input.data.invitedName,
-        invitedPhone: input.data.invitedPhone,
-        expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 14)
-      }
-    });
-    await this.audit.record({
-      tenantId: input.tenantId,
-      userId: input.userId,
-      action: 'project.invitation.create',
-      entity: 'project',
-      entityId: input.projectId,
-      metadata: { invitationId: invitation.id, projectId: input.projectId }
-    });
-    return invitation;
-  }
-
-  async acceptInvitation(input: { userId: string; token: string }) {
-    const invitation = await this.prisma.coupleInvitation.findUnique({
-      where: { token: input.token },
-      include: { project: true }
-    });
-    if (!invitation || invitation.status !== InvitationStatus.pending || invitation.expiresAt.getTime() < Date.now()) {
-      throw new ForbiddenException('Invalid invitation');
-    }
-
-    return this.prisma.$transaction(async (tx) => {
-      const member = await tx.tenantMember.upsert({
-        where: {
-          tenantId_userId: {
-            tenantId: invitation.tenantId,
-            userId: input.userId
-          }
-        },
-        update: {
-          status: MemberStatus.active,
-          displayName: invitation.invitedName
-        },
-        create: {
-          tenantId: invitation.tenantId,
-          userId: input.userId,
-          displayName: invitation.invitedName
-        }
-      });
-      const coupleRole = await tx.role.findFirst({
-        where: {
-          tenantId: invitation.tenantId,
-          code: BUILT_IN_ROLES.COUPLE
-        }
-      });
-      if (coupleRole) {
-        await tx.memberRole.upsert({
-          where: {
-            memberId_roleId: {
-              memberId: member.id,
-              roleId: coupleRole.id
-            }
-          },
-          update: {},
-          create: {
-            memberId: member.id,
-            roleId: coupleRole.id
-          }
-        });
-      }
-
-      const projectMember = await tx.projectMember.upsert({
-        where: {
-          projectId_userId_role: {
-            projectId: invitation.projectId,
-            userId: input.userId,
-            role: ProjectMemberRole.couple
-          }
-        },
-        update: {
-          memberId: member.id
-        },
-        create: {
-          tenantId: invitation.tenantId,
-          projectId: invitation.projectId,
-          userId: input.userId,
-          memberId: member.id,
-          role: ProjectMemberRole.couple
-        }
-      });
-      await tx.coupleInvitation.update({
-        where: { id: invitation.id },
-        data: {
-          status: InvitationStatus.accepted,
-          acceptedByUserId: input.userId,
-          acceptedAt: new Date()
-        }
-      });
-      await tx.notification.create({
-        data: {
-          tenantId: invitation.tenantId,
-          userId: input.userId,
-          type: NotificationType.system,
-          title: '已加入婚礼项目',
-          body: `${invitation.project.brideName} & ${invitation.project.groomName} 的婚礼项目已开通`,
-          link: `/couple/projects/${invitation.projectId}`
-        }
-      });
-      await tx.auditLog.create({
-        data: {
-          tenantId: invitation.tenantId,
-          userId: input.userId,
-          action: 'project.invitation.accept',
-          entity: 'project',
-          entityId: invitation.projectId,
-          metadata: { invitationId: invitation.id, projectId: invitation.projectId }
-        }
-      });
-      return projectMember;
-    });
   }
 }

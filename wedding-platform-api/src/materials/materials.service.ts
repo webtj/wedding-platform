@@ -53,7 +53,7 @@ export class MaterialsService {
   async createMaterial(input: { tenantId: string; data: CreateMaterialDto }) {
     const cat = await this.prisma.materialCategory.findFirst({ where: { id: input.data.categoryId, tenantId: input.tenantId } });
     if (!cat) throw new NotFoundException('Category not found');
-    return this.prisma.material.create({ data: input.data });
+    return this.prisma.material.create({ data: { ...input.data, tenantId: input.tenantId } });
   }
 
   async updateMaterial(input: { tenantId: string; materialId: string; data: UpdateMaterialDto }) {

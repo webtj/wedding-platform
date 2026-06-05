@@ -1,4 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { z } from 'zod';
 import { PERMISSIONS } from '@wedding/shared';
 import { JwtAuthGuard } from '../common/auth/jwt-auth.guard';
 import { Public } from '../common/auth/public.decorator';
@@ -6,13 +8,20 @@ import { RequirePermissions } from '../common/auth/permissions.decorator';
 import { PermissionsGuard } from '../common/auth/permissions.guard';
 import type { AuthContext } from '../common/auth/auth-context';
 import { requireTenant } from '../common/tenant-context';
-import { createContractItemSchema, createContractSchema, createPaymentRecordSchema, updateContractSchema } from './dto';
+import { createContractSchema, updateContractSchema } from './dto';
 import { ContractsService } from './contracts.service';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller()
 export class ContractsController {
   constructor(private readonly contractsService: ContractsService) {}
+
+  @RequirePermissions(PERMISSIONS.CONTRACT_READ)
+  @Get('contracts/recent')
+  recent(@Req() request: { auth?: AuthContext }) {
+    const tenant = requireTenant(request.auth);
+    return this.contractsService.recent({ tenantId: tenant.tenantId });
+  }
 
   @RequirePermissions(PERMISSIONS.CONTRACT_READ)
   @Get('contracts')
@@ -69,47 +78,28 @@ export class ContractsController {
     });
   }
 
-  @RequirePermissions(PERMISSIONS.CONTRACT_MANAGE)
-  @Post('contracts/:contractId/items')
-  addItem(@Req() request: { auth?: AuthContext }, @Param('contractId') contractId: string, @Body() body: unknown) {
-    const tenant = requireTenant(request.auth);
-    return this.contractsService.addItem({
-      tenantId: tenant.tenantId,
-      userId: tenant.userId,
-      contractId,
-      data: createContractItemSchema.parse(body)
-    });
-  }
-
-  @RequirePermissions(PERMISSIONS.PAYMENT_RECORD)
-  @Post('contracts/:contractId/payments')
-  addPayment(@Req() request: { auth?: AuthContext }, @Param('contractId') contractId: string, @Body() body: unknown) {
-    const tenant = requireTenant(request.auth);
-    return this.contractsService.addPayment({
-      tenantId: tenant.tenantId,
-      userId: tenant.userId,
-      contractId,
-      data: createPaymentRecordSchema.parse(body)
-    });
-  }
-
   // Public endpoints for contract signing (no auth required)
   @Public()
+  @Throttle({ default: { ttl: 60000, limit: 30 } })
   @Get('contracts/sign/:token')
   getForSigning(@Param('token') token: string) {
     return this.contractsService.getBySignToken(token);
   }
 
+  private static signSchema = z.object({
+    signatureData: z.string().max(500000).optional(),
+    rejectReason: z.string().max(500).optional(),
+  }).refine((d) => d.signatureData || d.rejectReason, { message: '必须提供签名或拒绝原因' });
+
   @Public()
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
   @Post('contracts/sign/:token')
-  sign(@Param('token') token: string, @Body() body: { signatureData?: string; rejectReason?: string }) {
-    if (body.signatureData) {
-      return this.contractsService.sign(token, body.signatureData);
+  sign(@Param('token') token: string, @Body() body: unknown) {
+    const data = ContractsController.signSchema.parse(body);
+    if (data.signatureData) {
+      return this.contractsService.sign(token, data.signatureData);
     }
-    if (body.rejectReason !== undefined) {
-      return this.contractsService.reject(token, body.rejectReason);
-    }
-    throw new Error('Invalid action');
+    return this.contractsService.reject(token, data.rejectReason!);
   }
 
   @RequirePermissions(PERMISSIONS.CONTRACT_MANAGE)

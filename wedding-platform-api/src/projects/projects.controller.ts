@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { PERMISSIONS } from '@wedding/shared';
 import { JwtAuthGuard } from '../common/auth/jwt-auth.guard';
 import { RequirePermissions } from '../common/auth/permissions.decorator';
@@ -15,12 +15,27 @@ export class ProjectsController {
 
   @RequirePermissions(PERMISSIONS.PROJECT_READ)
   @Get()
-  list(@Req() request: { auth?: AuthContext }) {
-    const tenant = requireTenant(request.auth);
+  list(
+    @Req() request: { auth?: AuthContext },
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    const { tenantId } = requireTenant(request.auth);
     return this.projectsService.listForUser({
-      tenantId: tenant.tenantId,
-      userId: tenant.userId
+      tenantId,
+      page: page ? parseInt(page) : undefined,
+      pageSize: pageSize ? parseInt(pageSize) : undefined,
     });
+  }
+
+  @RequirePermissions(PERMISSIONS.PROJECT_READ)
+  @Get(':projectId/timeline')
+  getProjectTimeline(
+    @Req() request: { auth?: AuthContext },
+    @Param('projectId') projectId: string,
+  ) {
+    const tenant = requireTenant(request.auth);
+    return this.projectsService.getProjectTimeline(tenant.tenantId, projectId);
   }
 
   @RequirePermissions(PERMISSIONS.PROJECT_READ)
@@ -34,26 +49,4 @@ export class ProjectsController {
     });
   }
 
-  @RequirePermissions(PERMISSIONS.PROJECT_UPDATE)
-  @Post(':projectId/couple-invitations')
-  createInvitation(@Req() request: { auth?: AuthContext }, @Param('projectId') projectId: string, @Body() body: unknown) {
-    const tenant = requireTenant(request.auth);
-    return this.projectsService.createInvitation({
-      tenantId: tenant.tenantId,
-      userId: tenant.userId,
-      projectId,
-      data: createCoupleInvitationSchema.parse(body)
-    });
-  }
-
-  @Post('invitations/:token/accept')
-  acceptInvitation(@Req() request: { auth?: AuthContext }, @Param('token') token: string) {
-    if (!request.auth?.userId) {
-      throw new UnauthorizedException('Missing user');
-    }
-    return this.projectsService.acceptInvitation({
-      userId: request.auth.userId,
-      token
-    });
-  }
 }

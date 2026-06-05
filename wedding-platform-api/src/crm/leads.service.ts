@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { randomBytes } from 'crypto';
+import { Injectable } from '@nestjs/common';
 import { LeadStatus, ProjectMemberRole } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
+import { AppError } from '../common/errors/app-error';
 import { parseDateOnly } from '../common/parse-date';
 import { PrismaService } from '../prisma/prisma.service';
 import type { ConvertLeadDto, CreateLeadDto, CreateLeadFollowupDto, UpdateLeadDto } from './dto';
@@ -17,7 +19,7 @@ export class LeadsService {
     const pageSize = input.pageSize ?? 10;
     const skip = (page - 1) * pageSize;
 
-    const where: Record<string, unknown> = { tenantId: input.tenantId };
+    const where: Record<string, unknown> = { tenantId: input.tenantId, deletedAt: null };
     if (input.status) where.status = input.status;
     if (input.search) {
       where.OR = [
@@ -48,11 +50,11 @@ export class LeadsService {
 
   async get(input: { tenantId: string; leadId: string }) {
     const lead = await this.prisma.lead.findFirst({
-      where: { id: input.leadId, tenantId: input.tenantId },
+      where: { id: input.leadId, tenantId: input.tenantId, deletedAt: null },
       include: { followups: { orderBy: { createdAt: 'desc' } } }
     });
     if (!lead) {
-      throw new NotFoundException('Lead not found');
+      throw AppError.notFound('Lead', input.leadId);
     }
     return lead;
   }
@@ -88,8 +90,14 @@ export class LeadsService {
   }
 
   async update(input: { tenantId: string; userId: string; leadId: string; data: UpdateLeadDto }) {
-    await this.get({ tenantId: input.tenantId, leadId: input.leadId });
-    const lead = await this.prisma.lead.update({
+    const lead = await this.get({ tenantId: input.tenantId, leadId: input.leadId });
+
+    // Prevent changing status from 'won' back to other statuses
+    if (lead.status === LeadStatus.won && input.data.status && input.data.status !== LeadStatus.won) {
+      throw AppError.badRequest('Cannot change status of a won lead');
+    }
+
+    const updated = await this.prisma.lead.update({
       where: { id: input.leadId, tenantId: input.tenantId },
       data: {
         ...input.data,
@@ -102,15 +110,17 @@ export class LeadsService {
       userId: input.userId,
       action: 'lead.update',
       entity: 'lead',
-      entityId: lead.id
+      entityId: updated.id
     });
-    return lead;
+    return updated;
   }
 
   async delete(input: { tenantId: string; leadId: string }) {
     const lead = await this.get({ tenantId: input.tenantId, leadId: input.leadId });
-    await this.prisma.leadFollowup.deleteMany({ where: { leadId: input.leadId } });
-    await this.prisma.lead.delete({ where: { id: input.leadId, tenantId: input.tenantId } });
+    await this.prisma.lead.update({
+      where: { id: input.leadId, tenantId: input.tenantId },
+      data: { deletedAt: new Date() }
+    });
     return { id: lead.id, deleted: true };
   }
 
@@ -142,16 +152,17 @@ export class LeadsService {
   }
 
   async createContract(input: { tenantId: string; leadId: string; data: {
-    contractNo: string; title: string; amountCents: number;
+    contractNo: string; title: string;
     brideName?: string; groomName?: string; phone?: string;
-    weddingDate?: string; venue?: string; depositCents?: number;
+    weddingDate?: string; venue?: string;
     serviceContent?: string; companyName?: string; companyAddress?: string;
   } }) {
     const lead = await this.get({ tenantId: input.tenantId, leadId: input.leadId });
-    if (lead.status !== 'won' as LeadStatus) throw new NotFoundException('Lead is not in won status');
-    if (lead.contractId) throw new NotFoundException('Lead already has a contract');
+    if (lead.status !== 'won' as LeadStatus) throw AppError.badRequest('Lead is not in won status');
+    if (lead.contractId) throw AppError.badRequest('Lead already has a contract');
 
-    const signToken = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    const signToken = randomBytes(32).toString('hex');
+    const signTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     const now = new Date();
     const datePart = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
     const randomPart = Array.from({ length: 8 }, () => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[Math.floor(Math.random() * 36)]).join('');
@@ -169,12 +180,11 @@ export class LeadsService {
           phone: input.data.phone ?? lead.phone ?? undefined,
           weddingDate: input.data.weddingDate ? new Date(input.data.weddingDate) : lead.weddingDate ?? undefined,
           venue: input.data.venue ?? undefined,
-          amountCents: input.data.amountCents,
-          depositCents: input.data.depositCents ?? undefined,
           serviceContent: input.data.serviceContent ?? undefined,
           companyName: input.data.companyName ?? undefined,
           companyAddress: input.data.companyAddress ?? undefined,
           signToken,
+          signTokenExpiresAt,
           status: 'pending_sign'
         }
       });

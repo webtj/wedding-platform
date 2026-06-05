@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { PERMISSIONS } from '@wedding/shared';
+import { calendarQuerySchema } from '@wedding/shared';
 import { JwtAuthGuard } from '../common/auth/jwt-auth.guard';
 import { RequirePermissions } from '../common/auth/permissions.decorator';
 import { PermissionsGuard } from '../common/auth/permissions.guard';
@@ -12,6 +13,19 @@ import { TimelinesService } from './timelines.service';
 @Controller()
 export class TimelinesController {
   constructor(private readonly timelinesService: TimelinesService) {}
+
+  @RequirePermissions(PERMISSIONS.TIMELINE_READ)
+  @Get('studio/timeline/calendar')
+  getCalendar(
+    @Req() request: { auth?: AuthContext },
+    @Query() query: unknown
+  ) {
+    const tenant = requireTenant(request.auth);
+    return this.timelinesService.getCalendar({
+      tenantId: tenant.tenantId,
+      ...calendarQuerySchema.parse(query)
+    });
+  }
 
   @RequirePermissions(PERMISSIONS.TIMELINE_READ)
   @Get('projects/:projectId/timeline-items')
@@ -65,6 +79,20 @@ export class TimelinesController {
       userId: tenant.userId,
       projectId,
       data: reorderTimelineItemsSchema.parse(body)
+    });
+  }
+
+  @RequirePermissions(PERMISSIONS.TIMELINE_MANAGE)
+  @Delete('timeline-items/:timelineItemId')
+  remove(
+    @Req() request: { auth?: AuthContext },
+    @Param('timelineItemId') timelineItemId: string
+  ) {
+    const tenant = requireTenant(request.auth);
+    return this.timelinesService.delete({
+      tenantId: tenant.tenantId,
+      userId: tenant.userId,
+      timelineItemId
     });
   }
 }
