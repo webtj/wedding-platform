@@ -1,5 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import type { CreateAccountInput, UpdateAccountInput } from '@wedding/shared';
+import { BusinessException } from '../common/exceptions/business.exception';
+import type { AuthContext } from '../common/auth/auth-context';
 import { PasswordService } from '../identity/password.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -10,13 +12,13 @@ export class SuperUsersService {
     private readonly passwordService: PasswordService
   ) {}
 
-  async list(params: { search?: string; tenantId?: string; roleCode?: string; page?: number; pageSize?: number }) {
+  async list(params: { auth: AuthContext; search?: string; roleCode?: string; page?: number; pageSize?: number }) {
+    const tenantId = params.auth.tenantId;
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 10;
     const skip = (page - 1) * pageSize;
 
     const where: Record<string, unknown> = {};
-
     if (params.search) {
       where.OR = [
         { displayName: { contains: params.search } },
@@ -24,14 +26,9 @@ export class SuperUsersService {
       ];
     }
 
-    // Build tenantMembers conditions
-    const memberConditions: Record<string, unknown> = {};
-    if (params.tenantId) memberConditions.tenantId = params.tenantId;
+    const memberConditions: Record<string, unknown> = { tenantId };
     if (params.roleCode) memberConditions.roles = { some: { role: { code: params.roleCode } } };
-
-    if (Object.keys(memberConditions).length > 0) {
-      where.tenantMembers = { some: memberConditions };
-    }
+    where.tenantMembers = { some: memberConditions };
 
     const [items, total] = await Promise.all([
       this.prisma.user.findMany({
@@ -55,7 +52,7 @@ export class SuperUsersService {
     return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
   }
 
-  async getById(userId: string) {
+  async getById(auth: AuthContext, userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -71,21 +68,24 @@ export class SuperUsersService {
     return user;
   }
 
-  async listTenantsForFilter() {
-    return this.prisma.tenant.findMany({
-      orderBy: { name: 'asc' }
-    });
+  async listTenantsForFilter(auth: AuthContext) {
+    // Platform admins see all tenants
+    const where = auth.isPlatformAdmin ? {} : { id: auth.tenantId! };
+    return this.prisma.tenant.findMany({ where, select: { id: true, name: true } });
   }
 
-  async listRolesForFilter() {
+  async listRolesForFilter(auth: AuthContext) {
+    // Platform admins see all roles
+    const where = auth.isPlatformAdmin ? {} : { tenantId: auth.tenantId! };
     return this.prisma.role.findMany({
+      where,
       select: { id: true, code: true, name: true },
       distinct: ['code'],
       orderBy: { code: 'asc' }
     });
   }
 
-  async create(data: CreateAccountInput) {
+  async create(auth: AuthContext, data: CreateAccountInput) {
     const existing = await this.prisma.authAccount.findUnique({
       where: { provider_identifier: { provider: 'password', identifier: data.identifier } }
     });
@@ -124,7 +124,7 @@ export class SuperUsersService {
     });
   }
 
-  async update(input: { userId: string; data: UpdateAccountInput }) {
+  async update(auth: AuthContext, input: { userId: string; data: UpdateAccountInput }) {
     const user = await this.prisma.user.findUnique({ where: { id: input.userId } });
     if (!user) { throw new NotFoundException('用户不存在'); }
     const { password, roleIds, ...userData } = input.data;
@@ -138,8 +138,8 @@ export class SuperUsersService {
     if (Object.keys(userData).length > 0) {
       await this.prisma.user.update({ where: { id: input.userId }, data: userData });
     }
-    if (roleIds) {
-      const member = await this.prisma.tenantMember.findFirst({ where: { userId: input.userId, status: 'active' } });
+    if (roleIds && auth.tenantId) {
+      const member = await this.prisma.tenantMember.findFirst({ where: { userId: input.userId, tenantId: auth.tenantId, status: 'active' } });
       if (member) {
         await this.prisma.memberRole.deleteMany({ where: { memberId: member.id } });
         if (roleIds.length > 0) {
@@ -147,13 +147,12 @@ export class SuperUsersService {
         }
       }
     }
-    return this.getById(input.userId);
+    return this.getById(auth, input.userId);
   }
 
-  async delete(userId: string) {
+  async delete(auth: AuthContext, userId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) { throw new NotFoundException('用户不存在'); }
-    if (user.isPlatformAdmin) { throw new ConflictException('不能删除平台管理员'); }
     return this.prisma.user.delete({ where: { id: userId } });
   }
 }

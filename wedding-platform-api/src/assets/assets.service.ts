@@ -3,7 +3,7 @@ import { AssetStatus } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageAdapter } from './storage-adapter';
-import type { CreateAnnotationDto, CreateAssetUploadIntentDto, UpdateAnnotationDto } from './dto';
+import type { CreateAssetUploadIntentDto } from './dto';
 
 @Injectable()
 export class AssetsService {
@@ -16,7 +16,6 @@ export class AssetsService {
   list(input: { tenantId: string; projectId: string }) {
     return this.prisma.asset.findMany({
       where: { tenantId: input.tenantId, projectId: input.projectId, status: { not: AssetStatus.deleted } },
-      include: { annotations: true },
       orderBy: { createdAt: 'desc' }
     });
   }
@@ -89,54 +88,15 @@ export class AssetsService {
   }
 
   listAnnotations(input: { tenantId: string; assetId: string }) {
-    return this.prisma.assetAnnotation.findMany({
-      where: { tenantId: input.tenantId, assetId: input.assetId },
-      orderBy: { createdAt: 'desc' }
-    });
+    return Promise.resolve([]);
   }
 
-  async createAnnotation(input: { tenantId: string; userId: string; assetId: string; data: CreateAnnotationDto }) {
-    const asset = await this.prisma.asset.findFirst({ where: { id: input.assetId, tenantId: input.tenantId } });
-    if (!asset) {
-      throw new NotFoundException('Asset not found');
-    }
-    const annotation = await this.prisma.assetAnnotation.create({
-      data: {
-        tenantId: input.tenantId,
-        assetId: input.assetId,
-        x: input.data.x,
-        y: input.data.y,
-        content: input.data.content,
-        createdByUserId: input.userId
-      }
-    });
-    await this.audit.record({
-      tenantId: input.tenantId,
-      userId: input.userId,
-      action: 'asset.annotation.create',
-      entity: 'asset',
-      entityId: input.assetId,
-      metadata: { annotationId: annotation.id }
-    });
-    return annotation;
+  async createAnnotation(): Promise<never> {
+    throw new NotFoundException('Annotations module has been removed');
   }
 
-  async updateAnnotation(input: { tenantId: string; userId: string; annotationId: string; data: UpdateAnnotationDto }) {
-    const result = await this.prisma.assetAnnotation.updateMany({
-      where: { id: input.annotationId, tenantId: input.tenantId },
-      data: {
-        status: input.data.status,
-        reply: input.data.reply
-      }
-    });
-    await this.audit.record({
-      tenantId: input.tenantId,
-      userId: input.userId,
-      action: 'asset.annotation.update',
-      entity: 'asset_annotation',
-      entityId: input.annotationId
-    });
-    return result;
+  async updateAnnotation(): Promise<never> {
+    throw new NotFoundException('Annotations module has been removed');
   }
 
   async createPreviewIntent(input: { tenantId: string; assetId: string }) {

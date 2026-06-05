@@ -1,13 +1,4 @@
-import {
-  createAnnotationSchema,
-  createAssetUploadIntentSchema,
-  updateAnnotationSchema,
-  type CreateAnnotationInput,
-  type CreateAssetUploadIntentInput,
-  type UpdateAnnotationInput
-} from '@wedding/shared';
+import { createAssetUploadIntentSchema, type CreateAssetUploadIntentInput } from '@wedding/shared';
 
-export { createAssetUploadIntentSchema, createAnnotationSchema, updateAnnotationSchema };
+export { createAssetUploadIntentSchema };
 export type CreateAssetUploadIntentDto = CreateAssetUploadIntentInput;
-export type CreateAnnotationDto = CreateAnnotationInput;
-export type UpdateAnnotationDto = UpdateAnnotationInput;

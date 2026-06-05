@@ -1,72 +1,30 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { PermissionCode } from '@wedding/shared';
-import { PrismaService } from '../../prisma/prisma.service';
+import { BusinessException } from '../exceptions/business.exception';
 import { REQUIRED_PERMISSIONS_KEY } from './permissions.decorator';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
-  constructor(
-    private readonly reflector: Reflector,
-    private readonly prisma: PrismaService
-  ) {}
+  constructor(private readonly reflector: Reflector) {}
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
+  canActivate(context: ExecutionContext): boolean {
     const required = this.reflector.getAllAndOverride<PermissionCode[]>(REQUIRED_PERMISSIONS_KEY, [
       context.getHandler(),
       context.getClass()
     ]);
 
-    if (!required?.length) {
-      return true;
-    }
+    if (!required?.length) return true;
 
-    const request = context.switchToHttp().getRequest<{ auth?: { userId: string; memberId: string | null } }>();
-    if (!request.auth) {
-      throw new ForbiddenException('Missing auth context');
-    }
+    const request = context.switchToHttp().getRequest<{ auth?: { isPlatformAdmin?: boolean; permissions?: string[] } }>();
+    if (!request.auth) throw BusinessException.permissionDenied();
 
-    const user = await this.prisma.user.findUniqueOrThrow({
-      where: { id: request.auth.userId }
-    });
+    // Platform admins bypass all permission checks
+    if (request.auth.isPlatformAdmin) return true;
 
-    if (user.isPlatformAdmin) {
-      return true;
-    }
-
-    if (!request.auth.memberId) {
-      throw new ForbiddenException('Tenant membership is required');
-    }
-
-    const member = await this.prisma.tenantMember.findUniqueOrThrow({
-      where: { id: request.auth.memberId },
-      include: {
-        roles: {
-          include: {
-            role: {
-              include: {
-                permissions: {
-                  include: {
-                    permission: true
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    });
-
-    const granted = new Set(
-      member.roles.flatMap((memberRole) =>
-        memberRole.role.permissions.map((rolePermission) => rolePermission.permission.code)
-      )
-    );
-
+    const granted = new Set(request.auth.permissions ?? []);
     const ok = required.every((permission) => granted.has(permission));
-    if (!ok) {
-      throw new ForbiddenException('Missing required permission');
-    }
+    if (!ok) throw BusinessException.permissionDenied();
 
     return true;
   }

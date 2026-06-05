@@ -14,19 +14,18 @@ describe('RetentionService', () => {
       tenantId: 'tenant_1',
       userId: 'user_1',
       projectId: 'project_1',
-      data: { retentionDays: 365, archiveAfterDays: 30, notifyBeforeDays: 15, allowCoupleDownload: true }
+      data: { retentionDays: 365, archiveAfterDays: 30, notifyBeforeDays: 15 }
     });
 
     expect(prisma.assetRetentionPolicy.upsert).toHaveBeenCalledWith({
       where: { projectId: 'project_1' },
-      update: { retentionDays: 365, archiveAfterDays: 30, notifyBeforeDays: 15, allowCoupleDownload: true },
+      update: { retentionDays: 365, archiveAfterDays: 30, notifyBeforeDays: 15 },
       create: {
         tenantId: 'tenant_1',
         projectId: 'project_1',
         retentionDays: 365,
         archiveAfterDays: 30,
-        notifyBeforeDays: 15,
-        allowCoupleDownload: true
+        notifyBeforeDays: 15
       }
     });
   });

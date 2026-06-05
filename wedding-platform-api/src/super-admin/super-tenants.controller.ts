@@ -1,10 +1,10 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { createTenantAdminSchema, updateTenantAdminSchema } from '@wedding/shared';
 import { JwtAuthGuard } from '../common/auth/jwt-auth.guard';
-import { PlatformAdminGuard } from '../common/auth/platform-admin.guard';
+import { PlatformGuard } from '../common/auth/platform.guard';
 import { SuperTenantsService } from './super-tenants.service';
 
-@UseGuards(JwtAuthGuard, PlatformAdminGuard)
+@UseGuards(JwtAuthGuard, PlatformGuard)
 @Controller('super/tenants')
 export class SuperTenantsController {
   constructor(private readonly superTenantsService: SuperTenantsService) {}

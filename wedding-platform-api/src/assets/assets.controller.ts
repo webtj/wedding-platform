@@ -1,11 +1,11 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { PERMISSIONS } from '@wedding/shared';
 import { JwtAuthGuard } from '../common/auth/jwt-auth.guard';
 import { RequirePermissions } from '../common/auth/permissions.decorator';
 import { PermissionsGuard } from '../common/auth/permissions.guard';
 import type { AuthContext } from '../common/auth/auth-context';
 import { requireTenant } from '../common/tenant-context';
-import { createAnnotationSchema, createAssetUploadIntentSchema, updateAnnotationSchema } from './dto';
+import { createAssetUploadIntentSchema } from './dto';
 import { AssetsService } from './assets.service';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -40,37 +40,6 @@ export class AssetsController {
       tenantId: tenant.tenantId,
       userId: tenant.userId,
       assetId
-    });
-  }
-
-  @RequirePermissions(PERMISSIONS.ASSET_READ)
-  @Get('assets/:assetId/annotations')
-  listAnnotations(@Req() request: { auth?: AuthContext }, @Param('assetId') assetId: string) {
-    const tenant = requireTenant(request.auth);
-    return this.assetsService.listAnnotations({ tenantId: tenant.tenantId, assetId });
-  }
-
-  @RequirePermissions(PERMISSIONS.ASSET_COMMENT)
-  @Post('assets/:assetId/annotations')
-  createAnnotation(@Req() request: { auth?: AuthContext }, @Param('assetId') assetId: string, @Body() body: unknown) {
-    const tenant = requireTenant(request.auth);
-    return this.assetsService.createAnnotation({
-      tenantId: tenant.tenantId,
-      userId: tenant.userId,
-      assetId,
-      data: createAnnotationSchema.parse(body)
-    });
-  }
-
-  @RequirePermissions(PERMISSIONS.ASSET_COMMENT)
-  @Patch('asset-annotations/:annotationId')
-  updateAnnotation(@Req() request: { auth?: AuthContext }, @Param('annotationId') annotationId: string, @Body() body: unknown) {
-    const tenant = requireTenant(request.auth);
-    return this.assetsService.updateAnnotation({
-      tenantId: tenant.tenantId,
-      userId: tenant.userId,
-      annotationId,
-      data: updateAnnotationSchema.parse(body)
     });
   }
 

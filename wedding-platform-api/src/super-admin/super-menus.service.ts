@@ -33,7 +33,7 @@ export class SuperMenusService {
       : null;
     return this.prisma.menuItem.create({
       data: {
-        scope: parent?.scope ?? 'platform',
+        scope: parent?.scope ?? 'tenant',
         tenantId: parent?.tenantId ?? null,
         parentId: data.parentId ?? null,
         label: data.label,

@@ -4,7 +4,7 @@ export const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
   DATABASE_URL: z.string().url(),
-  REDIS_URL: z.string().url(),
+  REDIS_URL: z.string().url().optional(),
   JWT_ACCESS_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
   JWT_ACCESS_TTL: z.string().default('15m'),
@@ -24,10 +24,10 @@ export const envSchema = z.object({
   OSS_ACCESS_KEY_SECRET: z.string().optional(),
   OSS_BUCKET: z.string().optional(),
   OSS_REGION: z.string().optional(),
-  WECHAT_MINI_APP_ID: z.string().min(1),
-  WECHAT_MINI_APP_SECRET: z.string().min(1),
-  DOUYIN_MINI_APP_ID: z.string().min(1),
-  DOUYIN_MINI_APP_SECRET: z.string().min(1)
+  WECHAT_MINI_APP_ID: z.string().optional(),
+  WECHAT_MINI_APP_SECRET: z.string().optional(),
+  DOUYIN_MINI_APP_ID: z.string().optional(),
+  DOUYIN_MINI_APP_SECRET: z.string().optional()
 });
 
 export type ApiEnv = z.infer<typeof envSchema>;

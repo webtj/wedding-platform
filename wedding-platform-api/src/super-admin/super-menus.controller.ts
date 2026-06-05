@@ -1,10 +1,10 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
 import { createMenuItemSchema, updateMenuItemSchema } from '@wedding/shared';
 import { JwtAuthGuard } from '../common/auth/jwt-auth.guard';
-import { PlatformAdminGuard } from '../common/auth/platform-admin.guard';
+import { PlatformGuard } from '../common/auth/platform.guard';
 import { SuperMenusService } from './super-menus.service';
 
-@UseGuards(JwtAuthGuard, PlatformAdminGuard)
+@UseGuards(JwtAuthGuard, PlatformGuard)
 @Controller('super/menus')
 export class SuperMenusController {
   constructor(private readonly superMenusService: SuperMenusService) {}

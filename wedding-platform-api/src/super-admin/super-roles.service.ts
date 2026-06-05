@@ -1,162 +1,77 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import type { AssignRoleMenusInput, CreateTenantRoleInput, UpdateTenantRoleInput } from '@wedding/shared';
+import { BusinessException } from '../common/exceptions/business.exception';
+import type { AuthContext } from '../common/auth/auth-context';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class SuperRolesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(params: { search?: string; tenantId?: string; page?: number; pageSize?: number }) {
+  async list(params: { auth: AuthContext; search?: string; page?: number; pageSize?: number }) {
+    const tenantId = params.auth.tenantId;
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 10;
     const skip = (page - 1) * pageSize;
 
-    const where: Record<string, unknown> = {};
-    if (params.tenantId) {
-      where.OR = [
-        { tenantId: null, scope: 'platform' },
-        { tenantId: params.tenantId, scope: 'tenant' }
-      ];
-    }
+    const where: Record<string, unknown> = { tenantId };
     if (params.search) {
-      const searchWhere = [
-        { name: { contains: params.search } },
-        { code: { contains: params.search } },
-        { description: { contains: params.search } }
-      ];
-      if (where.OR) {
-        where.AND = [{ OR: where.OR as any[] }, { OR: searchWhere }];
-        delete where.OR;
-      } else {
-        where.OR = searchWhere;
-      }
+      where.name = { contains: params.search };
     }
 
     const [items, total] = await Promise.all([
-      this.prisma.role.findMany({
-        where,
-        include: {
-          permissions: { include: { permission: true } },
-          menus: { include: { menuItem: true } },
-          _count: { select: { members: true } }
-        },
-        orderBy: [{ isBuiltIn: 'desc' }, { createdAt: 'asc' }],
-        skip,
-        take: pageSize
-      }),
-      this.prisma.role.count({ where })
+      this.prisma.role.findMany({ where, skip, take: pageSize, orderBy: { createdAt: 'desc' }, include: { tenant: { select: { name: true } } } }),
+      this.prisma.role.count({ where }),
     ]);
-
-    return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    return { items, total, page, pageSize };
   }
 
-  async getById(roleId: string) {
-    const role = await this.prisma.role.findUnique({
-      where: { id: roleId },
-      include: {
-        permissions: { include: { permission: true } },
-        menus: { include: { menuItem: true } },
-        _count: { select: { members: true } }
-      }
+  async getById(auth: AuthContext, roleId: string) {
+    const role = await this.prisma.role.findFirst({
+      where: { id: roleId, tenantId: auth.tenantId },
+      include: { permissions: { include: { permission: true } }, menus: { include: { menuItem: true } }, tenant: { select: { name: true } } },
     });
-    if (!role) {
-      throw new NotFoundException('角色不存在');
-    }
+    if (!role) throw new NotFoundException('Role not found');
     return role;
   }
 
-  async create(input: CreateTenantRoleInput) {
-    const existing = await this.prisma.role.findFirst({
-      where: { code: input.code, scope: 'platform' }
-    });
-    if (existing) {
-      throw new ConflictException('角色 code 已存在');
-    }
-    const role = await this.prisma.role.create({
-      data: {
-        scope: 'platform',
-        code: input.code,
-        name: input.name,
-        description: input.description
-      }
-    });
-    if (input.permissionCodes.length > 0) {
-      const permissions = await this.prisma.permission.findMany({
-        where: { code: { in: input.permissionCodes } }
-      });
-      await this.prisma.rolePermission.createMany({
-        data: permissions.map((p) => ({ roleId: role.id, permissionId: p.id }))
-      });
-    }
-    return this.getById(role.id);
+  async create(auth: AuthContext, input: CreateTenantRoleInput) {
+    const existing = await this.prisma.role.findFirst({ where: { tenantId: auth.tenantId, code: input.code } });
+    if (existing) throw BusinessException.validationError('角色代码已存在');
+    return this.prisma.role.create({ data: { ...input, scope: 'tenant', tenantId: auth.tenantId } });
   }
 
-  async update(roleId: string, input: UpdateTenantRoleInput) {
-    const role = await this.prisma.role.findUnique({ where: { id: roleId } });
-    if (!role) {
-      throw new NotFoundException('角色不存在');
-    }
-    if (role.isBuiltIn) {
-      throw new ForbiddenException('内置角色不可修改');
-    }
-    return this.prisma.role.update({
-      where: { id: roleId },
-      data: input,
-      include: {
-        permissions: { include: { permission: true } },
-        menus: { include: { menuItem: true } },
-        _count: { select: { members: true } }
-      }
-    });
+  async update(auth: AuthContext, roleId: string, input: UpdateTenantRoleInput) {
+    const role = await this.prisma.role.findFirst({ where: { id: roleId, tenantId: auth.tenantId } });
+    if (!role) throw new NotFoundException('Role not found');
+    return this.prisma.role.update({ where: { id: roleId }, data: input });
   }
 
-  async delete(roleId: string) {
-    const role = await this.prisma.role.findUnique({
-      where: { id: roleId },
-      include: { _count: { select: { members: true } } }
-    });
-    if (!role) {
-      throw new NotFoundException('角色不存在');
-    }
-    if (role.isBuiltIn) {
-      throw new ForbiddenException('内置角色不可删除');
-    }
-    if (role._count.members > 0) {
-      throw new ConflictException('该角色下仍有成员，无法删除');
-    }
+  async delete(auth: AuthContext, roleId: string) {
+    const role = await this.prisma.role.findFirst({ where: { id: roleId, tenantId: auth.tenantId } });
+    if (!role) throw new NotFoundException('Role not found');
+    if (role.isBuiltIn) throw BusinessException.validationError('内置角色不可删除');
     return this.prisma.role.delete({ where: { id: roleId } });
   }
 
-  async assignMenus(input: { roleId: string; data: AssignRoleMenusInput }) {
-    const role = await this.prisma.role.findUnique({ where: { id: input.roleId } });
-    if (!role) {
-      throw new NotFoundException('角色不存在');
+  async assignMenus(auth: AuthContext, roleId: string, data: AssignRoleMenusInput) {
+    const role = await this.prisma.role.findFirst({ where: { id: roleId, tenantId: auth.tenantId } });
+    if (!role) throw new NotFoundException('Role not found');
+    await this.prisma.roleMenuItem.deleteMany({ where: { roleId } });
+    const menuIds = data.menuIds ?? [];
+    if (menuIds.length > 0) {
+      await this.prisma.roleMenuItem.createMany({ data: menuIds.map((id: string) => ({ roleId, menuItemId: id })) });
     }
-    await this.prisma.roleMenuItem.deleteMany({ where: { roleId: input.roleId } });
-    if (input.data.menuIds.length > 0) {
-      await this.prisma.roleMenuItem.createMany({
-        data: input.data.menuIds.map((menuItemId) => ({ roleId: input.roleId, menuItemId }))
-      });
-    }
-    return this.getById(input.roleId);
+    return { success: true };
   }
 
-  async getMenusForRole(roleId: string) {
-    const role = await this.prisma.role.findUnique({
-      where: { id: roleId },
-      include: {
-        menus: {
-          include: {
-            menuItem: {
-              include: { children: { orderBy: { sortOrder: 'asc' } } }
-            }
-          }
-        }
-      }
+  async getMenusForRole(auth: AuthContext, roleId: string) {
+    const role = await this.prisma.role.findFirst({ where: { id: roleId, tenantId: auth.tenantId } });
+    if (!role) throw new NotFoundException('Role not found');
+    const menus = await this.prisma.menuItem.findMany({
+      where: { tenantId: auth.tenantId },
+      orderBy: { sortOrder: 'asc' },
     });
-    if (!role) {
-      throw new NotFoundException('角色不存在');
-    }
-    return role.menus.map((rm) => rm.menuItem);
+    return menus;
   }
 }
