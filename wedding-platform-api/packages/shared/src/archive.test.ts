@@ -12,8 +12,7 @@ describe('M7 archive storage AI schemas', () => {
       upsertRetentionPolicySchema.parse({
         retentionDays: 365,
         archiveAfterDays: 30,
-        notifyBeforeDays: 15,
-        allowCoupleDownload: true
+        notifyBeforeDays: 15
       })
     ).toMatchObject({ retentionDays: 365 });
   });
@@ -25,11 +24,11 @@ describe('M7 archive storage AI schemas', () => {
   it('accepts archive package request', () => {
     expect(
       createArchivePackageSchema.parse({
-        type: 'couple_delivery',
-        title: '新人交付资料包'
+        type: 'full_project',
+        title: '项目完整资料包'
       })
     ).toMatchObject({
-      type: 'couple_delivery',
+      type: 'full_project',
       includeAssets: true,
       includeAiOutputs: true
     });

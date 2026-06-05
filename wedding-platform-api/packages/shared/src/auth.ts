@@ -2,9 +2,7 @@ import { z } from 'zod';
 
 export const AUTH_PROVIDERS = {
   PASSWORD: 'password',
-  PHONE: 'phone',
-  WECHAT_MINI: 'wechat_mini',
-  DOUYIN_MINI: 'douyin_mini'
+  PHONE: 'phone'
 } as const;
 
 export type AuthProvider = (typeof AUTH_PROVIDERS)[keyof typeof AUTH_PROVIDERS];
@@ -24,13 +22,14 @@ export type AuthTenant = {
 export type AuthUser = {
   id: string;
   displayName: string;
-  isPlatformAdmin: boolean;
 };
 
 export type LoginResponse = {
   accessToken: string;
   refreshToken: string;
   user: AuthUser;
-  activeTenant: AuthTenant | null;
+  activeTenant: AuthTenant | null;  // null for platform admins
   permissions: string[];
+  isPlatformAdmin: boolean;
+  platformLevel?: 'super' | 'admin';
 };

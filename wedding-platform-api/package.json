@@ -6,12 +6,13 @@
     "dev": "nest start --watch",
     "build": "nest build",
     "lint": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --reporter=verbose",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
-    "prisma:seed": "prisma db seed"
+    "prisma:seed": "prisma db seed",
+    "init": "prisma migrate reset --force && prisma generate && prisma db seed"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -22,25 +23,29 @@
     "@nestjs/core": "^11.1.24",
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/platform-express": "^11.1.24",
+    "@nestjs/throttler": "^6.5.0",
     "@prisma/client": "^6.0.0",
     "@wedding/shared": "workspace:*",
     "bcryptjs": "^3.0.3",
+    "express": "^5.0.0",
     "helmet": "^8.2.0",
     "jszip": "^3.10.1",
+    "openai": "^6.39.1",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.0.0",
+    "sharp": "^0.33.5",
     "zod": "^3.0.0"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
-    "@nestjs/testing": "^11.1.24",
     "@types/bcryptjs": "^3.0.0",
     "@types/express": "^5.0.6",
     "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^3.2.4",
     "prisma": "^6.0.0",
     "ts-node": "^10.0.0",
     "tsx": "^4.22.3",
     "typescript": "^5.0.0",
-    "vitest": "^3.0.0"
+    "vitest": "3.2.4"
   }
 }

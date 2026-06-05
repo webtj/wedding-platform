@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   createContractSchema,
-  createPaymentRecordSchema,
-  createProjectExpenseSchema,
   createTenantRoleSchema,
   updateProjectSchema
 } from './business';
@@ -16,27 +14,6 @@ describe('M5 operation schemas', () => {
         amountCents: 18800000
       })
     ).toMatchObject({ contractNo: 'HT-2026-001' });
-  });
-
-  it('rejects a zero payment amount', () => {
-    expect(() =>
-      createPaymentRecordSchema.parse({
-        amountCents: 0,
-        paidAt: '2026-05-23T10:00:00.000Z',
-        method: 'bank_transfer'
-      })
-    ).toThrow();
-  });
-
-  it('accepts a project expense', () => {
-    expect(
-      createProjectExpenseSchema.parse({
-        category: 'floral',
-        title: '主仪式区花艺定金',
-        amountCents: 1200000,
-        spentAt: '2026-05-23T10:00:00.000Z'
-      })
-    ).toMatchObject({ category: 'floral' });
   });
 
   it('accepts project operational updates', () => {
