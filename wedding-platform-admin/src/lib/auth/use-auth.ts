@@ -16,7 +16,11 @@ export function useAuth() {
     isPlatformAdmin: ctx.isPlatformAdmin,
     platformLevel: ctx.platformLevel,
     permissions: ctx.permissions,
+    memberships: ctx.memberships,
+    organizations: ctx.organizations,
+    me: ctx.me,
     getToken: ctx.getToken,
-    signOut: ctx.signOut
+    signOut: ctx.signOut,
+    switchActiveTenant: ctx.switchActiveTenant
   };
 }

@@ -3,7 +3,7 @@ import { Throttle } from '@nestjs/throttler';
 import { CurrentAuth } from '../common/auth/current-auth.decorator';
 import { JwtAuthGuard } from '../common/auth/jwt-auth.guard';
 import { IdentityService } from './identity.service';
-import { loginDtoSchema, refreshDtoSchema } from './dto';
+import { loginDtoSchema, refreshDtoSchema, switchTenantDtoSchema } from './dto';
 
 @Controller('identity')
 export class IdentityController {
@@ -23,6 +23,20 @@ export class IdentityController {
   @Post('logout')
   logout(@Body() body: unknown) {
     return this.identityService.logout(refreshDtoSchema.parse(body));
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('switch-tenant')
+  switchTenant(
+    @CurrentAuth() auth: { userId: string },
+    @Body() body: unknown
+  ) {
+    const dto = switchTenantDtoSchema.parse(body);
+    const previousRefreshToken =
+      typeof (body as { refreshToken?: unknown }).refreshToken === 'string'
+        ? (body as { refreshToken: string }).refreshToken
+        : undefined;
+    return this.identityService.switchTenant(auth.userId, dto, previousRefreshToken);
   }
 
   @UseGuards(JwtAuthGuard)

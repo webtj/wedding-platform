@@ -15,6 +15,7 @@ import {
   invalidateMe,
   logout,
   getCachedMe,
+  switchTenant,
   AUTH_ME_INVALIDATED_EVENT
 } from './auth-client';
 import { getActiveTenantId, setActiveTenantId } from './auth-storage';
@@ -70,6 +71,7 @@ type AuthContextValue = AuthState & {
   getToken: () => Promise<string | null>;
   signOut: () => Promise<void>;
   setActiveOrg: (orgId: string) => void;
+  switchActiveTenant: (tenantId: string) => Promise<void>;
   revalidate: () => Promise<void>;
 };
 
@@ -290,14 +292,40 @@ export function ClerkProvider({
     [state.me]
   );
 
+  const switchActiveTenant = useCallback(
+    async (tenantId: string) => {
+      if (!state.me) return;
+      const tenant = state.me.tenants.find((t) => t.id === tenantId);
+      if (!tenant) {
+        throw new Error('租户不存在或无权访问');
+      }
+
+      const result = await switchTenant(tenantId);
+      setActiveTenantId(tenantId);
+      setState((prev) => ({
+        ...prev,
+        orgId: tenantId,
+        organization: mapOrganization(tenant),
+        membership: mapMembership(tenant),
+        memberships: prev.memberships.map((m) => ({
+          ...m,
+          permissions: collectPermissions(state.me!, m.organization.id)
+        })),
+        menus: tenant.menus ?? [],
+        permissions: result.permissions
+      }));
+    },
+    [state.me]
+  );
+
   const revalidate = useCallback(async () => {
     invalidateMe();
     await bootstrap();
   }, [bootstrap]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ ...state, getToken, signOut, setActiveOrg, revalidate }),
-    [state, getToken, signOut, setActiveOrg, revalidate]
+    () => ({ ...state, getToken, signOut, setActiveOrg, switchActiveTenant, revalidate }),
+    [state, getToken, signOut, setActiveOrg, switchActiveTenant, revalidate]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

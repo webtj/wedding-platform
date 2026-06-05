@@ -5,7 +5,17 @@ import { BusinessException } from '../common/exceptions/business.exception';
 import { PrismaService } from '../prisma/prisma.service';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
-import type { LoginDto, RefreshDto } from './dto';
+import type { LoginDto, RefreshDto, SwitchTenantDto } from './dto';
+
+type MenuNode = {
+  id: string;
+  label: string;
+  href: string | null;
+  icon: string | null;
+  sortOrder: number;
+  parentId: string | null;
+  children: MenuNode[];
+};
 
 type LoginMember = {
   id: string;
@@ -84,7 +94,7 @@ export class IdentityService {
     const isPlatformAdmin = !!user.platformAdmin;
 
     if (isPlatformAdmin) {
-      // Platform admin: no tenant context needed
+      // Platform admin: no tenant context (tenant selected via switch-tenant)
       const tokens = await this.tokenService.issueTokenPair({
         sub: user.id,
         tenantId: null,
@@ -209,6 +219,104 @@ export class IdentityService {
     return { ok: true };
   }
 
+  /**
+   * Switch active tenant for an authenticated user.
+   *
+   * Use cases:
+   * 1. Platform admin: must call this before hitting any tenant-scoped API.
+   * 2. Regular user with multiple memberships: switches active tenant context.
+   *
+   * Returns a fresh access/refresh token pair bound to the target tenant,
+   * plus the active member's permissions so the client can re-render the UI
+   * without an extra /me call.
+   *
+   * If `previousRefreshToken` is provided, the old session is revoked so the
+   * previous (potentially null-tenant) JWT cannot be replayed.
+   */
+  async switchTenant(
+    userId: string,
+    input: SwitchTenantDto,
+    previousRefreshToken?: string
+  ) {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      include: {
+        platformAdmin: true,
+        tenantMembers: {
+          where: { tenantId: input.tenantId },
+          include: {
+            tenant: true,
+            roles: {
+              include: {
+                role: { include: { permissions: { include: { permission: true } } } }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    const isPlatformAdmin = !!user.platformAdmin;
+    const member = user.tenantMembers[0];
+
+    // Regular users can only switch to a tenant they have an active membership in.
+    // Platform admins can fall back to the null-tenant token (platform overview)
+    // when no membership is found for the requested tenant.
+    if (!isPlatformAdmin && !member) {
+      throw new BusinessException('PERMISSION_DENIED', 'No access to this tenant', 403);
+    }
+
+    if (member && member.status !== 'active') {
+      throw new BusinessException('PERMISSION_DENIED', 'Membership is not active', 403);
+    }
+    if (member && member.tenant.status !== 'active') {
+      throw new BusinessException('PERMISSION_DENIED', 'Tenant is not active', 403);
+    }
+
+    const permissions = member
+      ? Array.from(
+          new Set(
+            member.roles.flatMap((mr) => mr.role.permissions.map((rp) => rp.permission.code))
+          )
+        )
+      : [];
+
+    const tokens = await this.tokenService.issueTokenPair({
+      sub: user.id,
+      tenantId: member?.tenantId ?? null,
+      memberId: member?.id ?? null,
+      isPlatformAdmin,
+      platformLevel: user.platformAdmin?.level as 'super' | 'admin' | undefined,
+      permissions
+    });
+
+    if (previousRefreshToken) {
+      await this.revokeRefreshToken(previousRefreshToken);
+    }
+
+    return {
+      ...tokens,
+      user: { id: user.id, displayName: user.displayName },
+      activeTenant: member
+        ? { id: member.tenant.id, name: member.tenant.name, address: member.tenant.address }
+        : null,
+      permissions,
+      isPlatformAdmin,
+      platformLevel: user.platformAdmin?.level ?? null
+    };
+  }
+
+  /**
+   * Revoke a refresh token. Idempotent: silently ignores unknown/already-revoked hashes.
+   */
+  async revokeRefreshToken(refreshToken: string): Promise<void> {
+    const tokenHash = this.tokenService.hashRefreshToken(refreshToken);
+    await this.prisma.refreshSession.updateMany({
+      where: { tokenHash, revokedAt: null },
+      data: { revokedAt: new Date() }
+    });
+  }
+
   async me(userId: string) {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
@@ -250,33 +358,86 @@ export class IdentityService {
         orderBy: { sortOrder: 'asc' }
       });
 
+      const platformTenant = {
+        id: '__platform__',
+        name: '平台管理',
+        memberId: '',
+        roles: ['platform_admin'],
+        permissions: [],
+        menus: platformMenus.map((item) => ({
+          id: item.id,
+          label: item.label,
+          href: item.href,
+          icon: item.icon,
+          sortOrder: item.sortOrder,
+          parentId: item.parentId,
+          children: item.children.map((c) => ({
+            id: c.id,
+            label: c.label,
+            href: c.href,
+            icon: c.icon,
+            sortOrder: c.sortOrder
+          }))
+        }))
+      };
+
+      const scopedTenants = user.tenantMembers.map((member) => {
+        const roleCodes = member.roles.map((mr) => mr.role.code);
+        const permissions = Array.from(
+          new Set(
+            member.roles.flatMap((mr) =>
+              mr.role.permissions.map((rp) => rp.permission.code)
+            )
+          )
+        );
+
+        const menuMap = new Map<string, MenuNode>();
+        for (const mr of member.roles) {
+          for (const rm of mr.role.menus) {
+            const item = rm.menuItem;
+            if (!menuMap.has(item.id)) {
+              menuMap.set(item.id, {
+                id: item.id,
+                label: item.label,
+                href: item.href,
+                icon: item.icon,
+                sortOrder: item.sortOrder,
+                parentId: item.parentId,
+                children: []
+              });
+            }
+          }
+        }
+        const allItems = Array.from(menuMap.values());
+        const parentItems = allItems.filter((m) => !m.parentId);
+        const childItems = allItems.filter((m) => m.parentId);
+        for (const child of childItems) {
+          const parent = parentItems.find((p) => p.id === child.parentId);
+          if (parent && !parent.children.some((c) => c.id === child.id)) {
+            parent.children.push(child);
+          } else if (!parent) {
+            child.parentId = null;
+            parentItems.push(child);
+          }
+        }
+
+        return {
+          id: member.tenant.id,
+          name: member.tenant.name,
+          address: member.tenant.address,
+          memberId: member.id,
+          roles: roleCodes,
+          permissions,
+          menus: parentItems.sort((a, b) => a.sortOrder - b.sortOrder)
+        };
+      });
+
       return {
         id: user.id,
         displayName: user.displayName,
         isPlatformAdmin: true,
         platformLevel: user.platformAdmin!.level,
-        tenants: [{
-          id: '__platform__',
-          name: '平台管理',
-          memberId: '',
-          roles: ['platform_admin'],
-          permissions: [],
-          menus: platformMenus.map((item) => ({
-            id: item.id,
-            label: item.label,
-            href: item.href,
-            icon: item.icon,
-            sortOrder: item.sortOrder,
-            parentId: item.parentId,
-            children: item.children.map((c) => ({
-              id: c.id,
-              label: c.label,
-              href: c.href,
-              icon: c.icon,
-              sortOrder: c.sortOrder
-            }))
-          }))
-        }]
+        tenants: [platformTenant, ...scopedTenants]
       };
     }
 

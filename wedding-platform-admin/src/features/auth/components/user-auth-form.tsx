@@ -61,7 +61,7 @@ export default function UserAuthForm({ mode = 'signin' }: Props) {
 
       // Sign in
       await login(identifier, password);
-      router.replace('/admin/overview');
+      router.replace('/studio/overview');
     } catch (err) {
       setError(err instanceof Error ? err.message : '操作失败');
     } finally {

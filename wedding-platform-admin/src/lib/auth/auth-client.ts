@@ -62,6 +62,44 @@ export async function login(identifier: string, password: string) {
   return data;
 }
 
+export type SwitchTenantResponse = {
+  accessToken: string;
+  refreshToken: string;
+  user: { id: string; displayName: string };
+  activeTenant: { id: string; name: string; address?: string | null } | null;
+  permissions: string[];
+  isPlatformAdmin: boolean;
+  platformLevel: 'super' | 'admin' | null;
+};
+
+/**
+ * Switch the active tenant context.
+ * Returns a fresh access/refresh token pair scoped to the target tenant.
+ * The previous refresh token is revoked server-side.
+ */
+export async function switchTenant(tenantId: string): Promise<SwitchTenantResponse> {
+  const refreshToken = getRefreshToken();
+  const accessToken = getAccessToken();
+  const res = await fetch(`/api/identity/switch-tenant`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {})
+    },
+    body: JSON.stringify({ tenantId, refreshToken })
+  });
+
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(body?.message ?? '切换租户失败');
+  }
+
+  const data = (await res.json()) as SwitchTenantResponse;
+  saveTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken });
+  invalidateMe();
+  return data;
+}
+
 let cachedMe: CurrentUserResponse | null = null;
 let pendingMe: Promise<CurrentUserResponse> | null = null;
 const AUTH_ME_INVALIDATED_EVENT = 'wedding-auth-me-invalidated';

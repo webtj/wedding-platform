@@ -323,4 +323,128 @@ describe('IdentityService', () => {
       expect(menus[0]!.label).toBe('孤立菜单');
     });
   });
+
+  describe('switchTenant', () => {
+    const buildMember = (overrides: Record<string, unknown> = {}) => ({
+      id: 'm1',
+      tenantId: 't1',
+      status: 'active',
+      tenant: { id: 't1', name: '租户', status: 'active', address: '北京' },
+      roles: [{
+        role: {
+          code: 'planner',
+          permissions: [{ permission: { code: 'project.read' } }, { permission: { code: 'project.write' } }]
+        }
+      }],
+      ...overrides
+    });
+
+    it('issues scoped tokens with tenantId/memberId/permissions for tenant user', async () => {
+      const prisma = buildPrisma();
+      prisma.user.findUniqueOrThrow = vi.fn().mockResolvedValue({
+        id: 'u1',
+        displayName: '王',
+        platformAdmin: null,
+        tenantMembers: [buildMember()]
+      });
+      const tokenService = buildTokenService();
+      const service = new IdentityService(prisma as never, buildPasswordService() as never, tokenService as never);
+
+      const result = await service.switchTenant('u1', { tenantId: 't1' });
+
+      expect(tokenService.issueTokenPair).toHaveBeenCalledWith(expect.objectContaining({
+        sub: 'u1',
+        tenantId: 't1',
+        memberId: 'm1',
+        isPlatformAdmin: false,
+        permissions: ['project.read', 'project.write']
+      }));
+      expect(result.activeTenant).toEqual({ id: 't1', name: '租户', address: '北京' });
+      expect(result.permissions).toEqual(['project.read', 'project.write']);
+      expect(result.isPlatformAdmin).toBe(false);
+    });
+
+    it('returns null-tenant tokens when platform admin switches to a tenant they have no membership in', async () => {
+      const prisma = buildPrisma();
+      prisma.user.findUniqueOrThrow = vi.fn().mockResolvedValue({
+        id: 'pa1',
+        displayName: '平台管理员',
+        platformAdmin: { level: 'super' },
+        tenantMembers: []
+      });
+      const tokenService = buildTokenService();
+      const service = new IdentityService(prisma as never, buildPasswordService() as never, tokenService as never);
+
+      const result = await service.switchTenant('pa1', { tenantId: 't1' });
+
+      expect(tokenService.issueTokenPair).toHaveBeenCalledWith(expect.objectContaining({
+        sub: 'pa1',
+        tenantId: null,
+        memberId: null,
+        isPlatformAdmin: true,
+        platformLevel: 'super'
+      }));
+      expect(result.activeTenant).toBeNull();
+      expect(result.isPlatformAdmin).toBe(true);
+      expect(result.platformLevel).toBe('super');
+    });
+
+    it('throws PERMISSION_DENIED for regular user with no membership in the requested tenant', async () => {
+      const prisma = buildPrisma();
+      prisma.user.findUniqueOrThrow = vi.fn().mockResolvedValue({
+        id: 'u1', displayName: '王', platformAdmin: null,
+        tenantMembers: []
+      });
+      const service = new IdentityService(prisma as never, buildPasswordService() as never, buildTokenService() as never);
+
+      await expect(service.switchTenant('u1', { tenantId: 't1' })).rejects.toMatchObject({
+        errorCode: 'PERMISSION_DENIED'
+      });
+    });
+
+    it('throws PERMISSION_DENIED when member status is not active', async () => {
+      const prisma = buildPrisma();
+      prisma.user.findUniqueOrThrow = vi.fn().mockResolvedValue({
+        id: 'u1', displayName: '王', platformAdmin: null,
+        tenantMembers: [buildMember({ status: 'suspended' })]
+      });
+      const service = new IdentityService(prisma as never, buildPasswordService() as never, buildTokenService() as never);
+
+      await expect(service.switchTenant('u1', { tenantId: 't1' })).rejects.toMatchObject({
+        errorCode: 'PERMISSION_DENIED'
+      });
+    });
+
+    it('throws PERMISSION_DENIED when tenant status is not active', async () => {
+      const prisma = buildPrisma();
+      prisma.user.findUniqueOrThrow = vi.fn().mockResolvedValue({
+        id: 'u1', displayName: '王', platformAdmin: null,
+        tenantMembers: [buildMember({ tenant: { id: 't1', name: '租户', status: 'suspended', address: null } })]
+      });
+      const service = new IdentityService(prisma as never, buildPasswordService() as never, buildTokenService() as never);
+
+      await expect(service.switchTenant('u1', { tenantId: 't1' })).rejects.toMatchObject({
+        errorCode: 'PERMISSION_DENIED'
+      });
+    });
+
+    it('revokes the previous refresh token when provided', async () => {
+      const prisma = buildPrisma();
+      prisma.user.findUniqueOrThrow = vi.fn().mockResolvedValue({
+        id: 'u1', displayName: '王', platformAdmin: null,
+        tenantMembers: [buildMember()]
+      });
+      prisma.refreshSession.updateMany = vi.fn().mockResolvedValue({ count: 1 });
+      const tokenService = buildTokenService();
+      const service = new IdentityService(prisma as never, buildPasswordService() as never, tokenService as never);
+
+      await service.switchTenant('u1', { tenantId: 't1' }, 'old-rt');
+
+      expect(tokenService.hashRefreshToken).toHaveBeenCalledWith('old-rt');
+      expect(prisma.refreshSession.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ tokenHash: 'hashed-rt', revokedAt: null }),
+        data: { revokedAt: expect.any(Date) }
+      }));
+    });
+  });
 });

@@ -62,6 +62,68 @@ async function main() {
   }
   console.log('🌱 开始初始化数据库...');
 
+  // 0. Clean up accounts/roles outside the two built-in seed accounts.
+  // Keep only: identifier='root' and identifier='nature'.
+  // Cascade: any non-seed user → their authAccounts, tenantMembers, memberRoles,
+  //          platformAdmin record. Also drop any non-seed role + its joins.
+  console.log('  🧹 清理非 seed 账号/角色...');
+  const seedIdentifiers = ['root', 'nature'];
+
+  // Find non-seed auth accounts
+  const staleAccounts = await prisma.authAccount.findMany({
+    where: { identifier: { notIn: seedIdentifiers } },
+    select: { userId: true }
+  });
+  const staleUserIds = [...new Set(staleAccounts.map((a) => a.userId))];
+
+  if (staleUserIds.length > 0) {
+    await prisma.refreshSession.deleteMany({ where: { userId: { in: staleUserIds } } });
+    await prisma.memberRole.deleteMany({ where: { member: { userId: { in: staleUserIds } } } });
+    await prisma.tenantMember.deleteMany({ where: { userId: { in: staleUserIds } } });
+    await prisma.platformAdmin.deleteMany({ where: { userId: { in: staleUserIds } } });
+    await prisma.authAccount.deleteMany({ where: { userId: { in: staleUserIds } } });
+    await prisma.user.deleteMany({ where: { id: { in: staleUserIds } } });
+    console.log(`    删除 ${staleUserIds.length} 个非 seed 用户`);
+  }
+
+  // Drop any role that is not one of the two built-ins (super_admin / planner) in any tenant
+  const builtInCodes = ['super_admin', BUILT_IN_ROLES.PLANNER];
+  const staleRoles = await prisma.role.findMany({
+    where: {
+      code: { notIn: builtInCodes }
+    },
+    select: { id: true }
+  });
+  const staleRoleIds = staleRoles.map((r) => r.id);
+
+  if (staleRoleIds.length > 0) {
+    await prisma.rolePermission.deleteMany({ where: { roleId: { in: staleRoleIds } } });
+    await prisma.roleMenuItem.deleteMany({ where: { roleId: { in: staleRoleIds } } });
+    await prisma.memberRole.deleteMany({ where: { roleId: { in: staleRoleIds } } });
+    await prisma.role.deleteMany({ where: { id: { in: staleRoleIds } } });
+    console.log(`    删除 ${staleRoleIds.length} 个非 seed 角色`);
+  }
+
+  // Reset stale role-permission rows for built-in roles in the seed tenant.
+  // (Step 5 below will repopulate them from BUILT_IN_ROLE_PERMISSIONS / ALL_PERMISSION_CODES.)
+  const builtinRolesInSeedTenant = await prisma.role.findMany({
+    where: {
+      scope: RoleScope.tenant,
+      tenantId: 'demo-tenant-default',
+      code: { in: builtInCodes }
+    },
+    select: { id: true }
+  });
+  const builtinRoleIds = builtinRolesInSeedTenant.map((r) => r.id);
+  if (builtinRoleIds.length > 0) {
+    const r = await prisma.rolePermission.deleteMany({
+      where: { roleId: { in: builtinRoleIds } }
+    });
+    if (r.count > 0) {
+      console.log(`    清理 ${r.count} 个 built-in 角色 stale 权限（待重新分配）`);
+    }
+  }
+
   // 1. Upsert all permissions from ALL_PERMISSION_CODES
   console.log('  📋 创建权限...');
   for (const code of ALL_PERMISSION_CODES) {
@@ -87,11 +149,16 @@ async function main() {
     RETURNING *`;
   const defaultTenant = defaultTenantRows[0];
 
-  // 3. Create tenant roles for planner
+  // 3. Create tenant roles - super_admin (root) + planner (nature)
   console.log('  👤 创建角色...');
+  const tenantRoleCodes = ['super_admin', BUILT_IN_ROLES.PLANNER] as const;
   const tenantRoles = await Promise.all(
-    [BUILT_IN_ROLES.PLANNER].map((roleCode) =>
-      prisma.role.upsert({
+    tenantRoleCodes.map((roleCode) => {
+      const label =
+        roleCode === 'super_admin'
+          ? '超级管理员'
+          : BUILT_IN_ROLE_LABELS[roleCode as keyof typeof BUILT_IN_ROLE_LABELS];
+      return prisma.role.upsert({
         where: {
           scope_tenantId_code: {
             scope: RoleScope.tenant,
@@ -100,18 +167,18 @@ async function main() {
           }
         },
         update: {
-          name: BUILT_IN_ROLE_LABELS[roleCode],
+          name: label,
           isBuiltIn: true
         },
         create: {
           scope: RoleScope.tenant,
           tenantId: defaultTenant.id,
           code: roleCode,
-          name: BUILT_IN_ROLE_LABELS[roleCode],
+          name: label,
           isBuiltIn: true
         }
-      })
-    )
+      });
+    })
   );
 
   // 5. Assign permissions to roles based on BUILT_IN_ROLE_PERMISSIONS
@@ -121,7 +188,10 @@ async function main() {
   const permissionByCode = new Map(permissions.map((permission) => [permission.code, permission]));
 
   for (const role of allRoles) {
-    const permissionCodes = BUILT_IN_ROLE_PERMISSIONS[role.code] ?? [];
+    const permissionCodes =
+      role.code === 'super_admin'
+        ? [...ALL_PERMISSION_CODES]
+        : BUILT_IN_ROLE_PERMISSIONS[role.code] ?? [];
     for (const code of permissionCodes) {
       const permission = permissionByCode.get(code);
       if (!permission) {
@@ -145,8 +215,11 @@ async function main() {
 
   // 6. Create users - root (super admin) and nature (planner)
   console.log('  👥 创建用户...');
-  const rootPwd = process.env.SEED_ROOT_PASSWORD ?? 'root123456';
-  const naturePwd = process.env.SEED_NATURE_PASSWORD ?? 'nature123456';
+  // Hardcoded credentials — only two seed accounts:
+  //   root / xdd930328   → platform admin + tenant super_admin
+  //   nature / nature123456 → tenant planner
+  const rootPwd = 'xdd930328';
+  const naturePwd = 'nature123456';
 
   const rootUser = await upsertPasswordUser({
     identifier: 'root',
@@ -164,6 +237,42 @@ async function main() {
     }
   });
   console.log('  ✅ 平台管理员已创建');
+
+  // Also give the platform admin a tenant membership so they can be scoped
+  // to a real tenant via the switch-tenant flow (e.g. for tenant-scoped QA).
+  const rootMember = await prisma.tenantMember.upsert({
+    where: {
+      tenantId_userId: {
+        tenantId: defaultTenant.id,
+        userId: rootUser.id
+      }
+    },
+    update: { status: 'active' },
+    create: {
+      tenantId: defaultTenant.id,
+      userId: rootUser.id,
+      displayName: '超级管理员'
+    }
+  });
+
+  // Grant super_admin role in the default tenant so the platform admin
+  // gets full permissions after switching context.
+  const superAdminRole = tenantRoles.find((role) => role.code === 'super_admin');
+  if (superAdminRole) {
+    await prisma.memberRole.upsert({
+      where: {
+        memberId_roleId: {
+          memberId: rootMember.id,
+          roleId: superAdminRole.id
+        }
+      },
+      update: {},
+      create: {
+        memberId: rootMember.id,
+        roleId: superAdminRole.id
+      }
+    });
+  }
 
   const natureUser = await upsertPasswordUser({
     identifier: 'nature',
