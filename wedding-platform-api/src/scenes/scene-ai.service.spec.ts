@@ -34,7 +34,7 @@ describe('SceneAiService', () => {
         prisma as never, buildLlm() as never, buildImage() as never, buildStorage() as never, buildSettings() as never
       );
       await expect(
-        service.autoArrange({ tenantId: 't1', sceneId: 'missing', data: { guestGroups: [] } } as never)
+        service.autoArrange('t1', 'missing', { guestGroups: [] } as never)
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -58,7 +58,7 @@ describe('SceneAiService', () => {
 
       expect(llm.chat).toHaveBeenCalled();
       expect(result.tables).toHaveLength(1);
-      expect(result.tables[0].tableNumber).toBe(1);
+      expect(result.tables[0]!.tableNumber).toBe(1);
     });
   });
 
@@ -69,7 +69,7 @@ describe('SceneAiService', () => {
         prisma as never, buildLlm() as never, buildImage() as never, buildStorage() as never, buildSettings() as never
       );
       await expect(
-        service.suggestLayout({ tenantId: 't1', sceneId: 'missing', data: {} } as never)
+        service.suggestLayout('t1', 'missing', {} as never)
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -103,7 +103,7 @@ describe('SceneAiService', () => {
         prisma as never, buildLlm() as never, buildImage() as never, buildStorage() as never, buildSettings() as never
       );
       await expect(
-        service.generateSeatCards({ tenantId: 't1', sceneId: 'missing', data: { tables: [] } } as never)
+        service.generateSeatCards('t1', 'missing', { tables: [] } as never)
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -136,8 +136,8 @@ describe('SceneAiService', () => {
 
       expect(result.cards).toBeDefined();
       expect(result.cards).toHaveLength(1);
-      expect(result.cards[0].tableNumber).toBe(1);
-      expect(result.cards[0].imageUrl).toBeDefined();
+      expect(result.cards[0]!.tableNumber).toBe(1);
+      expect(result.cards[0]!.imageUrl).toBeDefined();
     });
   });
 });

@@ -71,12 +71,12 @@ describe('AssetsService', () => {
 
     it('createAnnotation throws NotFound', async () => {
       const service = new AssetsService({} as never, {} as never, { record: vi.fn() } as never);
-      await expect(service.createAnnotation({} as never)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.createAnnotation()).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('updateAnnotation throws NotFound', async () => {
       const service = new AssetsService({} as never, {} as never, { record: vi.fn() } as never);
-      await expect(service.updateAnnotation({} as never)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.updateAnnotation()).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 
@@ -86,7 +86,7 @@ describe('AssetsService', () => {
       const prisma = { asset: { findFirst: vi.fn().mockResolvedValue(asset) } };
       const storage = {
         createPreviewIntent: vi.fn().mockReturnValue({
-          url: 'http://localhost/preview',
+          previewUrl: 'http://localhost/preview',
           expiresAt: '2026-05-22T00:00:00.000Z'
         })
       };
@@ -94,7 +94,7 @@ describe('AssetsService', () => {
 
       const result = await service.createPreviewIntent({ tenantId: 't1', assetId: 'a1' });
       expect(result.asset).toEqual(asset);
-      expect(result.preview.url).toBe('http://localhost/preview');
+      expect(result.preview.previewUrl).toBe('http://localhost/preview');
       expect(storage.createPreviewIntent).toHaveBeenCalledWith({ objectKey: 'key_1' });
     });
 

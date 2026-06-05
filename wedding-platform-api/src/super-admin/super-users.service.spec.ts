@@ -132,7 +132,7 @@ describe('SuperUsersService', () => {
       };
       const prisma = {
         authAccount: { findUnique: vi.fn().mockResolvedValue(null) },
-        $transaction: vi.fn((cb: (tx: typeof tx) => unknown) => cb(tx))
+        $transaction: vi.fn((cb: (tx: Record<string, unknown>) => unknown) => cb(tx))
       };
       const password = buildPasswordService();
       const service = new SuperUsersService(prisma as never, password as never);
@@ -177,7 +177,7 @@ describe('SuperUsersService', () => {
       };
       const prisma = {
         authAccount: { findUnique: vi.fn().mockResolvedValue(null) },
-        $transaction: vi.fn((cb: (tx: typeof tx) => unknown) => cb(tx))
+        $transaction: vi.fn((cb: (tx: Record<string, unknown>) => unknown) => cb(tx))
       };
       const service = new SuperUsersService(prisma as never, buildPasswordService() as never);
 
@@ -201,7 +201,7 @@ describe('SuperUsersService', () => {
       };
       const prisma = {
         authAccount: { findUnique: vi.fn().mockResolvedValue(null) },
-        $transaction: vi.fn((cb: (tx: typeof tx) => unknown) => cb(tx))
+        $transaction: vi.fn((cb: (tx: Record<string, unknown>) => unknown) => cb(tx))
       };
       const service = new SuperUsersService(prisma as never, buildPasswordService() as never);
 
@@ -220,19 +220,19 @@ describe('SuperUsersService', () => {
   describe('update', () => {
     it('updates user info and re-assigns roles when both are provided', async () => {
       const auth = buildAuth({ tenantId: 't1' });
+      const userUpdate = vi.fn();
       const prisma = {
         user: {
           findUnique: vi
             .fn()
             .mockResolvedValueOnce({ id: 'u1' })
-            .mockResolvedValueOnce({ id: 'u1', authAccounts: [], tenantMembers: [] })
+            .mockResolvedValueOnce({ id: 'u1', authAccounts: [], tenantMembers: [] }),
+          update: userUpdate
         },
         authAccount: { findFirst: vi.fn().mockResolvedValue({ id: 'aa1' }), update: vi.fn() },
-        user$update: vi.fn(),
         tenantMember: { findFirst: vi.fn().mockResolvedValue({ id: 'm1' }) },
         memberRole: { deleteMany: vi.fn(), createMany: vi.fn() }
       };
-      prisma.user.update = prisma.user$update;
       const password = buildPasswordService();
       const service = new SuperUsersService(prisma as never, password as never);
 

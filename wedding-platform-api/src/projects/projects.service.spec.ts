@@ -113,8 +113,8 @@ describe('ProjectsService', () => {
       const result = await service.getProjectTimeline('t1', 'p1');
       expect(result.project.id).toBe('p1');
       expect(result.daysUntilWedding).toBeGreaterThanOrEqual(29);
-      expect(result.stages[0].tasks[0].daysUntilDue).toBeGreaterThanOrEqual(29);
-      expect(result.unassignedTasks[0].daysUntilDue).toBeNull();
+      expect(result.stages[0]!.tasks[0]!.daysUntilDue).toBeGreaterThanOrEqual(29);
+      expect(result.unassignedTasks[0]!.daysUntilDue).toBeNull();
     });
 
     it('throws NotFound when the project does not exist', async () => {

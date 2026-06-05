@@ -159,13 +159,13 @@ describe('TimelinesService', () => {
       const service = new TimelinesService(prisma as never, { record: vi.fn() } as never);
 
       const result = await service.getCalendar({
-        tenantId: 't1', date: '2026-06-01', view: 'month', mode: 'projects'
+        tenantId: 't1', date: '2026-06-01', view: 'natural', mode: 'project'
       });
 
       expect(result.today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(result.monthStart).toBe('2026-06-01');
       expect(result.monthEnd).toBe('2026-06-30');
-      expect(result.view).toBe('month');
+      expect(result.view).toBe('natural');
       expect(result.stats).toEqual({ projects: 5, activeProjects: 3, pendingTasks: 10, doneTasks: 4 });
       expect(result.days).toHaveLength(30);
       const day15 = result.days.find((d) => d.date === '2026-06-15');
@@ -182,7 +182,7 @@ describe('TimelinesService', () => {
         task: { findMany: vi.fn().mockResolvedValue([]), count: vi.fn().mockResolvedValue(0) }
       };
       const service = new TimelinesService(prisma as never, { record: vi.fn() } as never);
-      const result = await service.getCalendar({ tenantId: 't1', date: '2026-06-01', view: 'recent', mode: 'projects' });
+      const result = await service.getCalendar({ tenantId: 't1', date: '2026-06-01', view: 'recent', mode: 'project' });
       expect(result.days).toHaveLength(30);
       expect(result.monthStart).toBe('2026-06-01');
       expect(result.monthEnd).toBe('2026-06-30');
@@ -194,7 +194,7 @@ describe('TimelinesService', () => {
         task: { findMany: vi.fn().mockResolvedValue([]), count: vi.fn().mockResolvedValue(0) }
       };
       const service = new TimelinesService(prisma as never, { record: vi.fn() } as never);
-      const result = await service.getCalendar({ tenantId: 't1', date: '2026-06-01', view: 'month', mode: 'projects' });
+      const result = await service.getCalendar({ tenantId: 't1', date: '2026-06-01', view: 'natural', mode: 'project' });
       const day6 = result.days.find((d) => d.date === '2026-06-06');
       expect(day6!.isWeekend).toBe(true);
       const day3 = result.days.find((d) => d.date === '2026-06-03');

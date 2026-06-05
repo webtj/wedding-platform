@@ -89,7 +89,7 @@ describe('ProjectOperationsService', () => {
         contract: {
           findFirst: vi.fn().mockResolvedValue({ id: 'c1', leadId: 'l1' })
         },
-        $transaction: vi.fn((cb: (tx: typeof tx) => unknown) => cb(tx))
+        $transaction: vi.fn((cb: (tx: Record<string, unknown>) => unknown) => cb(tx))
       };
       const audit = { record: vi.fn().mockResolvedValue({}) };
       const service = new ProjectOperationsService(prisma as never, audit as never);

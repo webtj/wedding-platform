@@ -252,7 +252,7 @@ describe('ContractsService', () => {
         contract: {
           findFirst: vi.fn().mockResolvedValue({ id: 'c1', leadId: 'l1' })
         },
-        $transaction: vi.fn((cb: (tx: typeof tx) => unknown) => cb(tx))
+        $transaction: vi.fn((cb: (tx: Record<string, unknown>) => unknown) => cb(tx))
       };
       const audit = { record: vi.fn().mockResolvedValue({}) };
       const service = new ContractsService(prisma as never, audit as never);
@@ -278,7 +278,7 @@ describe('ContractsService', () => {
         contract: {
           findFirst: vi.fn().mockResolvedValue({ id: 'c1', leadId: null })
         },
-        $transaction: vi.fn((cb: (tx: typeof tx) => unknown) => cb(tx))
+        $transaction: vi.fn((cb: (tx: Record<string, unknown>) => unknown) => cb(tx))
       };
       const service = new ContractsService(prisma as never, { record: vi.fn() } as never);
       await service.void({ tenantId: 't1', userId: 'u1', contractId: 'c1' });

@@ -67,7 +67,7 @@ describe('MessageSenderService', () => {
       await service.sendNotification({ userId: 'u1', tenantId: 't1', type: 'task' as never, title: 'T', body: 'B' });
 
       expect(notifs.create).toHaveBeenCalledTimes(3);
-      const channels = notifs.create.mock.calls.map((c: never[]) => (c[0] as { channel: string }).channel);
+      const channels = notifs.create.mock.calls.map((c: unknown[]) => (c[0] as { channel: string }).channel);
       expect(channels).toContain('in_app');
       expect(channels).toContain('sms');
       expect(channels).toContain('email');

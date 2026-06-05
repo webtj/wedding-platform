@@ -12,8 +12,8 @@ const buildTemplate = (overrides: Record<string, unknown> = {}) => ({
   ...overrides
 });
 
-const mockGet = (prisma: Record<string, unknown>) => (overrides?: Record<string, unknown>) =>
-  (prisma.processTemplate.findFirst as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+const mockGet = (prisma: { processTemplate: { findFirst: ReturnType<typeof vi.fn> } }) => (overrides?: Record<string, unknown>) =>
+  prisma.processTemplate.findFirst.mockResolvedValueOnce(
     buildTemplate(overrides)
   );
 
@@ -102,7 +102,7 @@ describe('ProcessTemplatesService', () => {
       };
       const prisma = {
         processTemplate: { findFirst: vi.fn().mockResolvedValue(tpl) },
-        $transaction: vi.fn((cb: (tx: typeof tx) => unknown) => cb(tx))
+        $transaction: vi.fn((cb: (tx: Record<string, unknown>) => unknown) => cb(tx))
       };
       const service = new ProcessTemplatesService(prisma as never);
       const result = await service.duplicate({ tenantId: 't1', templateId: 'tpl1' });
@@ -330,7 +330,7 @@ describe('ProcessTemplatesService', () => {
       const prisma = {
         processTemplate: { findFirst: vi.fn().mockResolvedValue(tpl) },
         project: { findFirst: vi.fn().mockResolvedValue(project) },
-        $transaction: vi.fn((cb: (tx: typeof tx) => unknown) => cb(tx))
+        $transaction: vi.fn((cb: (tx: Record<string, unknown>) => unknown) => cb(tx))
       };
       const service = new ProcessTemplatesService(prisma as never);
       const result = await service.applyToProject({ tenantId: 't1', projectId: 'p1', templateId: 'tpl1' });
@@ -352,7 +352,7 @@ describe('ProcessTemplatesService', () => {
       const prisma = {
         processTemplate: { findFirst: vi.fn().mockResolvedValue(tpl) },
         project: { findFirst: vi.fn().mockResolvedValue(project) },
-        $transaction: vi.fn((cb: (tx: typeof tx) => unknown) => cb(tx))
+        $transaction: vi.fn((cb: (tx: Record<string, unknown>) => unknown) => cb(tx))
       };
       const service = new ProcessTemplatesService(prisma as never);
       await service.applyToProject({ tenantId: 't1', projectId: 'p1', templateId: 'tpl1', reset: true });

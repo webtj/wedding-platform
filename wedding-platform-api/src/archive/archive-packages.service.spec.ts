@@ -4,7 +4,7 @@ import { ArchivePackagesService } from './archive-packages.service';
 
 const buildStorage = () => ({
   putObject: vi.fn().mockResolvedValue({ objectKey: 'key', sizeBytes: 1024 }),
-  createDownloadIntent: vi.fn().mockReturnValue({ url: 'http://download', expiresAt: new Date() })
+  createDownloadIntent: vi.fn().mockReturnValue({ downloadUrl: 'http://download', expiresAt: new Date() })
 });
 
 describe('ArchivePackagesService', () => {
@@ -87,7 +87,7 @@ describe('ArchivePackagesService', () => {
 
       const result = await service.downloadIntent({ tenantId: 't1', packageId: 'pkg1' });
       expect(result.package).toEqual(pkg);
-      expect(result.download.url).toBe('http://download');
+      expect(result.download.downloadUrl).toBe('http://download');
       expect(storage.createDownloadIntent).toHaveBeenCalledWith({
         objectKey: 'key',
         filename: '资料包.zip'

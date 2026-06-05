@@ -46,7 +46,7 @@ function createMockPrisma() {
       user: {
         findUnique: vi.fn()
       },
-      $transaction: vi.fn((fn: (tx: typeof txMock) => Promise<unknown>) => fn(txMock))
+      $transaction: vi.fn((fn: (tx: Record<string, unknown>) => Promise<unknown>) => fn(txMock))
     },
     txMock
   };

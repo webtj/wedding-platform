@@ -286,7 +286,7 @@ describe('LeadsService', () => {
       };
       const prisma = {
         lead: { findFirst: vi.fn().mockResolvedValue({ id: 'lead_1', status: 'won', name: '李想' }) },
-        $transaction: vi.fn((cb: (tx: typeof tx) => unknown) => cb(tx))
+        $transaction: vi.fn((cb: (tx: Record<string, unknown>) => unknown) => cb(tx))
       };
       const service = new LeadsService(prisma as never, { record: vi.fn() } as never);
 
@@ -334,7 +334,7 @@ describe('LeadsService', () => {
       };
       const prisma = {
         lead: { findFirst: vi.fn().mockResolvedValue({ id: 'lead_1', status: 'contacted' }) },
-        $transaction: vi.fn((cb: (tx: typeof tx) => unknown) => cb(tx))
+        $transaction: vi.fn((cb: (tx: Record<string, unknown>) => unknown) => cb(tx))
       };
       const service = new LeadsService(prisma as never, { record: vi.fn() } as never);
 

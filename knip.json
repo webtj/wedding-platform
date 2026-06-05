@@ -1,0 +1,71 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    "wedding-platform-api": {
+      "entry": [
+        "src/main.ts",
+        "src/**/*.controller.ts",
+        "src/**/*.module.ts",
+        "src/**/*.middleware.ts",
+        "src/**/*.guard.ts",
+        "src/**/*.interceptor.ts",
+        "src/**/*.filter.ts",
+        "src/**/*.decorator.ts",
+        "src/health/*.ts"
+      ],
+      "project": ["src/**/*.ts", "packages/shared/src/**/*.ts"],
+      "ignore": [
+        "**/base-url.util.ts",
+        "**/text-generation.dto.ts",
+        "**/config/env.ts",
+        "**/materials/dto.ts",
+        "**/projects/dto.ts",
+        "**/settings/dto/index.ts"
+      ]
+    },
+    "wedding-platform-api/packages/shared": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "wedding-platform-admin": {
+      "entry": [
+        "src/app/**/page.tsx",
+        "src/app/**/layout.tsx",
+        "src/app/**/route.ts",
+        "src/app/**/route.tsx",
+        "src/app/**/error.tsx",
+        "src/app/**/loading.tsx",
+        "src/app/**/not-found.tsx",
+        "src/instrumentation.ts",
+        "src/instrumentation-client.ts",
+        "src/middleware.ts",
+        "src/lib/**/*.ts",
+        "src/lib/**/*.tsx",
+        "src/components/**/*.ts",
+        "src/components/**/*.tsx",
+        "src/hooks/**/*.ts",
+        "src/features/**/*.ts",
+        "src/features/**/*.tsx"
+      ],
+      "project": ["src/**/*.{ts,tsx}"],
+      "ignore": ["src/types/index.ts", "src/types/data-table.ts"]
+    }
+  },
+  "ignoreWorkspaces": ["wedding-platform-api/packages/shared"],
+  "ignoreDependencies": [
+    "@types/*",
+    "tailwindcss",
+    "@tailwindcss/*",
+    "postcss",
+    "typescript",
+    "@types/node",
+    "@types/react*",
+    "vitest",
+    "@vitest/*",
+    "ts-node",
+    "prisma",
+    "@prisma/client",
+    "sharp"
+  ],
+  "ignoreBinaries": ["lsof", "wait"]
+}

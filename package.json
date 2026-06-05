@@ -1,0 +1,18 @@
+{
+  "name": "wedding-platform",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "bash scripts/start.sh",
+    "start": "bash scripts/start.sh",
+    "stop": "bash scripts/stop.sh",
+    "test": "bash scripts/test.sh",
+    "build": "bash scripts/build.sh"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["@nestjs/core", "@prisma/client", "@prisma/engines", "esbuild", "prisma", "sharp"]
+  },
+  "devDependencies": {
+    "knip": "^6.15.0"
+  }
+}
