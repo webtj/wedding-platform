@@ -22,6 +22,7 @@ export type Contract = {
   } | null;
   lead?: { id: string; leadNo: string; name: string; phone?: string | null } | null;
   signToken?: string | null;
+  signTokenExpiresAt?: string | null;
   signatureData?: string | null;
   signedAt?: string | null;
   updatedAt?: string;

@@ -200,14 +200,52 @@ function ContractRow({ contract }: { contract: Contract }) {
   const [projectOpen, setProjectOpen] = useState(false);
   const [voidOpen, setVoidOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [signing, setSigning] = useState(false);
   const isSigned = contract.status === 'signed';
   const upcomingWedding = isWithinDays(contract.weddingDate, 30);
 
   const reissue = useMutationToast({
     ...reissueSignTokenMutation,
-    successMsg: '签署链接已重发',
-    errorMsg: '重发失败'
+    successMsg: '签署链接已复制到剪贴板',
+    errorMsg: '操作失败'
   });
+
+  async function handleSign() {
+    if (signing) return;
+    setSigning(true);
+    try {
+      let token = contract.signToken;
+      // Check if token is expired
+      const isExpired = contract.signTokenExpiresAt
+        ? new Date(contract.signTokenExpiresAt).getTime() < Date.now()
+        : true;
+
+      if (!token || isExpired) {
+        // Reissue token - the mutation returns the updated contract
+        const updated = await new Promise<Contract>((resolve, reject) => {
+          reissue.mutate(contract.id, {
+            onSuccess: (data) => resolve(data),
+            onError: (err) => reject(err)
+          });
+        });
+        token = updated.signToken;
+      }
+
+      if (token) {
+        const url = `${window.location.origin}/contract/${token}/sign`;
+        try {
+          await navigator.clipboard.writeText(url);
+        } catch {
+          // clipboard failed, still open the link
+        }
+        window.open(url, '_blank');
+      }
+    } catch {
+      // error handled by mutation toast
+    } finally {
+      setSigning(false);
+    }
+  }
 
   return (
     <TableRow className={upcomingWedding ? 'bg-amber-50/40 hover:bg-amber-50/60' : undefined}>
@@ -275,29 +313,15 @@ function ContractRow({ contract }: { contract: Contract }) {
               编辑
             </Button>
           )}
-          {contract.status === 'pending_sign' && contract.signToken && (
+          {contract.status === 'pending_sign' && (
             <Button
               variant='default'
               size='sm'
               className='h-7 text-xs px-2'
-              onClick={() => {
-                const url = `${window.location.origin}/contract/${contract.signToken}/sign`;
-                navigator.clipboard.writeText(url);
-                window.open(url, '_blank');
-              }}
+              onClick={handleSign}
+              disabled={signing}
             >
-              签署
-            </Button>
-          )}
-          {contract.status === 'pending_sign' && (
-            <Button
-              variant='ghost'
-              size='sm'
-              className='h-7 text-xs px-2 text-muted-foreground hover:text-foreground'
-              onClick={() => reissue.mutate(contract.id)}
-              disabled={reissue.isPending}
-            >
-              重发链接
+              {signing ? '处理中...' : '签署'}
             </Button>
           )}
           {contract.status === 'pending_sign' && (
