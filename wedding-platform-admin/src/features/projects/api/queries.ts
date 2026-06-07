@@ -1,6 +1,7 @@
-import { queryOptions } from '@tanstack/react-query';
-import { getProjects, getProjectById } from './service';
-import type { Project, ProjectFilters } from './types';
+import { queryOptions, mutationOptions } from '@tanstack/react-query';
+import { getQueryClient } from '@/lib/query-client';
+import { getProjects, getProjectById, updateProject, createProjectFromContract } from './service';
+import type { Project, ProjectFilters, ProjectMutationPayload } from './types';
 
 export type { Project };
 
@@ -22,13 +23,18 @@ export const projectByIdOptions = (id: string) =>
     queryFn: () => getProjectById(id)
   });
 
-import { mutationOptions } from '@tanstack/react-query';
-import { getQueryClient } from '@/lib/query-client';
-import { updateProject } from './service';
-import type { ProjectMutationPayload } from './types';
-
 export const updateProjectMutation = mutationOptions({
   mutationFn: ({ id, data }: { id: string; data: ProjectMutationPayload }) =>
     updateProject(id, data),
   onSuccess: () => getQueryClient().invalidateQueries({ queryKey: projectKeys.all })
+});
+
+export const createProjectFromContractMutation = mutationOptions({
+  mutationFn: (data: Parameters<typeof createProjectFromContract>[0]) =>
+    createProjectFromContract(data),
+  onSuccess: () => {
+    const qc = getQueryClient();
+    qc.invalidateQueries({ queryKey: projectKeys.all });
+    qc.invalidateQueries({ queryKey: ['contracts'] });
+  }
 });

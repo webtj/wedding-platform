@@ -1,6 +1,7 @@
-import { queryOptions } from '@tanstack/react-query';
-import { getContracts, getContractById } from './service';
-import type { Contract, ContractFilters } from './types';
+import { queryOptions, mutationOptions } from '@tanstack/react-query';
+import { getQueryClient } from '@/lib/query-client';
+import { getContracts, getContractById, updateContract, voidContract, deleteContract } from './service';
+import type { Contract, ContractFilters, ContractMutationPayload } from './types';
 
 export type { Contract };
 
@@ -21,11 +22,6 @@ export const contractByIdOptions = (id: string) =>
     queryKey: contractKeys.detail(id),
     queryFn: () => getContractById(id)
   });
-
-import { mutationOptions } from '@tanstack/react-query';
-import { getQueryClient } from '@/lib/query-client';
-import { updateContract, voidContract, deleteContract } from './service';
-import type { ContractMutationPayload } from './types';
 
 export const updateContractMutation = mutationOptions({
   mutationFn: ({ id, data }: { id: string; data: ContractMutationPayload }) =>
