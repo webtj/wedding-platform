@@ -16,74 +16,125 @@ export class MaterialsController {
   @RequirePermissions(PERMISSIONS.MATERIAL_READ)
   @Get('material-categories')
   listCategories(@Req() r: { auth?: AuthContext }) {
-    return this.service.listCategories({ tenantId: requireTenant(r.auth).tenantId });
+    const tenant = requireTenant(r.auth);
+    return this.service.listCategories({ tenantId: tenant.tenantId });
   }
 
   @RequirePermissions(PERMISSIONS.MATERIAL_MANAGE)
   @Post('material-categories')
   createCategory(@Req() r: { auth?: AuthContext }, @Body() b: unknown) {
-    return this.service.createCategory({ tenantId: requireTenant(r.auth).tenantId, data: createMaterialCategorySchema.parse(b) });
+    const tenant = requireTenant(r.auth);
+    return this.service.createCategory({
+      tenantId: tenant.tenantId,
+      userId: tenant.userId,
+      data: createMaterialCategorySchema.parse(b)
+    });
   }
 
   @RequirePermissions(PERMISSIONS.MATERIAL_MANAGE)
   @Patch('material-categories/:id')
   updateCategory(@Req() r: { auth?: AuthContext }, @Param('id') id: string, @Body() b: unknown) {
-    return this.service.updateCategory({ tenantId: requireTenant(r.auth).tenantId, categoryId: id, data: updateMaterialCategorySchema.parse(b) });
+    const tenant = requireTenant(r.auth);
+    return this.service.updateCategory({
+      tenantId: tenant.tenantId,
+      userId: tenant.userId,
+      categoryId: id,
+      data: updateMaterialCategorySchema.parse(b)
+    });
   }
 
   @RequirePermissions(PERMISSIONS.MATERIAL_MANAGE)
   @Delete('material-categories/:id')
   deleteCategory(@Req() r: { auth?: AuthContext }, @Param('id') id: string) {
-    return this.service.deleteCategory({ tenantId: requireTenant(r.auth).tenantId, categoryId: id });
+    const tenant = requireTenant(r.auth);
+    return this.service.deleteCategory({
+      tenantId: tenant.tenantId,
+      userId: tenant.userId,
+      categoryId: id
+    });
   }
 
   @RequirePermissions(PERMISSIONS.MATERIAL_READ)
   @Get('materials')
   listMaterials(@Req() r: { auth?: AuthContext }, @Query('categoryId') cid?: string, @Query('page') p?: string, @Query('pageSize') ps?: string) {
-    return this.service.listMaterials({ tenantId: requireTenant(r.auth).tenantId, categoryId: cid, page: p ? +p : undefined, pageSize: ps ? +ps : undefined });
+    const tenant = requireTenant(r.auth);
+    return this.service.listMaterials({
+      tenantId: tenant.tenantId,
+      categoryId: cid,
+      page: p ? +p : undefined,
+      pageSize: ps ? +ps : undefined
+    });
   }
 
   @RequirePermissions(PERMISSIONS.MATERIAL_MANAGE)
   @Post('materials')
   createMaterial(@Req() r: { auth?: AuthContext }, @Body() b: unknown) {
-    return this.service.createMaterial({ tenantId: requireTenant(r.auth).tenantId, data: createMaterialSchema.parse(b) });
+    const tenant = requireTenant(r.auth);
+    return this.service.createMaterial({
+      tenantId: tenant.tenantId,
+      userId: tenant.userId,
+      data: createMaterialSchema.parse(b)
+    });
   }
 
   @RequirePermissions(PERMISSIONS.MATERIAL_MANAGE)
   @Patch('materials/:id')
   updateMaterial(@Req() r: { auth?: AuthContext }, @Param('id') id: string, @Body() b: unknown) {
-    return this.service.updateMaterial({ tenantId: requireTenant(r.auth).tenantId, materialId: id, data: updateMaterialSchema.parse(b) });
+    const tenant = requireTenant(r.auth);
+    return this.service.updateMaterial({
+      tenantId: tenant.tenantId,
+      userId: tenant.userId,
+      materialId: id,
+      data: updateMaterialSchema.parse(b)
+    });
   }
 
   @RequirePermissions(PERMISSIONS.MATERIAL_MANAGE)
   @Delete('materials/:id')
   deleteMaterial(@Req() r: { auth?: AuthContext }, @Param('id') id: string) {
-    return this.service.deleteMaterial({ tenantId: requireTenant(r.auth).tenantId, materialId: id });
+    const tenant = requireTenant(r.auth);
+    return this.service.deleteMaterial({
+      tenantId: tenant.tenantId,
+      userId: tenant.userId,
+      materialId: id
+    });
   }
 
   @RequirePermissions(PERMISSIONS.MATERIAL_READ)
   @Get('tasks/:taskId/materials')
   getTaskMaterials(@Req() r: { auth?: AuthContext }, @Param('taskId') tid: string) {
-    return this.service.getTaskMaterials({ tenantId: requireTenant(r.auth).tenantId, taskId: tid });
+    const tenant = requireTenant(r.auth);
+    return this.service.getTaskMaterials({ tenantId: tenant.tenantId, taskId: tid });
   }
 
   @RequirePermissions(PERMISSIONS.MATERIAL_MANAGE)
   @Post('tasks/:taskId/materials')
   addTaskMaterial(@Req() r: { auth?: AuthContext }, @Param('taskId') tid: string, @Body() b: unknown) {
+    const tenant = requireTenant(r.auth);
     const d = linkTaskMaterialSchema.parse(b);
-    return this.service.addTaskMaterial({ tenantId: requireTenant(r.auth).tenantId, taskId: tid, materialId: d.materialId });
+    return this.service.addTaskMaterial({
+      tenantId: tenant.tenantId,
+      taskId: tid,
+      materialId: d.materialId
+    });
   }
 
   @RequirePermissions(PERMISSIONS.MATERIAL_MANAGE)
   @Delete('task-materials/:id')
   removeTaskMaterial(@Req() r: { auth?: AuthContext }, @Param('id') id: string) {
-    return this.service.removeTaskMaterial({ tenantId: requireTenant(r.auth).tenantId, id });
+    const tenant = requireTenant(r.auth);
+    return this.service.removeTaskMaterial({ tenantId: tenant.tenantId, id });
   }
 
   @RequirePermissions(PERMISSIONS.MATERIAL_MANAGE)
   @Patch('task-materials/:id/confirm')
   confirmTaskMaterial(@Req() r: { auth?: AuthContext }, @Param('id') id: string, @Body() b: unknown) {
+    const tenant = requireTenant(r.auth);
     const d = confirmTaskMaterialSchema.parse(b);
-    return this.service.confirmTaskMaterial({ tenantId: requireTenant(r.auth).tenantId, id, confirmed: d.confirmed });
+    return this.service.confirmTaskMaterial({
+      tenantId: tenant.tenantId,
+      id,
+      confirmed: d.confirmed
+    });
   }
 }
