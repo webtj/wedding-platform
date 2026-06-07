@@ -32,12 +32,13 @@ import {
   TableRow
 } from '@/components/ui/table';
 import { Icons } from '@/components/icons';
-import { toDateDisplay } from '@/lib/date-format';
+import { isWithinDays, toDateDisplay } from '@/lib/date-format';
 import { STATUS_OPTIONS, S_COLOR, S_LABEL, SOURCE_LABEL } from '../../constants';
 import { AddLeadDialog } from '../add-lead-dialog';
 import { DeleteLeadDialog } from '../delete-lead-dialog';
 import { CreateContractDialog } from '../create-contract-dialog';
 import { LeadDetailDrawer } from '../lead-detail-drawer';
+import { exportLeadsCsv } from '../../api/service';
 
 export function LeadsTable() {
   const [params, setParams] = useQueryStates({
@@ -60,6 +61,26 @@ export function LeadsTable() {
     ...(params.status && { status: params.status })
   };
   const { data, isLoading } = useQuery(leadsQueryOptions(filters));
+  const [isExporting, setIsExporting] = useState(false);
+
+  async function handleExport() {
+    setIsExporting(true);
+    try {
+      const blob = await exportLeadsCsv({ status: params.status, search: params.search });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `leads-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export failed', err);
+    } finally {
+      setIsExporting(false);
+    }
+  }
 
   if (isLoading || !data)
     return (
@@ -102,7 +123,18 @@ export function LeadsTable() {
             ))}
           </SelectContent>
         </Select>
-        <div className='ml-auto'>
+        <div className='ml-auto flex items-center gap-2'>
+          <Button
+            variant='outline'
+            size='sm'
+            className='h-9'
+            onClick={handleExport}
+            disabled={isExporting || data.items.length === 0}
+            isLoading={isExporting}
+          >
+            <Icons.upload className='mr-1.5 h-4 w-4' />
+            导出 CSV
+          </Button>
           <AddLeadDialog />
         </div>
       </div>
@@ -197,8 +229,10 @@ function LeadRow({ lead, onOpenDetail }: { lead: Lead; onOpenDetail: (id: string
   const [contractOpen, setContractOpen] = useState(false);
   const statusLocked = lead.status === 'won';
 
+  const upcomingWedding = isWithinDays(lead.weddingDate, 30);
+
   return (
-    <TableRow>
+    <TableRow className={upcomingWedding ? 'bg-amber-50/40 hover:bg-amber-50/60' : undefined}>
       <TableCell className='py-2'>
         <code className='text-xs font-mono text-muted-foreground'>{lead.leadNo}</code>
       </TableCell>
@@ -217,7 +251,21 @@ function LeadRow({ lead, onOpenDetail }: { lead: Lead; onOpenDetail: (id: string
       <TableCell className='py-2 text-sm text-muted-foreground'>
         {SOURCE_LABEL[lead.sourceChannel] ?? lead.sourceChannel}
       </TableCell>
-      <TableCell className='py-2 text-sm'>{toDateDisplay(lead.weddingDate)}</TableCell>
+      <TableCell className='py-2 text-sm'>
+        <div className='flex items-center gap-1.5'>
+          <span className={upcomingWedding ? 'font-medium text-amber-700' : undefined}>
+            {toDateDisplay(lead.weddingDate)}
+          </span>
+          {upcomingWedding && (
+            <Badge
+              variant='outline'
+              className='text-[10px] px-1.5 py-0 border-amber-300 text-amber-700 bg-amber-50'
+            >
+              30天内
+            </Badge>
+          )}
+        </div>
+      </TableCell>
       <TableCell className='py-2 text-sm'>
         {lead.contract ? (
           <a

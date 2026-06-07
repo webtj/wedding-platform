@@ -18,16 +18,7 @@ export class LeadsService {
     const page = input.page ?? 1;
     const pageSize = input.pageSize ?? 10;
     const skip = (page - 1) * pageSize;
-
-    const where: Record<string, unknown> = { tenantId: input.tenantId, deletedAt: null };
-    if (input.status) where.status = input.status;
-    if (input.search) {
-      where.OR = [
-        { leadNo: { contains: input.search } },
-        { name: { contains: input.search } },
-        { phone: { contains: input.search } }
-      ];
-    }
+    const where = this.buildWhere(input);
 
     const [items, total] = await Promise.all([
       this.prisma.lead.findMany({
@@ -46,6 +37,31 @@ export class LeadsService {
     ]);
 
     return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+  }
+
+  async listForExport(input: { tenantId: string; search?: string; status?: string }) {
+    const where = this.buildWhere(input);
+    return this.prisma.lead.findMany({
+      where,
+      include: {
+        createdBy: { select: { displayName: true } },
+        contract: { select: { contractNo: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  private buildWhere(input: { tenantId: string; search?: string; status?: string }) {
+    const where: Record<string, unknown> = { tenantId: input.tenantId, deletedAt: null };
+    if (input.status) where.status = input.status;
+    if (input.search) {
+      where.OR = [
+        { leadNo: { contains: input.search } },
+        { name: { contains: input.search } },
+        { phone: { contains: input.search } }
+      ];
+    }
+    return where;
   }
 
   async get(input: { tenantId: string; leadId: string }) {

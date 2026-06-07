@@ -17,3 +17,12 @@ export function toDateDisplay(iso: string | null | undefined): string {
   if (!iso) return '-';
   return new Date(iso).toLocaleDateString('zh-CN');
 }
+
+export function isWithinDays(iso: string | null | undefined, days: number): boolean {
+  if (!iso) return false;
+  const target = new Date(iso).getTime();
+  if (Number.isNaN(target)) return false;
+  const now = Date.now();
+  const horizon = now + days * 24 * 60 * 60 * 1000;
+  return target >= now && target <= horizon;
+}

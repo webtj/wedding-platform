@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api-client';
+import { getAccessToken } from '@/lib/auth/auth-storage';
 import type { Lead, LeadFilters, LeadResponse, LeadMutationPayload, LeadFollowup } from './types';
 
 export async function getLeads(filters: LeadFilters): Promise<LeadResponse> {
@@ -9,6 +10,22 @@ export async function getLeads(filters: LeadFilters): Promise<LeadResponse> {
   if (filters.search) params.set('search', filters.search);
   const qs = params.toString();
   return apiClient<LeadResponse>(`/leads${qs ? `?${qs}` : ''}`);
+}
+
+export async function exportLeadsCsv(filters: Pick<LeadFilters, 'status' | 'search'>): Promise<Blob> {
+  const params = new URLSearchParams();
+  if (filters.status) params.set('status', filters.status);
+  if (filters.search) params.set('search', filters.search);
+  const qs = params.toString();
+  const headers = new Headers();
+  const token = getAccessToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  const res = await fetch(`/api/leads/export/csv${qs ? `?${qs}` : ''}`, {
+    headers,
+    credentials: 'include'
+  });
+  if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+  return res.blob();
 }
 
 export async function getLeadById(id: string): Promise<Lead> {
