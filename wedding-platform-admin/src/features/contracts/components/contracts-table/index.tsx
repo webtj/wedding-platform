@@ -315,9 +315,9 @@ function ContractRow({ contract }: { contract: Contract }) {
           )}
           {contract.status === 'pending_sign' && (
             <Button
-              variant='default'
+              variant='ghost'
               size='sm'
-              className='h-7 text-xs px-2'
+              className='h-7 text-xs px-2 text-primary hover:text-primary hover:bg-primary/10'
               onClick={handleSign}
               disabled={signing}
             >
