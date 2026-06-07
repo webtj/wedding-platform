@@ -67,7 +67,7 @@ export function CategoryCard({
   }
 
   return (
-    <Card>
+    <Card className='py-3'>
       <CardHeader className='pb-0'>
         <div
           className='flex items-center gap-3 cursor-pointer select-none'
