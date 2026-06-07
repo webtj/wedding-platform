@@ -69,11 +69,11 @@ export function MaterialsPage() {
         <div className='relative flex-1 max-w-xs'>
           <Icons.search className='absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
           <Input
-            placeholder='搜索物料...'
+            placeholder='搜索分类或物料...'
             className='pl-9 h-8'
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            aria-label='搜索物料'
+            aria-label='搜索分类或物料'
           />
         </div>
         <div className='flex-1' />

@@ -31,13 +31,17 @@ export function CategoryCard({
   const expanded = forceExpand ? true : open;
   const { data } = useSuspenseQuery(materialsByCategoryOptions(category.id));
   const all = data.items;
+  const searchLower = search.toLowerCase();
+  const categoryMatches = search && category.name.toLowerCase().includes(searchLower);
   const materials = search
-    ? all.filter((m) => m.name.toLowerCase().includes(search.toLowerCase()))
+    ? categoryMatches
+      ? all
+      : all.filter((m) => m.name.toLowerCase().includes(searchLower))
     : all;
   const avail = all.filter((m) => m.status === 'available').length;
   const pct = all.length > 0 ? Math.round((avail / all.length) * 100) : 0;
 
-  if (search && materials.length === 0) return null;
+  if (search && !categoryMatches && materials.length === 0) return null;
 
   function handleHeaderKey(e: React.KeyboardEvent) {
     if (e.key === 'Enter' || e.key === ' ') {
