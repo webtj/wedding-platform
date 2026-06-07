@@ -33,6 +33,11 @@ export class JwtAuthGuard implements CanActivate {
       throw new BusinessException('AUTH_TOKEN_EXPIRED', '登录已过期，请重新登录', 401);
     }
 
+    const currentVersion = await this.tokenService.getCachedTokenVersion(payload.sub);
+    if (payload.tokenVersion !== currentVersion) {
+      throw new BusinessException('AUTH_TOKEN_EXPIRED', '权限已变更，请重新登录', 401);
+    }
+
     request.auth = {
       userId: payload.sub,
       tenantId: payload.tenantId ?? null,

@@ -10,6 +10,7 @@ const buildAccount = (overrides: Record<string, unknown> = {}) => ({
   user: {
     id: 'u1',
     displayName: '王',
+    tokenVersion: 0,
     platformAdmin: null,
     lastActiveTenantId: null,
     tenantMembers: [{
@@ -35,6 +36,7 @@ const buildMultiTenantAccount = (members: Record<string, unknown>[]) => ({
   user: {
     id: 'u1',
     displayName: '王',
+    tokenVersion: 0,
     platformAdmin: null,
     lastActiveTenantId: null,
     tenantMembers: members
@@ -122,7 +124,7 @@ describe('IdentityService', () => {
       expect(result.permissions).toEqual(['project.read']);
       expect(result.isPlatformAdmin).toBe(false);
       expect(token.issueTokenPair).toHaveBeenCalledWith(
-        expect.objectContaining({ sub: 'u1', tenantId: 't1', memberId: 'm1', isPlatformAdmin: false })
+        expect.objectContaining({ sub: 'u1', tenantId: 't1', memberId: 'm1', isPlatformAdmin: false, tokenVersion: 0 })
       );
     });
 
@@ -147,7 +149,7 @@ describe('IdentityService', () => {
       expect(result.platformLevel).toBe('super');
       expect(result.activeTenant).toBeNull();
       expect(token.issueTokenPair).toHaveBeenCalledWith(
-        expect.objectContaining({ sub: 'u1', tenantId: null, memberId: null, isPlatformAdmin: true, platformLevel: 'super' })
+        expect.objectContaining({ sub: 'u1', tenantId: null, memberId: null, isPlatformAdmin: true, platformLevel: 'super', tokenVersion: 0 })
       );
     });
   });
@@ -194,7 +196,7 @@ describe('IdentityService', () => {
         data: { revokedAt: expect.any(Date) }
       });
       expect(token.issueTokenPair).toHaveBeenCalledWith(
-        expect.objectContaining({ sub: 'u1', tenantId: 't1', memberId: 'm1' })
+        expect.objectContaining({ sub: 'u1', tenantId: 't1', memberId: 'm1', tokenVersion: 0 })
       );
     });
 
@@ -209,7 +211,7 @@ describe('IdentityService', () => {
 
       await service.refresh({ refreshToken: 'rt' } as never);
       expect(token.issueTokenPair).toHaveBeenCalledWith(
-        expect.objectContaining({ isPlatformAdmin: true, platformLevel: 'admin' })
+        expect.objectContaining({ isPlatformAdmin: true, platformLevel: 'admin', tokenVersion: 0 })
       );
     });
 

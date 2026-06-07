@@ -251,11 +251,13 @@ model Tenant {
 }
 
 model User {
-  id          String     @id @default(cuid())
-  displayName String
-  status      UserStatus @default(active)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id                 String     @id @default(cuid())
+  displayName        String
+  status             UserStatus @default(active)
+  tokenVersion       Int        @default(0)
+  lastActiveTenantId String?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
 
   authAccounts    AuthAccount[]
   tenantMembers   TenantMember[]

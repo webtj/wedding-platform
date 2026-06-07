@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
+import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
@@ -9,6 +10,8 @@ import { RequestLoggerInterceptor } from './common/logging/request-logger.interc
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  app.use(cookieParser());
 
   const config = app.get(ConfigService);
   const corsOrigins = config.get<string[]>('CORS_ORIGINS') ?? [

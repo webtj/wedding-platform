@@ -2,7 +2,8 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { RolesService } from './roles.service';
 
 const mockTokenService = {
-  revokeSessionsByRoleId: vi.fn().mockResolvedValue(0)
+  revokeSessionsByRoleId: vi.fn().mockResolvedValue(0),
+  incrementTokenVersion: vi.fn().mockResolvedValue(undefined)
 };
 
 function createMockPrisma() {
@@ -47,6 +48,9 @@ function createMockPrisma() {
       },
       menuItem: {
         findFirst: vi.fn(),
+        findMany: vi.fn().mockResolvedValue([])
+      },
+      memberRole: {
         findMany: vi.fn().mockResolvedValue([])
       },
       user: {

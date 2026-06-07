@@ -11,12 +11,15 @@ export type AccessTokenPayload = {
   isPlatformAdmin: boolean;
   platformLevel?: 'super' | 'admin';
   permissions: string[];
+  tokenVersion: number;
 };
 
 export type TokenPair = {
   accessToken: string;
   refreshToken: string;
 };
+
+const tokenVersionCache = new Map<string, { version: number; expiresAt: number }>();
 
 @Injectable()
 export class TokenService {
@@ -88,5 +91,25 @@ export class TokenService {
     });
 
     return result.count;
+  }
+
+  async getCachedTokenVersion(userId: string): Promise<number> {
+    const cached = tokenVersionCache.get(userId);
+    if (cached && cached.expiresAt > Date.now()) return cached.version;
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { tokenVersion: true }
+    });
+    const version = user?.tokenVersion ?? 0;
+    tokenVersionCache.set(userId, { version, expiresAt: Date.now() + 60_000 });
+    return version;
+  }
+
+  async incrementTokenVersion(userId: string): Promise<void> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { tokenVersion: { increment: 1 } }
+    });
+    tokenVersionCache.delete(userId);
   }
 }

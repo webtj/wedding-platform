@@ -12,6 +12,10 @@ function makePrisma() {
     },
     memberRole: {
       findMany: vi.fn().mockResolvedValue([])
+    },
+    user: {
+      findUnique: vi.fn(),
+      update: vi.fn()
     }
   };
 }
@@ -47,7 +51,8 @@ describe('TokenService', () => {
         tenantId: 't1',
         memberId: 'm1',
         isPlatformAdmin: false,
-        permissions: ['lead.read']
+        permissions: ['lead.read'],
+        tokenVersion: 0
       });
 
       expect(result.accessToken).toBe('signed.access.token');
@@ -73,7 +78,8 @@ describe('TokenService', () => {
         tenantId: null,
         memberId: null,
         isPlatformAdmin: true,
-        permissions: []
+        permissions: [],
+        tokenVersion: 0
       });
 
       const call = prisma.refreshSession.create.mock.calls[0]![0];
@@ -142,6 +148,63 @@ describe('TokenService', () => {
         where: { userId: { in: ['u1', 'u2'] }, revokedAt: null },
         data: { revokedAt: expect.any(Date) }
       });
+    });
+  });
+
+  describe('getCachedTokenVersion', () => {
+    it('returns 0 when user has no tokenVersion', async () => {
+      const prisma = makePrisma();
+      prisma.user.findUnique = vi.fn().mockResolvedValue({ tokenVersion: 0 });
+      const service = new TokenService(makeJwt() as never, makeConfig(), prisma as never);
+
+      const version = await service.getCachedTokenVersion('cache-u1');
+      expect(version).toBe(0);
+    });
+
+    it('returns the stored tokenVersion from DB', async () => {
+      const prisma = makePrisma();
+      prisma.user.findUnique = vi.fn().mockResolvedValue({ tokenVersion: 3 });
+      const service = new TokenService(makeJwt() as never, makeConfig(), prisma as never);
+
+      const version = await service.getCachedTokenVersion('cache-u2');
+      expect(version).toBe(3);
+    });
+
+    it('returns cached value on second call without hitting DB', async () => {
+      const prisma = makePrisma();
+      prisma.user.findUnique = vi.fn().mockResolvedValue({ tokenVersion: 2 });
+      const service = new TokenService(makeJwt() as never, makeConfig(), prisma as never);
+
+      const v1 = await service.getCachedTokenVersion('cache-u3');
+      const v2 = await service.getCachedTokenVersion('cache-u3');
+      expect(v1).toBe(2);
+      expect(v2).toBe(2);
+      expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('incrementTokenVersion', () => {
+    it('increments the tokenVersion in DB and clears cache', async () => {
+      const prisma = makePrisma();
+      prisma.user.update = vi.fn().mockResolvedValue({});
+      prisma.user.findUnique = vi.fn().mockResolvedValue({ tokenVersion: 1 });
+      const service = new TokenService(makeJwt() as never, makeConfig(), prisma as never);
+
+      // Prime the cache
+      await service.getCachedTokenVersion('cache-u4');
+      expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
+
+      await service.incrementTokenVersion('cache-u4');
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'cache-u4' },
+        data: { tokenVersion: { increment: 1 } }
+      });
+
+      // Next getCachedTokenVersion should hit DB again (cache cleared)
+      prisma.user.findUnique = vi.fn().mockResolvedValue({ tokenVersion: 2 });
+      const v = await service.getCachedTokenVersion('cache-u4');
+      expect(v).toBe(2);
+      expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
     });
   });
 });

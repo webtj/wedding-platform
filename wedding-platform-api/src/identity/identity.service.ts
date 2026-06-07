@@ -129,7 +129,8 @@ export class IdentityService {
         memberId: null,
         isPlatformAdmin: true,
         platformLevel: user.platformAdmin!.level as 'super' | 'admin',
-        permissions: []
+        permissions: [],
+        tokenVersion: user.tokenVersion ?? 0
       });
 
       return {
@@ -154,7 +155,8 @@ export class IdentityService {
       tenantId: activeMember.tenantId,
       memberId: activeMember.id,
       isPlatformAdmin: false,
-      permissions
+      permissions,
+      tokenVersion: user.tokenVersion ?? 0
     });
 
     return {
@@ -215,7 +217,8 @@ export class IdentityService {
         memberId: null,
         isPlatformAdmin: true,
         platformLevel: user.platformAdmin!.level as 'super' | 'admin',
-        permissions: []
+        permissions: [],
+        tokenVersion: user.tokenVersion ?? 0
       });
     }
 
@@ -230,7 +233,8 @@ export class IdentityService {
       tenantId: activeMember.tenantId,
       memberId: activeMember.id,
       isPlatformAdmin: false,
-      permissions
+      permissions,
+      tokenVersion: user.tokenVersion ?? 0
     });
   }
 
@@ -356,7 +360,8 @@ export class IdentityService {
       memberId: member.id,
       isPlatformAdmin,
       platformLevel: user.platformAdmin?.level as 'super' | 'admin' | undefined,
-      permissions
+      permissions,
+      tokenVersion: user.tokenVersion ?? 0
     });
 
     if (previousRefreshToken) {

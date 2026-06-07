@@ -3,10 +3,14 @@ import type { AssignRoleMenusInput, CreateTenantRoleInput, UpdateTenantRoleInput
 import { BusinessException } from '../common/exceptions/business.exception';
 import type { AuthContext } from '../common/auth/auth-context';
 import { PrismaService } from '../prisma/prisma.service';
+import { TokenService } from '../identity/token.service';
 
 @Injectable()
 export class SuperRolesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tokenService: TokenService
+  ) {}
 
   async list(params: { auth: AuthContext; search?: string; page?: number; pageSize?: number }) {
     const tenantId = params.auth.tenantId;
@@ -93,6 +97,7 @@ export class SuperRolesService {
       where: { id: roleId },
       data: { permissionCodes: Array.from(union) }
     });
+    await this.incrementTokenVersionForRole(roleId);
     return { success: true };
   }
 
@@ -129,5 +134,16 @@ export class SuperRolesService {
       select: { menuItemId: true }
     });
     return assignments.map((a) => a.menuItemId);
+  }
+
+  private async incrementTokenVersionForRole(roleId: string): Promise<void> {
+    const memberRoles = await this.prisma.memberRole.findMany({
+      where: { roleId },
+      select: { member: { select: { userId: true } } }
+    });
+    const userIds = [...new Set(memberRoles.map((mr) => mr.member.userId))];
+    for (const userId of userIds) {
+      await this.tokenService.incrementTokenVersion(userId);
+    }
   }
 }

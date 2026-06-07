@@ -176,6 +176,7 @@ export class RolesService {
           data: { permissionCodes: [...new Set(input.permissionCodes)] }
         });
         await this.tokenService.revokeSessionsByRoleId(input.id);
+        await this.incrementTokenVersionForRole(input.id);
       } else if (input.menuItemIds !== undefined) {
         await tx.roleMenuItem.deleteMany({ where: { roleId: input.id } });
         if (input.menuItemIds.length > 0) {
@@ -203,6 +204,7 @@ export class RolesService {
           data: { permissionCodes: Array.from(union) }
         });
         await this.tokenService.revokeSessionsByRoleId(input.id);
+        await this.incrementTokenVersionForRole(input.id);
       }
 
       return tx.role.findUniqueOrThrow({
@@ -336,5 +338,16 @@ export class RolesService {
     }
 
     return false;
+  }
+
+  private async incrementTokenVersionForRole(roleId: string): Promise<void> {
+    const memberRoles = await this.prisma.memberRole.findMany({
+      where: { roleId },
+      select: { member: { select: { userId: true } } }
+    });
+    const userIds = [...new Set(memberRoles.map((mr) => mr.member.userId))];
+    for (const userId of userIds) {
+      await this.tokenService.incrementTokenVersion(userId);
+    }
   }
 }

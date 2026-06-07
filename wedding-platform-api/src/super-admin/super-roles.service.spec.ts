@@ -6,13 +6,17 @@ import { BusinessException } from '../common/exceptions/business.exception';
 const buildAuth = (tenantId: string) =>
   ({ tenantId, userId: 'u1', memberId: 'm1', isSuperAdmin: true }) as never;
 
+const mockTokenService = {
+  incrementTokenVersion: vi.fn().mockResolvedValue(undefined)
+};
+
 describe('SuperRolesService', () => {
   describe('list', () => {
     it('paginates tenant roles with optional search filter', async () => {
       const prisma = {
         role: { findMany: vi.fn().mockResolvedValue([]), count: vi.fn().mockResolvedValue(0) }
       };
-      const service = new SuperRolesService(prisma as never);
+      const service = new SuperRolesService(prisma as never, mockTokenService as never);
       const result = await service.list({ auth: buildAuth('t1'), search: 'planner' });
       expect(prisma.role.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -28,7 +32,7 @@ describe('SuperRolesService', () => {
     it('returns role with permissions, menus, and tenant name', async () => {
       const role = { id: 'r1', tenantId: 't1' };
       const prisma = { role: { findFirst: vi.fn().mockResolvedValue(role) } };
-      const service = new SuperRolesService(prisma as never);
+      const service = new SuperRolesService(prisma as never, mockTokenService as never);
       const result = await service.getById(buildAuth('t1'), 'r1');
       expect(result).toEqual(role);
       expect(prisma.role.findFirst).toHaveBeenCalledWith(
@@ -44,7 +48,7 @@ describe('SuperRolesService', () => {
 
     it('throws NotFound when role does not exist', async () => {
       const prisma = { role: { findFirst: vi.fn().mockResolvedValue(null) } };
-      const service = new SuperRolesService(prisma as never);
+      const service = new SuperRolesService(prisma as never, mockTokenService as never);
       await expect(service.getById(buildAuth('t1'), 'missing')).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -57,7 +61,7 @@ describe('SuperRolesService', () => {
           create: vi.fn()
         }
       };
-      const service = new SuperRolesService(prisma as never);
+      const service = new SuperRolesService(prisma as never, mockTokenService as never);
       await expect(
         service.create(buildAuth('t1'), { code: 'planner', name: '策划' } as never)
       ).rejects.toBeInstanceOf(BusinessException);
@@ -70,7 +74,7 @@ describe('SuperRolesService', () => {
           create: vi.fn().mockResolvedValue({ id: 'r2' })
         }
       };
-      const service = new SuperRolesService(prisma as never);
+      const service = new SuperRolesService(prisma as never, mockTokenService as never);
       await service.create(buildAuth('t1'), { code: 'helper', name: '助手' } as never);
       expect(prisma.role.create).toHaveBeenCalledWith({
         data: { code: 'helper', name: '助手', scope: 'tenant', tenantId: 't1', isBuiltIn: true }
@@ -86,14 +90,14 @@ describe('SuperRolesService', () => {
           update: vi.fn().mockResolvedValue({ id: 'r1', name: '新名' })
         }
       };
-      const service = new SuperRolesService(prisma as never);
+      const service = new SuperRolesService(prisma as never, mockTokenService as never);
       await service.update(buildAuth('t1'), 'r1', { name: '新名' } as never);
       expect(prisma.role.update).toHaveBeenCalledWith({ where: { id: 'r1' }, data: { name: '新名' } });
     });
 
     it('throws NotFound when role does not exist', async () => {
       const prisma = { role: { findFirst: vi.fn().mockResolvedValue(null) } };
-      const service = new SuperRolesService(prisma as never);
+      const service = new SuperRolesService(prisma as never, mockTokenService as never);
       await expect(
         service.update(buildAuth('t1'), 'missing', { name: 'x' } as never)
       ).rejects.toBeInstanceOf(NotFoundException);
@@ -103,7 +107,7 @@ describe('SuperRolesService', () => {
   describe('delete', () => {
     it('throws NotFound when role does not exist', async () => {
       const prisma = { role: { findFirst: vi.fn().mockResolvedValue(null) } };
-      const service = new SuperRolesService(prisma as never);
+      const service = new SuperRolesService(prisma as never, mockTokenService as never);
       await expect(service.delete(buildAuth('t1'), 'missing')).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -111,7 +115,7 @@ describe('SuperRolesService', () => {
       const prisma = {
         role: { findFirst: vi.fn().mockResolvedValue({ id: 'r1', isBuiltIn: true }), delete: vi.fn() }
       };
-      const service = new SuperRolesService(prisma as never);
+      const service = new SuperRolesService(prisma as never, mockTokenService as never);
       await expect(service.delete(buildAuth('t1'), 'r1')).rejects.toBeInstanceOf(BusinessException);
     });
 
@@ -122,7 +126,7 @@ describe('SuperRolesService', () => {
           delete: vi.fn().mockResolvedValue({ id: 'r1' })
         }
       };
-      const service = new SuperRolesService(prisma as never);
+      const service = new SuperRolesService(prisma as never, mockTokenService as never);
       await service.delete(buildAuth('t1'), 'r1');
       expect(prisma.role.delete).toHaveBeenCalledWith({ where: { id: 'r1' } });
     });
@@ -139,6 +143,9 @@ describe('SuperRolesService', () => {
           deleteMany: vi.fn().mockResolvedValue({ count: 2 }),
           createMany: vi.fn().mockResolvedValue({ count: 3 })
         },
+        memberRole: {
+          findMany: vi.fn().mockResolvedValue([])
+        },
         menuItem: {
           findMany: vi.fn().mockResolvedValue([
             { permissionCodes: ['project.read'] },
@@ -147,7 +154,7 @@ describe('SuperRolesService', () => {
           ])
         }
       };
-      const service = new SuperRolesService(prisma as never);
+      const service = new SuperRolesService(prisma as never, mockTokenService as never);
       const result = await service.assignMenus(buildAuth('t1'), 'r1', { menuIds: ['m1', 'm2', 'm3'] } as never);
       expect(prisma.roleMenuItem.deleteMany).toHaveBeenCalledWith({ where: { roleId: 'r1' } });
       expect(prisma.roleMenuItem.createMany).toHaveBeenCalledWith({
@@ -167,9 +174,10 @@ describe('SuperRolesService', () => {
           update: vi.fn().mockResolvedValue({ id: 'r1' })
         },
         roleMenuItem: { deleteMany: vi.fn(), createMany: vi.fn() },
+        memberRole: { findMany: vi.fn().mockResolvedValue([]) },
         menuItem: { findMany: vi.fn().mockResolvedValue([]) }
       };
-      const service = new SuperRolesService(prisma as never);
+      const service = new SuperRolesService(prisma as never, mockTokenService as never);
       await service.assignMenus(buildAuth('t1'), 'r1', { menuIds: [] } as never);
       expect(prisma.roleMenuItem.createMany).not.toHaveBeenCalled();
       expect(prisma.role.update).toHaveBeenCalledWith({
@@ -180,7 +188,7 @@ describe('SuperRolesService', () => {
 
     it('throws NotFound when role is missing', async () => {
       const prisma = { role: { findFirst: vi.fn().mockResolvedValue(null) }, roleMenuItem: { deleteMany: vi.fn() } };
-      const service = new SuperRolesService(prisma as never);
+      const service = new SuperRolesService(prisma as never, mockTokenService as never);
       await expect(
         service.assignMenus(buildAuth('t1'), 'missing', { menuIds: ['m1'] } as never)
       ).rejects.toBeInstanceOf(NotFoundException);
@@ -190,7 +198,7 @@ describe('SuperRolesService', () => {
   describe('getAvailableMenusForRole', () => {
     it('returns top-level tenant menu tree (parents with sorted children)', async () => {
       const prisma = { menuItem: { findMany: vi.fn().mockResolvedValue([]) } };
-      const service = new SuperRolesService(prisma as never);
+      const service = new SuperRolesService(prisma as never, mockTokenService as never);
       await service.getAvailableMenusForRole(buildAuth('t1'));
       expect(prisma.menuItem.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -203,7 +211,7 @@ describe('SuperRolesService', () => {
 
     it('does not require a roleId (independent of role state)', async () => {
       const prisma = { menuItem: { findMany: vi.fn().mockResolvedValue([]) } };
-      const service = new SuperRolesService(prisma as never);
+      const service = new SuperRolesService(prisma as never, mockTokenService as never);
       // No prisma.role mock — if it queried role, this would throw
       await expect(service.getAvailableMenusForRole(buildAuth('t1'))).resolves.toBeDefined();
     });
@@ -215,7 +223,7 @@ describe('SuperRolesService', () => {
         role: { findFirst: vi.fn().mockResolvedValue({ id: 'r1' }) },
         roleMenuItem: { findMany: vi.fn().mockResolvedValue([{ menuItemId: 'm1' }, { menuItemId: 'm2' }]) }
       };
-      const service = new SuperRolesService(prisma as never);
+      const service = new SuperRolesService(prisma as never, mockTokenService as never);
       const result = await service.getAssignedMenuIdsForRole(buildAuth('t1'), 'r1');
       expect(result).toEqual(['m1', 'm2']);
       expect(prisma.role.findFirst).toHaveBeenCalledWith({
@@ -229,7 +237,7 @@ describe('SuperRolesService', () => {
         role: { findFirst: vi.fn().mockResolvedValue({ id: 'r1' }) },
         roleMenuItem: { findMany: vi.fn().mockResolvedValue([]) }
       };
-      const service = new SuperRolesService(prisma as never);
+      const service = new SuperRolesService(prisma as never, mockTokenService as never);
       const result = await service.getAssignedMenuIdsForRole(buildAuth('t1'), 'r1');
       expect(result).toEqual([]);
     });
@@ -239,7 +247,7 @@ describe('SuperRolesService', () => {
         role: { findFirst: vi.fn().mockResolvedValue(null) },
         roleMenuItem: { findMany: vi.fn() }
       };
-      const service = new SuperRolesService(prisma as never);
+      const service = new SuperRolesService(prisma as never, mockTokenService as never);
       await expect(service.getAssignedMenuIdsForRole(buildAuth('t1'), 'missing')).rejects.toBeInstanceOf(
         NotFoundException
       );
