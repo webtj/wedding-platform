@@ -1,7 +1,9 @@
 'use client';
 
-// Drop-in replacement for @clerk/nextjs useOrganizationList
+// Drop-in replacement for @clerk/nextjs useOrganizationList.
 // Same shape as Clerk's useOrganizationList({ userMemberships: { infinite: true } })
+//
+// Renamed from `organization` → `workspace` to match our auth-context naming.
 
 import { useCallback } from 'react';
 import { useAuthContext } from './auth-context';
@@ -14,11 +16,11 @@ export function useOrganizationList(_opts?: unknown) {
       id: m.id,
       role: m.role,
       organization: {
-        id: m.organization.id,
-        name: m.organization.name,
-        slug: m.organization.slug,
-        imageUrl: m.organization.imageUrl,
-        hasImage: m.organization.hasImage
+        id: m.workspace.id,
+        name: m.workspace.name,
+        slug: m.workspace.slug,
+        imageUrl: m.workspace.imageUrl,
+        hasImage: m.workspace.hasImage
       }
     })),
     revalidate: ctx.revalidate
@@ -26,7 +28,7 @@ export function useOrganizationList(_opts?: unknown) {
 
   const setActive = useCallback(
     async ({ organization }: { organization: string }) => {
-      ctx.setActiveOrg(organization);
+      await ctx.switchActiveWorkspace(organization);
     },
     [ctx]
   );

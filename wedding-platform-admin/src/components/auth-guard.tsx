@@ -8,13 +8,16 @@ import { TenantPicker } from '@/components/tenant-picker';
 // AuthGuard behavior:
 // 1. While auth state is loading, show a centered spinner.
 // 2. Unauthenticated visitors are redirected to /auth/sign-in with redirect_url.
-// 3. Platform admins (state.isPlatformAdmin = true) and signed-in users with
-//    no real tenant context see <TenantPicker /> instead of the children —
-//    the dashboard content only renders once a tenant has been picked,
-//    which is the only way to obtain a tenant-scoped JWT.
+// 3. Tenant users with no active workspace see <TenantPicker /> instead of
+//    the children — the dashboard content only renders once a workspace has
+//    been picked, which is the only way to obtain a workspace-scoped JWT.
+// 4. Platform admins NEVER see the picker. Their activeWorkspaceId is always
+//    null by design (privacy boundary), and they live in /admin/*. The
+//    <StudioModeGuard> / <AdminModeGuard> handle keeping them on the right
+//    side of the route tree.
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { isLoaded, isSignedIn, isPlatformAdmin, orgId, me } = useAuth();
+  const { isLoaded, isSignedIn, isPlatformAdmin, activeWorkspaceId, me } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -37,10 +40,12 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     return null;
   }
 
-  const needsTenantPicker =
-    me !== null && (isPlatformAdmin ? orgId === '__platform__' : !orgId);
+  // Only tenant users (non-platform-admin) with no active workspace need the
+  // picker. Platform admins have no workspace by design — they go through
+  // /admin/* and the mode-guards keep them there.
+  const needsWorkspacePicker = me !== null && !isPlatformAdmin && !activeWorkspaceId;
 
-  if (needsTenantPicker) {
+  if (needsWorkspacePicker) {
     return <TenantPicker />;
   }
 

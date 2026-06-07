@@ -4,7 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { login } from '@/lib/auth/auth-client';
+import { login, fetchMe, switchTenant } from '@/lib/auth/auth-client';
 
 type Props = {
   mode?: 'signin' | 'signup';
@@ -59,9 +59,36 @@ export default function UserAuthForm({ mode = 'signin' }: Props) {
         }
       }
 
-      // Sign in
+      // Sign in. Routing depends on the resulting auth state.
       await login(identifier, password);
-      router.replace('/studio/overview');
+      const me = await fetchMe();
+
+      // Platform admins have no tenant memberships on the server (privacy
+      // boundary), so they always land in /admin/*.
+      if (me.isPlatformAdmin) {
+        router.replace('/admin/overview');
+        return;
+      }
+
+      // Tenant users with at least one workspace go straight to the studio.
+      // login() already returns a JWT scoped to the first/only workspace; for
+      // multi-workspace users we re-issue the JWT against the persisted choice
+      // (if any) so /studio/overview renders the right tenant's data.
+      if (me.tenants.length > 0) {
+        try {
+          await switchTenant(me.tenants[0]!.id);
+        } catch (err) {
+          // Don't silently swallow — the previous behavior left the user
+          // staring at a page that 403's because the JWT is unscoped. Log
+          // and continue to the picker so the user can recover explicitly.
+          console.warn('[sign-in] switchTenant failed', err);
+        }
+        router.replace('/studio/overview');
+        return;
+      }
+
+      // Regular user with no memberships: send them to a page that explains it.
+      router.replace('/studio/workspaces');
     } catch (err) {
       setError(err instanceof Error ? err.message : '操作失败');
     } finally {

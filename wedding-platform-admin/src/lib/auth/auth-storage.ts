@@ -41,3 +41,8 @@ export function setActiveTenantId(tenantId: string | null) {
     window.localStorage.removeItem(ACTIVE_TENANT_KEY);
   }
 }
+
+export function clearActiveTenantId() {
+  if (!isBrowser()) return;
+  window.localStorage.removeItem(ACTIVE_TENANT_KEY);
+}

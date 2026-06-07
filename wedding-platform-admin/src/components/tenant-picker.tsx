@@ -1,9 +1,11 @@
 'use client';
 
-// TenantPicker — shown to platform admins and any signed-in user with multiple
-// tenant memberships. Replaces dashboard content with a centered picker until
-// the user selects a tenant; selection calls `switch-tenant` to re-issue a
-// tenant-scoped JWT before any tenant-bound API call.
+// WorkspacePicker — shown to a signed-in tenant user who has not picked an
+// active workspace (e.g. 0 or 2+ memberships, and they haven't auto-resolved
+// to a default). Replaces dashboard content with a centered picker.
+//
+// Platform admins never see this component: the login form routes them
+// directly to /admin/overview and their /me response has no tenants.
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -21,7 +23,7 @@ import { logout as signOut } from '@/lib/auth/auth-client';
 
 export function TenantPicker() {
   const router = useRouter();
-  const { me, isPlatformAdmin, switchActiveTenant } = useAuth();
+  const { me, switchActiveWorkspace } = useAuth();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
 
@@ -33,7 +35,7 @@ export function TenantPicker() {
     setBusy(tenantId);
     setError('');
     try {
-      await switchActiveTenant(tenantId);
+      await switchActiveWorkspace(tenantId);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : '切换失败');
@@ -54,19 +56,17 @@ export function TenantPicker() {
           <div className='mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary'>
             <Icons.workspace className='h-6 w-6' />
           </div>
-          <CardTitle className='text-2xl'>
-            {isPlatformAdmin ? '选择要管理的租户' : '选择工作空间'}
-          </CardTitle>
+          <CardTitle className='text-2xl'>选择工作空间</CardTitle>
           <CardDescription>
-            {isPlatformAdmin
-              ? '平台管理员可以无痕切换任意已加入的租户。选定后所有数据请求会绑定到该租户上下文。'
-              : '你在多个工作空间拥有成员身份，选择一个进入。'}
+            {tenants.length > 1
+              ? '你在多个工作空间拥有成员身份，选择一个进入。'
+              : '暂无可访问的工作空间，请联系管理员开通成员身份。'}
           </CardDescription>
         </CardHeader>
         <CardContent className='space-y-3'>
           {tenants.length === 0 ? (
             <div className='rounded-xl border border-dashed border-border/60 bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground'>
-              暂无可访问的租户，请联系管理员开通成员身份。
+              暂无可访问的工作空间，请联系管理员开通成员身份。
             </div>
           ) : (
             <div className='grid gap-2'>
@@ -109,9 +109,7 @@ export function TenantPicker() {
           )}
 
           <div className='flex items-center justify-between border-t border-border/60 pt-3'>
-            <span className='text-xs text-muted-foreground'>
-              {me.displayName} · {isPlatformAdmin ? `平台管理员 (${me.platformLevel ?? 'admin'})` : '租户成员'}
-            </span>
+            <span className='text-xs text-muted-foreground'>{me.displayName}</span>
             <Button variant='ghost' size='sm' onClick={handleExit}>
               退出登录
             </Button>

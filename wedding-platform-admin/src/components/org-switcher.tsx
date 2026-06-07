@@ -1,17 +1,22 @@
 'use client';
 
-import { useAuth, useOrganizationList } from '@clerk/nextjs';
-import { Icons } from '@/components/icons';
-import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+// WorkspaceSwitcher — replaces the Clerk-style "OrgSwitcher".
+//
+// Platform admins (mode='platform') are isolated to /admin/* and never see a
+// workspace switcher here. They get a static "平台管理中心" badge with no
+// dropdown — the privacy boundary is enforced both in the data and in the UI.
+//
+// Tenant users see a dropdown only when they belong to 2+ workspaces.
 
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Icons } from '@/components/icons';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import {
@@ -20,46 +25,31 @@ import {
   SidebarMenuItem,
   useSidebar
 } from '@/components/ui/sidebar';
-import { useEffect } from 'react';
+import { useAuth } from '@/lib/auth/use-auth';
 
 export function OrgSwitcher() {
   const { isMobile, state } = useSidebar();
   const router = useRouter();
-  const { isLoaded, setActive, userMemberships } = useOrganizationList({
-    userMemberships: {
-      infinite: true,
-      keepPreviousData: false
-    }
-  });
-
-  const { orgId } = useAuth();
+  const {
+    isLoaded,
+    isSignedIn,
+    isPlatformAdmin,
+    mode,
+    workspaces,
+    activeWorkspaceId,
+    switchActiveWorkspace,
+    revalidate
+  } = useAuth();
 
   useEffect(() => {
-    if (userMemberships?.revalidate) {
-      void userMemberships.revalidate();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only revalidate when org changes, not on every userMemberships ref change
-  }, [orgId]);
+    void revalidate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
+  }, []);
 
-  // Get the currently active organization
-  const activeOrganization = userMemberships?.data?.find(
-    (membership) => membership.organization.id === orgId
-  )?.organization;
+  const [error, setError] = useState<string | null>(null);
 
-  // Handle organization switch
-  const handleOrganizationSwitch = async (organizationId: string) => {
-    if (orgId === organizationId || !setActive) {
-      return; // Already active or setActive not available
-    }
-    try {
-      await setActive({ organization: organizationId });
-    } catch {
-      // Organization switch failed - silently ignored
-    }
-  };
-
-  // Show loading state
-  if (!isLoaded) {
+  // Loading / not signed in
+  if (!isLoaded || !isSignedIn) {
     return (
       <SidebarMenu>
         <SidebarMenuItem>
@@ -74,8 +64,8 @@ export function OrgSwitcher() {
                   : 'visible max-w-full opacity-100'
               }`}
             >
-              <span className='truncate font-medium'>Loading...</span>
-              <span className='text-muted-foreground truncate text-xs'>Organizations</span>
+              <span className='truncate font-medium'>加载中…</span>
+              <span className='text-muted-foreground truncate text-xs'>工作空间</span>
             </div>
           </SidebarMenuButton>
         </SidebarMenuItem>
@@ -83,8 +73,41 @@ export function OrgSwitcher() {
     );
   }
 
-  // Show create organization option if no organizations
-  if (!userMemberships?.data || userMemberships.data.length === 0) {
+  // Platform admin: static badge, no dropdown. They are sandboxed in /admin/*
+  // and have no workspaces to switch between (server hides memberships).
+  if (isPlatformAdmin || mode === 'platform') {
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton size='lg' disabled>
+            <div className='bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg'>
+              <Icons.shield className='size-4' />
+            </div>
+            <div
+              className={`grid flex-1 text-left text-sm leading-tight transition-all duration-200 ease-in-out ${
+                state === 'collapsed'
+                  ? 'invisible max-w-0 overflow-hidden opacity-0'
+                  : 'visible max-w-full opacity-100'
+              }`}
+            >
+              <span className='truncate font-medium'>平台管理中心</span>
+              <span className='text-muted-foreground truncate text-xs'>
+                {isPlatformAdmin ? '平台管理员' : '平台模式'}
+              </span>
+            </div>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    );
+  }
+
+  const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
+  const displayEntry = activeWorkspace
+    ? { id: activeWorkspace.id, name: activeWorkspace.name, role: '工作空间' }
+    : null;
+
+  // No workspaces at all: prompt to /studio/workspaces (informational)
+  if (workspaces.length === 0) {
     return (
       <SidebarMenu>
         <SidebarMenuItem>
@@ -103,49 +126,34 @@ export function OrgSwitcher() {
                   : 'visible max-w-full opacity-100'
               }`}
             >
-              <span className='truncate font-medium'>Create organization</span>
-              <span className='text-muted-foreground truncate text-xs'>Get started</span>
+              <span className='truncate font-medium'>无可用工作空间</span>
+              <span className='text-muted-foreground truncate text-xs'>前往查看</span>
             </div>
-            <Icons.chevronsUpDown
-              className={`ml-auto transition-all duration-200 ease-in-out ${
-                state === 'collapsed'
-                  ? 'invisible max-w-0 opacity-0'
-                  : 'visible max-w-full opacity-100'
-              }`}
-            />
           </SidebarMenuButton>
         </SidebarMenuItem>
       </SidebarMenu>
     );
   }
 
-  // Use active organization or first organization as fallback
-  const displayOrganization = activeOrganization || userMemberships.data[0]?.organization;
+  const handleSelect = async (workspaceId: string) => {
+    if (workspaceId === activeWorkspaceId) return;
+    try {
+      setError(null);
+      await switchActiveWorkspace(workspaceId);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '切换失败');
+    }
+  };
 
-  if (!displayOrganization) {
-    return null;
-  }
-
-  const orgCount = userMemberships.data.length;
-
-  // Single tenant: show company name only, no switcher dropdown
-  if (orgCount <= 1) {
+  // Single workspace, no dropdown
+  if (workspaces.length === 1) {
     return (
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton size='lg'>
             <div className='bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg'>
-              {displayOrganization.hasImage && displayOrganization.imageUrl ? (
-                <Image
-                  src={displayOrganization.imageUrl}
-                  alt={displayOrganization.name}
-                  width={32}
-                  height={32}
-                  className='size-full object-cover'
-                />
-              ) : (
-                <Icons.galleryVerticalEnd className='size-4' />
-              )}
+              <Icons.galleryVerticalEnd className='size-4' />
             </div>
             <div
               className={`grid flex-1 text-left text-sm leading-tight transition-all duration-200 ease-in-out ${
@@ -154,9 +162,9 @@ export function OrgSwitcher() {
                   : 'visible max-w-full opacity-100'
               }`}
             >
-              <span className='truncate font-medium'>{displayOrganization.name}</span>
+              <span className='truncate font-medium'>{displayEntry?.name}</span>
               <span className='text-muted-foreground truncate text-xs'>
-                {userMemberships.data[0]?.role || 'Organization'}
+                {displayEntry?.role}
               </span>
             </div>
           </SidebarMenuButton>
@@ -175,17 +183,7 @@ export function OrgSwitcher() {
               className='data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground'
             >
               <div className='bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg'>
-                {displayOrganization.hasImage && displayOrganization.imageUrl ? (
-                  <Image
-                    src={displayOrganization.imageUrl}
-                    alt={displayOrganization.name}
-                    width={32}
-                    height={32}
-                    className='size-full object-cover'
-                  />
-                ) : (
-                  <Icons.galleryVerticalEnd className='size-4' />
-                )}
+                <Icons.galleryVerticalEnd className='size-4' />
               </div>
               <div
                 className={`grid flex-1 text-left text-sm leading-tight transition-all duration-200 ease-in-out ${
@@ -194,10 +192,9 @@ export function OrgSwitcher() {
                     : 'visible max-w-full opacity-100'
                 }`}
               >
-                <span className='truncate font-medium'>{displayOrganization.name}</span>
+                <span className='truncate font-medium'>{displayEntry?.name}</span>
                 <span className='text-muted-foreground truncate text-xs'>
-                  {userMemberships.data.find((m) => m.organization.id === displayOrganization.id)
-                    ?.role || 'Organization'}
+                  {displayEntry?.role}
                 </span>
               </div>
               <Icons.chevronsUpDown
@@ -216,47 +213,32 @@ export function OrgSwitcher() {
             sideOffset={4}
           >
             <DropdownMenuLabel className='text-muted-foreground text-xs'>
-              Organizations
+              切换工作空间
             </DropdownMenuLabel>
-            {userMemberships.data.map((membership, index) => {
-              const isActive = membership.organization.id === orgId;
+
+            {workspaces.map((workspace) => {
+              const isActive = workspace.id === activeWorkspaceId;
               return (
                 <DropdownMenuItem
-                  key={membership.id}
-                  onClick={() => handleOrganizationSwitch(membership.organization.id)}
+                  key={workspace.id}
+                  onClick={() => handleSelect(workspace.id)}
                   className='gap-2 p-2'
                 >
                   <div className='flex size-6 items-center justify-center overflow-hidden rounded-md border'>
-                    {membership.organization.hasImage && membership.organization.imageUrl ? (
-                      <Image
-                        src={membership.organization.imageUrl}
-                        alt={membership.organization.name}
-                        width={24}
-                        height={24}
-                        className='size-full object-cover'
-                      />
-                    ) : (
-                      <Icons.galleryVerticalEnd className='size-3.5 shrink-0' />
-                    )}
+                    <Icons.galleryVerticalEnd className='size-3.5 shrink-0' />
                   </div>
-                  {membership.organization.name}
+                  {workspace.name}
                   {isActive && <Icons.check className='ml-auto size-4' />}
-                  {!isActive && <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>}
                 </DropdownMenuItem>
               );
             })}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className='gap-2 p-2'
-              onClick={() => {
-                router.push('/studio/workspaces');
-              }}
-            >
-              <div className='flex size-6 items-center justify-center rounded-md border bg-transparent'>
-                <Icons.add className='size-4' />
-              </div>
-              <div className='text-muted-foreground font-medium'>Add organization</div>
-            </DropdownMenuItem>
+
+            {error && (
+              <>
+                <DropdownMenuSeparator />
+                <div className='px-2 py-1.5 text-xs text-red-600'>{error}</div>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>

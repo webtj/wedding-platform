@@ -33,8 +33,8 @@ export function OrganizationList({
     return (
       <div className='flex flex-col items-center justify-center py-12 text-center'>
         <Icons.galleryVerticalEnd className='mb-3 h-12 w-12 text-muted-foreground/50' />
-        <p className='text-muted-foreground'>暂无关联租户</p>
-        <p className='text-muted-foreground mt-1 text-sm'>请联系平台管理员为你分配租户</p>
+        <p className='text-muted-foreground'>暂无关联工作空间</p>
+        <p className='text-muted-foreground mt-1 text-sm'>请联系平台管理员为你开通成员身份</p>
       </div>
     );
   }

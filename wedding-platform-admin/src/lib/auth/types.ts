@@ -1,5 +1,6 @@
-// Types aligned with Clerk's API surface for drop-in replacement.
-// Internal data comes from our JWT /api/identity/me response.
+// Client-side types. Server-side data model uses `Tenant` (Prisma) —
+// this layer renames it to `Workspace` so the UI never has to know
+// the word "tenant". The mapping is 1:1 and happens in auth-context.
 
 export type AuthUser = {
   id: string;
@@ -9,7 +10,13 @@ export type AuthUser = {
   emailAddresses: Array<{ emailAddress: string }>;
 };
 
-export type AuthOrganization = {
+/**
+ * A workspace is exactly one tenant on the server, surfaced as a
+ * user-facing unit (a wedding studio / agency). The Clerk-shaped
+ * fields (slug, imageUrl, hasImage) are kept for code that imports
+ * from the @clerk/nextjs shim.
+ */
+export type AuthWorkspace = {
   id: string;
   name: string;
   slug: string | null;
@@ -22,7 +29,7 @@ export type AuthMembership = {
   id: string;
   role: string;
   permissions: string[];
-  organization: AuthOrganization;
+  workspace: AuthWorkspace;
 };
 
 export type MenuItemData = {
@@ -47,6 +54,7 @@ export type CurrentUserResponse = {
   displayName: string;
   isPlatformAdmin: boolean;
   platformLevel?: 'super' | 'admin';
+  /** Real tenants only — the synthetic `__platform__` entry lives in `mode`, not here. */
   tenants: Array<{
     id: string;
     name: string;
@@ -57,3 +65,13 @@ export type CurrentUserResponse = {
     menus: MenuItemData[];
   }>;
 };
+
+/**
+ * `mode` is the user-facing concept of "where am I working right now":
+ *   - `platform` — platform admin, no tenant context (TenantPicker or platform UI)
+ *   - `tenant`   — a specific workspace is active (`activeWorkspaceId` is set)
+ *
+ * Previously this was encoded by shoehorning a fake `__platform__` entry
+ * into `tenants[]`; that was the source of the duplicated-team bug.
+ */
+export type WorkspaceMode = 'platform' | 'tenant';

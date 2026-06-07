@@ -6,12 +6,11 @@ import { getQueryClient } from '@/lib/query-client';
 import { FRESH_ROUTES } from '@/config/query-freshness';
 
 const STALE_FRESH = 0;
-const STALE_DEFAULT = 60 * 1000;
+const STALE_DEFAULT = 0;
 
 /**
  * 根据当前路由自动设置 QueryClient 的默认 staleTime。
- * - FRESH_ROUTES 内的路由 → staleTime: 0（每次进入强制刷新）
- * - 其他路由 → staleTime: 60s
+ * - 当前所有路由 → staleTime: 0（每次进入强制刷新，性能优化专案再重新评估）
  *
  * 防御策略：
  * - render 阶段同步调用 setDefaultOptions（确保首屏 query 拿到正确 staleTime）

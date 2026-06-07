@@ -3,11 +3,19 @@ export { useAuth } from './use-auth';
 export { useUser } from './use-user';
 export { useOrganization } from './use-organization';
 export { useOrganizationList } from './use-organization-list';
-export { login, logout, fetchMe, getCachedMe, invalidateMe } from './auth-client';
+export {
+  login,
+  logout,
+  fetchMe,
+  getCachedMe,
+  invalidateMe,
+  switchTenant
+} from './auth-client';
 export type {
   AuthUser,
-  AuthOrganization,
+  AuthWorkspace,
   AuthMembership,
   CurrentUserResponse,
-  MenuItemData
+  MenuItemData,
+  WorkspaceMode
 } from './types';

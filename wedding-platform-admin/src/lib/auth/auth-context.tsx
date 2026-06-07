@@ -16,15 +16,17 @@ import {
   logout,
   getCachedMe,
   switchTenant,
-  AUTH_ME_INVALIDATED_EVENT
+  AUTH_ME_INVALIDATED_EVENT,
+  AUTH_SESSION_ENDED_EVENT
 } from './auth-client';
 import { getActiveTenantId, setActiveTenantId } from './auth-storage';
 import type {
   AuthUser,
-  AuthOrganization,
+  AuthWorkspace,
   AuthMembership,
   CurrentUserResponse,
-  MenuItemData
+  MenuItemData,
+  WorkspaceMode
 } from './types';
 
 // ── Context state ──────────────────────────────────────────────────────────
@@ -33,16 +35,28 @@ type AuthState = {
   isLoaded: boolean;
   isSignedIn: boolean;
   userId: string | null;
+  /**
+   * The active workspace ID (a real tenant ID). `null` for platform admins
+   * (they have no business accessing tenant data) and for tenant users with
+   * no memberships.
+   */
+  activeWorkspaceId: string | null;
+  /**
+   * Synonym for `activeWorkspaceId` — kept for compatibility with code that
+   * still uses the Clerk-style `orgId` name. Prefer `activeWorkspaceId` in
+   * new code.
+   */
   orgId: string | null;
+  mode: WorkspaceMode;
   user: AuthUser | null;
-  organization: AuthOrganization | null;
+  workspace: AuthWorkspace | null;
   membership: AuthMembership | null;
-  organizations: AuthOrganization[];
+  workspaces: AuthWorkspace[];
   memberships: Array<{
     id: string;
     role: string;
     permissions: string[];
-    organization: AuthOrganization;
+    workspace: AuthWorkspace;
   }>;
   menus: MenuItemData[];
   me: CurrentUserResponse | null;
@@ -55,11 +69,13 @@ const initialState: AuthState = {
   isLoaded: false,
   isSignedIn: false,
   userId: null,
+  activeWorkspaceId: null,
   orgId: null,
+  mode: 'tenant',
   user: null,
-  organization: null,
+  workspace: null,
   membership: null,
-  organizations: [],
+  workspaces: [],
   memberships: [],
   menus: [],
   me: null,
@@ -70,8 +86,8 @@ const initialState: AuthState = {
 type AuthContextValue = AuthState & {
   getToken: () => Promise<string | null>;
   signOut: () => Promise<void>;
-  setActiveOrg: (orgId: string) => void;
-  switchActiveTenant: (tenantId: string) => Promise<void>;
+  setActiveWorkspace: (workspaceId: string) => void;
+  switchActiveWorkspace: (workspaceId: string) => Promise<void>;
   revalidate: () => Promise<void>;
 };
 
@@ -89,7 +105,7 @@ function mapUser(me: CurrentUserResponse): AuthUser {
   };
 }
 
-function mapOrganization(tenant: CurrentUserResponse['tenants'][number]): AuthOrganization {
+function mapWorkspace(tenant: CurrentUserResponse['tenants'][number]): AuthWorkspace {
   return {
     id: tenant.id,
     name: tenant.name,
@@ -105,20 +121,7 @@ function mapMembership(tenant: CurrentUserResponse['tenants'][number]): AuthMemb
     id: tenant.memberId,
     role: tenant.roles[0] ?? 'member',
     permissions: tenant.permissions ?? [],
-    organization: mapOrganization(tenant)
-  };
-}
-
-function platformAdminOrg(): AuthOrganization {
-  return { id: '__platform__', name: '平台管理中心', slug: null, imageUrl: '', hasImage: false };
-}
-
-function platformAdminMembership(): AuthMembership {
-  return {
-    id: '__platform__',
-    role: 'platform_admin',
-    permissions: ['*'],
-    organization: platformAdminOrg()
+    workspace: mapWorkspace(tenant)
   };
 }
 
@@ -126,6 +129,75 @@ function collectPermissions(me: CurrentUserResponse, tenantId: string): string[]
   if (me.isPlatformAdmin) return ['*'];
   const tenant = me.tenants.find((t) => t.id === tenantId);
   return tenant?.permissions ?? [];
+}
+
+/**
+ * Build state from a /me response.
+ *
+ * Two disjoint identity modes:
+ *   - Platform admin: `me.tenants` is always empty (server hides memberships
+ *     to enforce the privacy boundary). Mode is fixed to 'platform', no active
+ *     workspace. They use the admin console at /admin/* and never see tenant
+ *     business data.
+ *   - Tenant user:    `me.tenants` is the list of workspaces they belong to.
+ *     Mode='tenant', active workspace is the persisted choice (or the first
+ *     one if no persisted choice). They use the studio at /studio/*.
+ *
+ * The only legitimate "switch" is a tenant user moving between their own
+ * workspaces (multi-tenant planners, freelancers in 2+ studios, etc.). There
+ * is no path for a platform admin to enter a tenant.
+ */
+function buildState(me: CurrentUserResponse): Omit<AuthState, 'isLoaded' | 'isSignedIn'> {
+  const isPlatformAdmin = !!me.isPlatformAdmin;
+  const platformMenus = (me as { platformMenus?: MenuItemData[] }).platformMenus ?? [];
+
+  // Platform admin: no workspaces, no impersonation.
+  if (isPlatformAdmin) {
+    return {
+      userId: me.id,
+      activeWorkspaceId: null,
+      orgId: null,
+      mode: 'platform',
+      user: mapUser(me),
+      workspace: null,
+      membership: null,
+      workspaces: [],
+      memberships: [],
+      menus: platformMenus,
+      me,
+      isPlatformAdmin: true,
+      platformLevel: me.platformLevel,
+      permissions: ['*']
+    };
+  }
+
+  // Tenant user: pick the active workspace.
+  const persisted = getActiveTenantId();
+  const activeTenant =
+    (persisted ? me.tenants.find((t) => t.id === persisted) : null) ?? me.tenants[0] ?? null;
+  const activeWorkspaceId = activeTenant?.id ?? null;
+
+  return {
+    userId: me.id,
+    activeWorkspaceId,
+    orgId: activeWorkspaceId,
+    mode: 'tenant',
+    user: mapUser(me),
+    workspace: activeTenant ? mapWorkspace(activeTenant) : null,
+    membership: activeTenant ? mapMembership(activeTenant) : null,
+    workspaces: me.tenants.map(mapWorkspace),
+    memberships: me.tenants.map((t) => ({
+      id: t.memberId,
+      role: t.roles[0] ?? 'member',
+      permissions: collectPermissions(me, t.id),
+      workspace: mapWorkspace(t)
+    })),
+    menus: activeTenant?.menus ?? [],
+    me,
+    isPlatformAdmin: false,
+    platformLevel: me.platformLevel,
+    permissions: activeTenant?.permissions ?? []
+  };
 }
 
 // ── Provider ───────────────────────────────────────────────────────────────
@@ -141,51 +213,7 @@ export function ClerkProvider({
   const [state, setState] = useState<AuthState>(() => {
     const cached = getCachedMe();
     if (cached) {
-      const activeId = getActiveTenantId();
-      const org = activeId ? cached.tenants.find((t) => t.id === activeId) : cached.tenants[0];
-      const finalOrg = org ?? cached.tenants[0];
-      const isPlatformAdmin = cached.isPlatformAdmin;
-      const platformOrg = platformAdminOrg();
-      return {
-        isLoaded: true,
-        isSignedIn: true,
-        userId: cached.id,
-        orgId: activeId && activeId !== '__platform__'
-          ? (finalOrg?.id ?? (isPlatformAdmin ? '__platform__' : null))
-          : (isPlatformAdmin ? '__platform__' : (finalOrg?.id ?? null)),
-        user: mapUser(cached),
-        organization: isPlatformAdmin && (!activeId || activeId === '__platform__')
-          ? platformOrg
-          : finalOrg
-            ? mapOrganization(finalOrg)
-            : null,
-        membership: isPlatformAdmin && (!activeId || activeId === '__platform__')
-          ? platformAdminMembership()
-          : finalOrg
-            ? mapMembership(finalOrg)
-            : null,
-        organizations: isPlatformAdmin
-          ? [platformOrg, ...cached.tenants.map(mapOrganization)]
-          : cached.tenants.map(mapOrganization),
-        memberships: isPlatformAdmin
-          ? [platformAdminMembership(), ...cached.tenants.map((t) => ({
-              id: t.memberId,
-              role: t.roles[0] ?? 'member',
-              permissions: collectPermissions(cached, t.id),
-              organization: mapOrganization(t)
-            }))]
-          : cached.tenants.map((t) => ({
-              id: t.memberId,
-              role: t.roles[0] ?? 'member',
-              permissions: collectPermissions(cached, t.id),
-              organization: mapOrganization(t)
-            })),
-        menus: finalOrg?.menus ?? [],
-        me: cached,
-        isPlatformAdmin: cached.isPlatformAdmin ?? false,
-        platformLevel: cached.platformLevel,
-        permissions: finalOrg?.permissions ?? []
-      };
+      return { ...initialState, isLoaded: true, isSignedIn: true, ...buildState(cached) };
     }
     return initialState;
   });
@@ -193,51 +221,7 @@ export function ClerkProvider({
   const bootstrap = useCallback(async () => {
     try {
       const me = await fetchMe();
-      const activeId = getActiveTenantId();
-      const org = activeId ? me.tenants.find((t) => t.id === activeId) : me.tenants[0];
-      const finalOrg = org ?? me.tenants[0];
-      const isPlatformAdmin = me.isPlatformAdmin;
-      const platformOrg = platformAdminOrg();
-      setState({
-        isLoaded: true,
-        isSignedIn: true,
-        userId: me.id,
-        orgId: activeId && activeId !== '__platform__'
-          ? (finalOrg?.id ?? (isPlatformAdmin ? '__platform__' : null))
-          : (isPlatformAdmin ? '__platform__' : (finalOrg?.id ?? null)),
-        user: mapUser(me),
-        organization: isPlatformAdmin && (!activeId || activeId === '__platform__')
-          ? platformOrg
-          : finalOrg
-            ? mapOrganization(finalOrg)
-            : null,
-        membership: isPlatformAdmin && (!activeId || activeId === '__platform__')
-          ? platformAdminMembership()
-          : finalOrg
-            ? mapMembership(finalOrg)
-            : null,
-        organizations: isPlatformAdmin
-          ? [platformOrg, ...me.tenants.map(mapOrganization)]
-          : me.tenants.map(mapOrganization),
-        memberships: isPlatformAdmin
-          ? [platformAdminMembership(), ...me.tenants.map((t) => ({
-              id: t.memberId,
-              role: t.roles[0] ?? 'member',
-              permissions: collectPermissions(me, t.id),
-              organization: mapOrganization(t)
-            }))]
-          : me.tenants.map((t) => ({
-              id: t.memberId,
-              role: t.roles[0] ?? 'member',
-              permissions: collectPermissions(me, t.id),
-              organization: mapOrganization(t)
-            })),
-        menus: finalOrg?.menus ?? [],
-        me,
-        isPlatformAdmin: me.isPlatformAdmin ?? false,
-        platformLevel: me.platformLevel,
-        permissions: finalOrg?.permissions ?? []
-      });
+      setState({ ...initialState, isLoaded: true, isSignedIn: true, ...buildState(me) });
     } catch {
       setState({ ...initialState, isLoaded: true });
       router.replace('/auth/sign-in');
@@ -246,7 +230,7 @@ export function ClerkProvider({
 
   useEffect(() => {
     if (!state.isLoaded) {
-      bootstrap();
+      void bootstrap();
     }
   }, [state.isLoaded, bootstrap]);
 
@@ -259,31 +243,47 @@ export function ClerkProvider({
     return () => window.removeEventListener(AUTH_ME_INVALIDATED_EVENT, handler);
   }, [bootstrap]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = () => {
+      // Hard reset to the signed-out state. Do NOT bootstrap — the tokens
+      // were just cleared and bootstrap would 401 on a stale session.
+      // The caller of logout() is responsible for redirecting.
+      setState({ ...initialState, isLoaded: true });
+    };
+    window.addEventListener(AUTH_SESSION_ENDED_EVENT, handler);
+    return () => window.removeEventListener(AUTH_SESSION_ENDED_EVENT, handler);
+  }, []);
+
   const getToken = useCallback(async () => {
     const { getAccessToken } = await import('./auth-storage');
     return getAccessToken();
   }, []);
 
   const signOut = useCallback(async () => {
+    // logout() now does the full session cleanup (clearTokens,
+    // clearActiveTenantId, dispatch AUTH_SESSION_ENDED_EVENT). The event
+    // listener above resets the auth state. We only need to navigate.
     await logout();
-    setState({ ...initialState, isLoaded: true });
     router.replace('/auth/sign-in');
   }, [router]);
 
-  const setActiveOrg = useCallback(
-    (orgId: string) => {
-      if (!state.me) return;
-      const tenant = state.me.tenants.find((t) => t.id === orgId);
+  const setActiveWorkspace = useCallback(
+    (workspaceId: string) => {
+      if (!state.me || state.me.isPlatformAdmin) return;
+      const tenant = state.me.tenants.find((t) => t.id === workspaceId);
       if (!tenant) return;
-      setActiveTenantId(orgId);
+      setActiveTenantId(workspaceId);
       setState((prev) => ({
         ...prev,
-        orgId,
-        organization: mapOrganization(tenant),
+        activeWorkspaceId: workspaceId,
+        orgId: workspaceId,
+        mode: 'tenant',
+        workspace: mapWorkspace(tenant),
         membership: mapMembership(tenant),
         memberships: prev.memberships.map((m) => ({
           ...m,
-          permissions: collectPermissions(state.me!, m.organization.id)
+          permissions: collectPermissions(state.me!, m.workspace.id)
         })),
         menus: tenant.menus ?? [],
         permissions: tenant.permissions ?? []
@@ -292,24 +292,28 @@ export function ClerkProvider({
     [state.me]
   );
 
-  const switchActiveTenant = useCallback(
-    async (tenantId: string) => {
-      if (!state.me) return;
-      const tenant = state.me.tenants.find((t) => t.id === tenantId);
+  const switchActiveWorkspace = useCallback(
+    async (workspaceId: string) => {
+      if (!state.me || state.me.isPlatformAdmin) {
+        throw new Error('工作空间不存在或无权访问');
+      }
+      const tenant = state.me.tenants.find((t) => t.id === workspaceId);
       if (!tenant) {
-        throw new Error('租户不存在或无权访问');
+        throw new Error('工作空间不存在或无权访问');
       }
 
-      const result = await switchTenant(tenantId);
-      setActiveTenantId(tenantId);
+      const result = await switchTenant(workspaceId);
+      setActiveTenantId(workspaceId);
       setState((prev) => ({
         ...prev,
-        orgId: tenantId,
-        organization: mapOrganization(tenant),
+        activeWorkspaceId: workspaceId,
+        orgId: workspaceId,
+        mode: 'tenant',
+        workspace: mapWorkspace(tenant),
         membership: mapMembership(tenant),
         memberships: prev.memberships.map((m) => ({
           ...m,
-          permissions: collectPermissions(state.me!, m.organization.id)
+          permissions: collectPermissions(state.me!, m.workspace.id)
         })),
         menus: tenant.menus ?? [],
         permissions: result.permissions
@@ -324,8 +328,15 @@ export function ClerkProvider({
   }, [bootstrap]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ ...state, getToken, signOut, setActiveOrg, switchActiveTenant, revalidate }),
-    [state, getToken, signOut, setActiveOrg, switchActiveTenant, revalidate]
+    () => ({
+      ...state,
+      getToken,
+      signOut,
+      setActiveWorkspace,
+      switchActiveWorkspace,
+      revalidate
+    }),
+    [state, getToken, signOut, setActiveWorkspace, switchActiveWorkspace, revalidate]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

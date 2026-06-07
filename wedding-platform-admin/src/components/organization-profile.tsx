@@ -16,7 +16,7 @@ export function OrganizationProfile({ appearance: _appearance }: Props) {
   }
 
   if (!organization) {
-    return <div className='py-12 text-center text-muted-foreground'>请先选择租户</div>;
+    return <div className='py-12 text-center text-muted-foreground'>请先选择工作空间</div>;
   }
 
   return (

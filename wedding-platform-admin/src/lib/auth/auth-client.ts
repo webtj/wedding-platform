@@ -1,4 +1,10 @@
-import { getAccessToken, getRefreshToken, saveTokens, clearTokens } from './auth-storage';
+import {
+  getAccessToken,
+  getRefreshToken,
+  saveTokens,
+  clearTokens,
+  clearActiveTenantId
+} from './auth-storage';
 import type { CurrentUserResponse } from './types';
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -103,6 +109,7 @@ export async function switchTenant(tenantId: string): Promise<SwitchTenantRespon
 let cachedMe: CurrentUserResponse | null = null;
 let pendingMe: Promise<CurrentUserResponse> | null = null;
 const AUTH_ME_INVALIDATED_EVENT = 'wedding-auth-me-invalidated';
+const AUTH_SESSION_ENDED_EVENT = 'wedding-auth-session-ended';
 
 export function getCachedMe(): CurrentUserResponse | null {
   return cachedMe;
@@ -138,7 +145,22 @@ export function notifyAuthMeInvalidated() {
   window.dispatchEvent(new Event(AUTH_ME_INVALIDATED_EVENT));
 }
 
-export { AUTH_ME_INVALIDATED_EVENT };
+/**
+ * Notify subscribers that the current auth session has fully ended
+ * (logout, manual reset). Distinct from `notifyAuthMeInvalidated`, which
+ * signals "I changed something — re-fetch me with the same session". A
+ * session-ended event triggers a hard reset to the signed-out state and
+ * never re-bootstraps (otherwise the cleared tokens would 401).
+ */
+export function notifyAuthSessionEnded() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.dispatchEvent(new Event(AUTH_SESSION_ENDED_EVENT));
+}
+
+export { AUTH_ME_INVALIDATED_EVENT, AUTH_SESSION_ENDED_EVENT };
 
 export async function logout() {
   invalidateMe();
@@ -151,4 +173,6 @@ export async function logout() {
     }).catch(() => {});
   }
   clearTokens();
+  clearActiveTenantId();
+  notifyAuthSessionEnded();
 }

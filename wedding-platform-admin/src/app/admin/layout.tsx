@@ -1,5 +1,6 @@
 import KBar from '@/components/kbar';
 import { AuthGuard } from '@/components/auth-guard';
+import { AdminModeGuard } from '@/components/mode-guards';
 import AppSidebar from '@/components/layout/app-sidebar';
 import Header from '@/components/layout/header';
 import { InfoSidebar } from '@/components/layout/info-sidebar';
@@ -23,18 +24,20 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const defaultOpen = cookieStore.get('sidebar_state')?.value === 'true';
   return (
     <AuthGuard>
-      <KBar>
-        <SidebarProvider defaultOpen={defaultOpen}>
-          <AppSidebar />
-          <SidebarInset>
-            <Header />
-            <InfobarProvider defaultOpen={false}>
-              {children}
-              <InfoSidebar side='right' />
-            </InfobarProvider>
-          </SidebarInset>
-        </SidebarProvider>
-      </KBar>
+      <AdminModeGuard>
+        <KBar>
+          <SidebarProvider defaultOpen={defaultOpen}>
+            <AppSidebar />
+            <SidebarInset>
+              <Header />
+              <InfobarProvider defaultOpen={false}>
+                {children}
+                <InfoSidebar side='right' />
+              </InfobarProvider>
+            </SidebarInset>
+          </SidebarProvider>
+        </KBar>
+      </AdminModeGuard>
     </AuthGuard>
   );
 }

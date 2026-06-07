@@ -30,8 +30,8 @@ export function UserProfile() {
 
       <Card>
         <CardHeader>
-          <CardTitle>关联租户</CardTitle>
-          <CardDescription>你可以访问的团队工作区</CardDescription>
+          <CardTitle>关联工作空间</CardTitle>
+          <CardDescription>你可以访问的工作空间</CardDescription>
         </CardHeader>
         <CardContent>
           {orgs.map((m) => (
@@ -40,7 +40,7 @@ export function UserProfile() {
               <Badge variant='secondary'>{m.role}</Badge>
             </div>
           ))}
-          {orgs.length === 0 && <p className='text-muted-foreground text-sm'>暂无关联租户</p>}
+          {orgs.length === 0 && <p className='text-muted-foreground text-sm'>暂无关联工作空间</p>}
         </CardContent>
       </Card>
     </div>

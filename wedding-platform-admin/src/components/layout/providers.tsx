@@ -3,6 +3,8 @@ import { ClerkProvider } from '@clerk/nextjs';
 import React from 'react';
 import { ActiveThemeProvider } from '../themes/active-theme';
 import QueryProvider from './query-provider';
+import { ForbiddenProvider } from '@/lib/forbidden-context';
+import { NoPermissionPanel } from '@/components/permissions/no-permission-panel';
 
 export default function Providers({
   activeThemeValue,
@@ -32,7 +34,12 @@ export default function Providers({
             }
           }}
         >
-          <QueryProvider>{children}</QueryProvider>
+          <QueryProvider>
+            <ForbiddenProvider>
+              {children}
+              <NoPermissionPanel />
+            </ForbiddenProvider>
+          </QueryProvider>
         </ClerkProvider>
       </ActiveThemeProvider>
     </>

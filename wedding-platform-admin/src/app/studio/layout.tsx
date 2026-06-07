@@ -1,5 +1,6 @@
 import KBar from '@/components/kbar';
 import { AuthGuard } from '@/components/auth-guard';
+import { StudioModeGuard } from '@/components/mode-guards';
 import AppSidebar from '@/components/layout/app-sidebar';
 import Header from '@/components/layout/header';
 import { InfoSidebar } from '@/components/layout/info-sidebar';
@@ -20,20 +21,22 @@ export default async function StudioLayout({ children }: { children: React.React
   const defaultOpen = cookieStore.get('sidebar_state')?.value === 'true';
   return (
     <AuthGuard>
-      <KBar>
-        <SidebarProvider defaultOpen={defaultOpen}>
-          <AppSidebar />
-          <SidebarInset>
-            <Header />
-            <InfobarProvider defaultOpen={false}>
-              <RouteStaleProvider>
-                {children}
-              </RouteStaleProvider>
-              <InfoSidebar side='right' />
-            </InfobarProvider>
-          </SidebarInset>
-        </SidebarProvider>
-      </KBar>
+      <StudioModeGuard>
+        <KBar>
+          <SidebarProvider defaultOpen={defaultOpen}>
+            <AppSidebar />
+            <SidebarInset>
+              <Header />
+              <InfobarProvider defaultOpen={false}>
+                <RouteStaleProvider>
+                  {children}
+                </RouteStaleProvider>
+                <InfoSidebar side='right' />
+              </InfobarProvider>
+            </SidebarInset>
+          </SidebarProvider>
+        </KBar>
+      </StudioModeGuard>
     </AuthGuard>
   );
 }
