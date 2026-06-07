@@ -1,5 +1,6 @@
 import { apiClient } from '@/lib/api-client';
 import { getAccessToken } from '@/lib/auth/auth-storage';
+import { queryOptions } from '@tanstack/react-query';
 import type {
   AiConversation,
   AiConversationMessage,
@@ -8,11 +9,9 @@ import type {
   AiGenerationImage,
   AiGenerationResponse,
   AiReferenceAsset,
-  AiTemplate,
   AiTextGeneration,
   AiTextGenerationResponse,
   BookmarkGenerationPayload,
-  CreateAiTemplatePayload,
   FeedbackPayload,
   GeneratePayload,
   GenerationEvent,
@@ -21,9 +20,9 @@ import type {
   SeriesGeneratePayload,
   MaterialTypeResponse,
   QuotaStats,
+  QuickPromptCategory,
   TextGeneratePayload,
-  TextRefinePayload,
-  UpdateAiTemplatePayload
+  TextRefinePayload
 } from './types';
 
 export async function getMaterialTypes(): Promise<MaterialTypeResponse> {
@@ -93,34 +92,25 @@ export async function updateGenerationBookmark(
   });
 }
 
-export async function getAiTemplates(category?: string): Promise<AiTemplate[]> {
-  const search = new URLSearchParams();
-  if (category) search.set('category', category);
-  return apiClient<AiTemplate[]>(`/ai/templates${search.size ? `?${search}` : ''}`);
+// ── Quick Prompts ──────────────────────────────────────────────────────
+
+export async function getQuickPromptCategories(type?: string): Promise<QuickPromptCategory[]> {
+  const params = new URLSearchParams();
+  if (type) params.set('type', type);
+  const qs = params.toString();
+  return apiClient<QuickPromptCategory[]>(`/quick-prompts/categories${qs ? `?${qs}` : ''}`);
 }
 
-export async function createAiTemplate(payload: CreateAiTemplatePayload): Promise<AiTemplate> {
-  return apiClient<AiTemplate>('/ai/templates', {
-    method: 'POST',
-    body: JSON.stringify(payload)
-  });
-}
+export const quickPromptKeys = {
+  all: ['quick-prompts'] as const,
+  list: (type?: string) => [...quickPromptKeys.all, 'list', type] as const,
+};
 
-export async function updateAiTemplate(
-  id: string,
-  payload: UpdateAiTemplatePayload
-): Promise<AiTemplate> {
-  return apiClient<AiTemplate>(`/ai/templates/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(payload)
+export const quickPromptCategoriesQueryOptions = (type?: string) =>
+  queryOptions({
+    queryKey: quickPromptKeys.list(type),
+    queryFn: () => getQuickPromptCategories(type)
   });
-}
-
-export async function deleteAiTemplate(id: string): Promise<{ deleted: boolean }> {
-  return apiClient<{ deleted: boolean }>(`/ai/templates/${id}`, {
-    method: 'DELETE'
-  });
-}
 
 export async function deleteGeneration(id: string): Promise<{ deleted: boolean }> {
   return apiClient<{ deleted: boolean }>(`/ai/generations/${id}`, {
