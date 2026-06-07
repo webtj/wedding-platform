@@ -1,4 +1,5 @@
 import { queryOptions, mutationOptions } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { getQueryClient } from '@/lib/query-client';
 import { getContracts, getContractById, updateContract, voidContract, deleteContract, reissueSignToken } from './service';
 import { navBadgesKey } from '@/lib/api/nav-badges';
@@ -42,5 +43,22 @@ export const voidContractMutation = mutationOptions({
 
 export const reissueSignTokenMutation = mutationOptions({
   mutationFn: (id: string) => reissueSignToken(id),
-  onSuccess: () => getQueryClient().invalidateQueries({ queryKey: contractKeys.all })
+  onSuccess: async (contract: Contract) => {
+    getQueryClient().invalidateQueries({ queryKey: contractKeys.all });
+    if (contract.signToken) {
+      const url = `${window.location.origin}/contract/${contract.signToken}/sign`;
+      try {
+        await navigator.clipboard.writeText(url);
+        toast.success('签署链接已复制到剪贴板', {
+          description: url,
+          duration: 5000
+        });
+      } catch {
+        toast.success('签署链接已重发', {
+          description: url,
+          duration: 8000
+        });
+      }
+    }
+  }
 });
