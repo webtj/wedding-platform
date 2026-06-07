@@ -100,7 +100,7 @@ export function AddLeadDialog() {
                   label='来源'
                   options={SOURCE_OPTIONS.map((s) => ({ value: s.value, label: s.label }))}
                 />
-                <form.TextField name='weddingDate' label='婚期' type='date' />
+                <form.TextField name='weddingDate' label='婚期' type='text' placeholder='YYYY-MM-DD' />
               </div>
               <form.TextField
                 name='budgetYuan'

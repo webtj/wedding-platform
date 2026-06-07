@@ -2,6 +2,7 @@ export type MaterialCategory = {
   id: string;
   name: string;
   sortOrder: number;
+  materials?: Material[];
   _count?: { materials: number };
 };
 

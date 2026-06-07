@@ -5,7 +5,6 @@ import {
   createCategory,
   updateCategory,
   deleteCategory,
-  getMaterials,
   createMaterial,
   updateMaterial,
   deleteMaterial
@@ -16,19 +15,8 @@ export const categoryKeys = {
   all: ['material-categories'] as const
 };
 
-export const materialKeys = {
-  all: ['materials'] as const,
-  byCategory: (categoryId: string) => [...materialKeys.all, categoryId] as const
-};
-
 export const categoriesQueryOptions = () =>
   queryOptions({ queryKey: categoryKeys.all, queryFn: getCategories });
-
-export const materialsByCategoryOptions = (categoryId: string) =>
-  queryOptions({
-    queryKey: materialKeys.byCategory(categoryId),
-    queryFn: () => getMaterials(categoryId)
-  });
 
 export type CreateMaterialInput = {
   categoryId: string;
@@ -51,22 +39,15 @@ export const updateCategoryMutation = mutationOptions({
 
 export const deleteCategoryMutation = mutationOptions({
   mutationFn: (id: string) => deleteCategory(id),
-  onSuccess: () => {
-    const qc = getQueryClient();
-    qc.invalidateQueries({ queryKey: categoryKeys.all });
-    qc.invalidateQueries({ queryKey: materialKeys.all });
-  }
+  onSuccess: () => getQueryClient().invalidateQueries({ queryKey: categoryKeys.all })
 });
 
 export const createMaterialMutation = mutationOptions({
   mutationFn: (d: CreateMaterialInput) => createMaterial(d),
-  onSuccess: (_data, vars) => {
-    const qc = getQueryClient();
-    qc.invalidateQueries({ queryKey: materialKeys.byCategory(vars.categoryId) });
-  }
+  onSuccess: () => getQueryClient().invalidateQueries({ queryKey: categoryKeys.all })
 });
 
-type ToggleContext = { previous: { items: Material[]; total: number } | undefined };
+type ToggleContext = { previous: Material[] | undefined };
 
 export const toggleMaterialStatusMutation = mutationOptions<
   Material,
@@ -77,41 +58,34 @@ export const toggleMaterialStatusMutation = mutationOptions<
   mutationFn: ({ id, nextStatus }) => updateMaterial(id, { status: nextStatus }),
   onMutate: async ({ id, categoryId, nextStatus }) => {
     const qc = getQueryClient();
-    const key = materialKeys.byCategory(categoryId);
-    await qc.cancelQueries({ queryKey: key });
-    const previous = qc.getQueryData<{ items: Material[]; total: number }>(key);
-    if (previous) {
-      qc.setQueryData<{ items: Material[]; total: number }>(key, {
-        ...previous,
-        items: previous.items.map((m) => (m.id === id ? { ...m, status: nextStatus } : m))
+    await qc.cancelQueries({ queryKey: categoryKeys.all });
+    const categories = qc.getQueryData<import('./types').MaterialCategory[]>(categoryKeys.all);
+    if (categories) {
+      const updated = categories.map((cat) => {
+        if (cat.id !== categoryId || !cat.materials) return cat;
+        return {
+          ...cat,
+          materials: cat.materials.map((m) => (m.id === id ? { ...m, status: nextStatus } : m))
+        };
       });
+      qc.setQueryData(categoryKeys.all, updated);
     }
-    return { previous };
+    return { previous: categories?.flatMap((c) => c.materials ?? []) };
   },
-  onError: (_err, { categoryId }, ctx) => {
-    if (ctx?.previous) {
-      getQueryClient().setQueryData(materialKeys.byCategory(categoryId), ctx.previous);
-    }
+  onError: () => {
+    getQueryClient().invalidateQueries({ queryKey: categoryKeys.all });
   },
-  onSettled: (_data, _err, { categoryId }) => {
-    getQueryClient().invalidateQueries({ queryKey: materialKeys.byCategory(categoryId) });
+  onSettled: () => {
+    getQueryClient().invalidateQueries({ queryKey: categoryKeys.all });
   }
 });
 
 export const updateMaterialMutation = mutationOptions({
   mutationFn: ({ id, data }: { id: string; data: Partial<Material> }) => updateMaterial(id, data),
-  onSuccess: () => {
-    const qc = getQueryClient();
-    qc.invalidateQueries({ queryKey: materialKeys.all });
-    qc.invalidateQueries({ queryKey: categoryKeys.all });
-  }
+  onSuccess: () => getQueryClient().invalidateQueries({ queryKey: categoryKeys.all })
 });
 
 export const deleteMaterialMutation = mutationOptions({
   mutationFn: (id: string) => deleteMaterial(id),
-  onSuccess: () => {
-    const qc = getQueryClient();
-    qc.invalidateQueries({ queryKey: materialKeys.all });
-    qc.invalidateQueries({ queryKey: categoryKeys.all });
-  }
+  onSuccess: () => getQueryClient().invalidateQueries({ queryKey: categoryKeys.all })
 });

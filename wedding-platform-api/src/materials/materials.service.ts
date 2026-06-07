@@ -15,7 +15,12 @@ export class MaterialsService {
   async listCategories(input: { tenantId: string }) {
     return this.prisma.materialCategory.findMany({
       where: { tenantId: input.tenantId },
-      orderBy: { sortOrder: 'asc' }
+      orderBy: { sortOrder: 'asc' },
+      include: {
+        materials: {
+          orderBy: { sortOrder: 'asc' }
+        }
+      }
     });
   }
 

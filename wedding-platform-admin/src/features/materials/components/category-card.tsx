@@ -1,11 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useSuspenseQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Icons } from '@/components/icons';
-import { materialsByCategoryOptions } from '../api/queries';
 import type { MaterialCategory, Material } from '../api/types';
 import { MatChip } from './mat-chip';
 import { QuickAddMat } from './quick-add-mat';
@@ -40,8 +38,7 @@ export function CategoryCard({
   }, [forceExpand]);
 
   const expanded = open;
-  const { data } = useSuspenseQuery(materialsByCategoryOptions(category.id));
-  const all = data.items;
+  const all = category.materials ?? [];
   const searchLower = search.toLowerCase();
   const categoryMatches = search && category.name.toLowerCase().includes(searchLower);
   let materials = all;

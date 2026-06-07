@@ -24,8 +24,7 @@ import {
   updateCategoryMutation,
   deleteCategoryMutation,
   createMaterialMutation,
-  updateMaterialMutation,
-  materialKeys
+  updateMaterialMutation
 } from '../api/queries';
 import type { Material, MaterialCategory } from '../api/types';
 import { CategoryCard } from './category-card';
@@ -81,7 +80,6 @@ export function MaterialsPage() {
       );
       const ok = results.filter((r) => r.status === 'fulfilled').length;
       const fail = results.length - ok;
-      getQueryClient().invalidateQueries({ queryKey: materialKeys.byCategory(catId) });
       getQueryClient().invalidateQueries({ queryKey: categoryKeys.all });
       setAddMatCatId(null);
       toast.success(

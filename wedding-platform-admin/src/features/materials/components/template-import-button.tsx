@@ -6,7 +6,7 @@ import { Icons } from '@/components/icons';
 import { WEDDING_MATERIAL_TEMPLATE } from '../constants';
 import { apiClient } from '@/lib/api-client';
 import { getQueryClient } from '@/lib/query-client';
-import { categoryKeys, materialKeys } from '../api/queries';
+import { categoryKeys } from '../api/queries';
 import { toast } from 'sonner';
 
 export function TemplateImportButton() {
@@ -51,7 +51,6 @@ export function TemplateImportButton() {
       }
       const qc = getQueryClient();
       qc.invalidateQueries({ queryKey: categoryKeys.all });
-      qc.invalidateQueries({ queryKey: materialKeys.all });
       const msg = skip > 0
         ? `已导入 ${catOk} 个分类 + ${matOk} 件物料（${skip} 个分类已存在）`
         : `已导入 ${catOk} 个分类 + ${matOk} 件物料`;
