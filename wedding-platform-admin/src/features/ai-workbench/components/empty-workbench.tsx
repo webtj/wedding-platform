@@ -25,8 +25,6 @@ interface EmptyWorkbenchProps {
   onChangeSize: (size: { width: number; height: number }) => void;
   onChangeStyle: (style: string) => void;
   onChangeCount: (count: number) => void;
-  quickPrompts: Array<{ label: string; prompt: string }>;
-  onQuickPrompt: (prompt: string) => void;
   onReferenceUploaded?: (asset: AiReferenceAsset) => void;
   referenceAssets?: AiReferenceAsset[];
   onRemoveReference?: (id: string) => void;
@@ -51,8 +49,6 @@ export function EmptyWorkbench({
   onChangeSize,
   onChangeStyle,
   onChangeCount,
-  quickPrompts,
-  onQuickPrompt,
   onReferenceUploaded,
   referenceAssets,
   onRemoveReference
@@ -113,19 +109,6 @@ export function EmptyWorkbench({
           referenceAssets={referenceAssets}
           onRemoveReference={onRemoveReference}
         />
-      </div>
-
-      <div className='flex max-w-2xl flex-wrap justify-center gap-2'>
-        {quickPrompts.map((item) => (
-          <button
-            key={item.label}
-            type='button'
-            onClick={() => onQuickPrompt(item.prompt)}
-            className='text-muted-foreground hover:border-primary hover:text-primary bg-card rounded-full border border-dashed px-3.5 py-2 text-xs transition-colors hover:border-solid'
-          >
-            {item.label}
-          </button>
-        ))}
       </div>
     </div>
   );

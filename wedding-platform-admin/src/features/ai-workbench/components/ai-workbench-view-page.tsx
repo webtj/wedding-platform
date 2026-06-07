@@ -18,7 +18,7 @@ import {
   createConversation,
 } from '../api/queries';
 import { useGeneration } from '../hooks/use-generation';
-import { MODE_TABS, QUICK_PROMPTS, STYLES, type WorkbenchMode } from '../constants';
+import { MODE_TABS, STYLES, type WorkbenchMode } from '../constants';
 import { Composer } from './composer';
 import type { ChatMessage, AiMessage } from './message-bubble';
 import { WorkbenchShell } from './workbench-shell';
@@ -78,13 +78,6 @@ export default function AiWorkbenchViewPage({ projectId }: AiWorkbenchViewPagePr
   });
 
   const materialTypes = materialData?.items ?? [];
-  const quickPrompts =
-    imageTemplates && imageTemplates.length > 0
-      ? imageTemplates.map((template) => ({
-          label: template.name,
-          prompt: template.prompt,
-        }))
-      : QUICK_PROMPTS.map((prompt) => ({ label: prompt, prompt }));
 
   useEffect(() => {
     if (selectedTypeId || materialTypes.length === 0) return;
@@ -548,8 +541,6 @@ export default function AiWorkbenchViewPage({ projectId }: AiWorkbenchViewPagePr
           onChangeSize={setSize}
           onChangeStyle={setStyle}
           onChangeCount={setCount}
-          quickPrompts={quickPrompts}
-          onQuickPrompt={handleSend}
           onReferenceUploaded={handleReferenceUploaded}
           referenceAssets={referenceAssets}
           onRemoveReference={handleRemoveReference}
