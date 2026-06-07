@@ -15,6 +15,7 @@ import { useSuspenseQuery } from '@tanstack/react-query';
 import { useMutationToast } from '@/lib/use-mutation-toast';
 import { apiClient } from '@/lib/api-client';
 import { getQueryClient } from '@/lib/query-client';
+import { useLocalStorageState } from '@/lib/use-local-storage-state';
 import { toast } from 'sonner';
 import {
   categoriesQueryOptions,
@@ -44,7 +45,7 @@ function useDebounced<T>(value: T, ms = 300): T {
 
 export function MaterialsPage() {
   const { data: categories } = useSuspenseQuery(categoriesQueryOptions());
-  const [allExpanded, setAllExpanded] = useState(false);
+  const [allExpanded, setAllExpanded] = useLocalStorageState<boolean>('materials:allExpanded', false);
   const [search, setSearch] = useState('');
   const [missingOnly, setMissingOnly] = useState(false);
   const debouncedSearch = useDebounced(search, 300);
