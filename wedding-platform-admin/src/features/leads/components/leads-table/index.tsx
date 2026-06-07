@@ -32,7 +32,7 @@ import {
   TableRow
 } from '@/components/ui/table';
 import { Icons } from '@/components/icons';
-import { isWithinDays, toDateDisplay } from '@/lib/date-format';
+import { isWithinDays, toDateDisplay, toDateTimeDisplay } from '@/lib/date-format';
 import { STATUS_OPTIONS, S_COLOR, S_LABEL, SOURCE_LABEL } from '../../constants';
 import { AddLeadDialog } from '../add-lead-dialog';
 import { DeleteLeadDialog } from '../delete-lead-dialog';
@@ -308,7 +308,7 @@ function LeadRow({
         </div>
       </TableCell>
       <TableCell className='py-2 text-sm text-muted-foreground'>
-        {toDateDisplay(lead.updatedAt)}
+        {toDateTimeDisplay(lead.updatedAt)}
       </TableCell>
       <TableCell className='py-2'>
         <div className='flex items-center gap-0.5'>
