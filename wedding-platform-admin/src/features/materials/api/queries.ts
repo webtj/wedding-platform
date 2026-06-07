@@ -30,6 +30,14 @@ export const materialsByCategoryOptions = (categoryId: string) =>
     queryFn: () => getMaterials(categoryId)
   });
 
+export type CreateMaterialInput = {
+  categoryId: string;
+  name: string;
+  status?: 'available' | 'missing';
+  quantity?: number;
+  note?: string;
+};
+
 export const createCategoryMutation = mutationOptions({
   mutationFn: (d: Parameters<typeof createCategory>[0]) => createCategory(d),
   onSuccess: () => getQueryClient().invalidateQueries({ queryKey: categoryKeys.all })
@@ -50,19 +58,43 @@ export const deleteCategoryMutation = mutationOptions({
   }
 });
 
-export type CreateMaterialInput = {
-  categoryId: string;
-  name: string;
-  status?: 'available' | 'missing';
-  quantity?: number;
-  note?: string;
-};
-
 export const createMaterialMutation = mutationOptions({
   mutationFn: (d: CreateMaterialInput) => createMaterial(d),
   onSuccess: (_data, vars) => {
     const qc = getQueryClient();
     qc.invalidateQueries({ queryKey: materialKeys.byCategory(vars.categoryId) });
+  }
+});
+
+type ToggleContext = { previous: { items: Material[]; total: number } | undefined };
+
+export const toggleMaterialStatusMutation = mutationOptions<
+  Material,
+  Error,
+  { id: string; categoryId: string; nextStatus: 'available' | 'missing' },
+  ToggleContext
+>({
+  mutationFn: ({ id, nextStatus }) => updateMaterial(id, { status: nextStatus }),
+  onMutate: async ({ id, categoryId, nextStatus }) => {
+    const qc = getQueryClient();
+    const key = materialKeys.byCategory(categoryId);
+    await qc.cancelQueries({ queryKey: key });
+    const previous = qc.getQueryData<{ items: Material[]; total: number }>(key);
+    if (previous) {
+      qc.setQueryData<{ items: Material[]; total: number }>(key, {
+        ...previous,
+        items: previous.items.map((m) => (m.id === id ? { ...m, status: nextStatus } : m))
+      });
+    }
+    return { previous };
+  },
+  onError: (_err, { categoryId }, ctx) => {
+    if (ctx?.previous) {
+      getQueryClient().setQueryData(materialKeys.byCategory(categoryId), ctx.previous);
+    }
+  },
+  onSettled: (_data, _err, { categoryId }) => {
+    getQueryClient().invalidateQueries({ queryKey: materialKeys.byCategory(categoryId) });
   }
 });
 

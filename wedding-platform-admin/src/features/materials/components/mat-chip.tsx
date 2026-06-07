@@ -4,30 +4,34 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Icons } from '@/components/icons';
 import { useMutationToast } from '@/lib/use-mutation-toast';
-import { updateMaterialMutation, deleteMaterialMutation } from '../api/queries';
+import { toggleMaterialStatusMutation, deleteMaterialMutation } from '../api/queries';
 import type { Material } from '../api/types';
 
 export function MatChip({
   material,
+  categoryId,
   onEdit
 }: {
   material: Material;
+  categoryId: string;
   onEdit: () => void;
 }) {
-  const update = useMutationToast({ ...updateMaterialMutation, successMsg: '状态已更新' });
+  const toggle = useMutationToast({ ...toggleMaterialStatusMutation, successMsg: '状态已更新' });
   const del = useMutationToast({ ...deleteMaterialMutation, successMsg: '物料已删除' });
   const isAvail = material.status === 'available';
-  const isPending = update.isPending || del.isPending;
+  const isOutOfStock = material.quantity === 0;
+  const isPending = toggle.isPending || del.isPending;
+  const nextStatus = isAvail ? 'missing' : 'available';
+
+  function handleToggle() {
+    if (isPending) return;
+    toggle.mutate({ id: material.id, categoryId, nextStatus });
+  }
 
   function handleKey(e: React.KeyboardEvent) {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      if (!isPending) {
-        update.mutate({
-          id: material.id,
-          data: { status: isAvail ? 'missing' : 'available' }
-        });
-      }
+      handleToggle();
     }
   }
 
@@ -38,17 +42,12 @@ export function MatChip({
           ? 'border-emerald-200 bg-emerald-50/40 hover:border-emerald-300'
           : 'border-amber-200 bg-amber-50/40 hover:border-amber-300'
       } ${isPending ? 'opacity-60' : 'cursor-pointer'}`}
-      onClick={() => {
-        if (isPending) return;
-        update.mutate({
-          id: material.id,
-          data: { status: isAvail ? 'missing' : 'available' }
-        });
-      }}
+      onClick={handleToggle}
       onKeyDown={handleKey}
       role='button'
       tabIndex={0}
       aria-pressed={isAvail}
+      aria-busy={isPending}
     >
       {isAvail ? (
         <Icons.circleCheck className='h-4 w-4 text-emerald-500 flex-shrink-0' />
@@ -57,7 +56,13 @@ export function MatChip({
       )}
       <span className='flex-1 truncate text-xs'>{material.name}</span>
       {material.quantity != null && (
-        <Badge variant='secondary' className='text-xs px-1.5 py-0 h-5 font-mono flex-shrink-0'>
+        <Badge
+          variant={isOutOfStock ? 'destructive' : 'secondary'}
+          className={`text-xs px-1.5 py-0 h-5 font-mono flex-shrink-0 ${
+            isOutOfStock ? 'animate-pulse' : ''
+          }`}
+          title={isOutOfStock ? '库存为 0' : `数量: ${material.quantity}`}
+        >
           {material.quantity}
         </Badge>
       )}

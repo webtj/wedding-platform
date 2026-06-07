@@ -108,7 +108,12 @@ export function CategoryCard({
         <CardContent>
           <div className='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2'>
             {materials.map((m) => (
-              <MatChip key={m.id} material={m} onEdit={() => onEditMaterial(m)} />
+              <MatChip
+                key={m.id}
+                material={m}
+                categoryId={category.id}
+                onEdit={() => onEditMaterial(m)}
+              />
             ))}
             {materials.length === 0 && !search && (
               <p className='text-xs text-muted-foreground py-8 text-center col-span-full'>
