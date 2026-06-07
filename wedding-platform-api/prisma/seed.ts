@@ -843,6 +843,47 @@ async function main() {
     });
   }
 
+  // ── Quick Prompt Categories & Prompts (built-in) ───────────────────────
+  console.log('  💬 创建推荐词...');
+
+  const quickPromptData = [
+    { text: '摄影镜头', items: ['对称构图', '三分线构图', '斜线构图', '层次分明', '利用前景', '近景', '超广角', '俯拍', '背景虚化', '景深', '全景拍摄', '胶片相机'] },
+    { text: '光影', items: ['硬光', '柔光', '侧光', '逆光', '漫射光', '摄影棚照明', '自然光', '聚光灯', '丁达尔效应'] },
+    { text: '色调', items: ['暖色调', '冷色调', '高饱和色调', '低饱和色调', '单色调', '柔和色彩', '莫兰迪色调', '渐变色'] },
+    { text: '人像', items: ['小女孩', '女生', '氧气感', '托腮', '干净文艺男', '都市白领', '金发卷发', '大波浪发型', '戴眼镜', '帅哥', '白上衣'] },
+    { text: '背景', items: ['未来主义城市', '温馨卧室', '古城墙', '日式町屋街道', '韩剧小巷', '烛光摇曳的室内', '阳光透过窗帘房间', '迷雾森林'] }
+  ];
+
+  for (let ci = 0; ci < quickPromptData.length; ci++) {
+    const catData = quickPromptData[ci];
+    const cat = await prisma.quickPromptCategory.upsert({
+      where: { id: `qpc-${ci}` },
+      update: { name: catData.text, sortOrder: ci },
+      create: {
+        id: `qpc-${ci}`,
+        tenantId: null,  // built-in
+        name: catData.text,
+        sortOrder: ci
+      }
+    });
+
+    for (let pi = 0; pi < catData.items.length; pi++) {
+      await prisma.quickPrompt.upsert({
+        where: { id: `qp-${ci}-${pi}` },
+        update: { name: catData.items[pi], prompt: catData.items[pi], sortOrder: pi },
+        create: {
+          id: `qp-${ci}-${pi}`,
+          tenantId: null,  // built-in
+          categoryId: cat.id,
+          name: catData.items[pi],
+          prompt: catData.items[pi],
+          sortOrder: pi
+        }
+      });
+    }
+  }
+  console.log(`  ✅ ${quickPromptData.length} 个推荐词分类，${quickPromptData.reduce((s, c) => s + c.items.length, 0)} 条推荐词`);
+
   console.log('✅ 数据库初始化完成！');
   console.log('');
   console.log('📋 账号信息：');
