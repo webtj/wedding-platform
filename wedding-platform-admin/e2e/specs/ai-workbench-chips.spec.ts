@@ -83,3 +83,130 @@ test.describe.serial('AI workbench — composer chip icons render as SVG, not em
     expect(btnBox!.width, '确定 button should not be crushed below ~30px').toBeGreaterThan(30);
   });
 });
+
+test.describe.serial('AI workbench — popovers auto-close after selection', () => {
+  test('material popover auto-closes after clicking a material card', async ({ page }) => {
+    await login(page, PLANNER);
+    await page.goto('/studio/ai-workbench');
+    await expect(page.getByRole('heading', { name: 'AI 工作台' })).toBeVisible();
+
+    const materialChip = page.getByRole('button', { name: /素材/ }).first();
+    await materialChip.click();
+
+    const popover = page.locator('[data-radix-popper-content-wrapper]').last();
+    await expect(popover).toBeVisible();
+
+    // Click any material — popover should close.
+    const firstMaterial = popover
+      .getByRole('button')
+      .filter({ hasText: /智言卡|喜帖|餐卡/ })
+      .first();
+    await firstMaterial.click();
+
+    await expect(popover).not.toBeVisible({ timeout: 2_000 });
+  });
+
+  test('size popover auto-closes after clicking a preset size', async ({ page }) => {
+    await login(page, PLANNER);
+    await page.goto('/studio/ai-workbench');
+    await expect(page.getByRole('heading', { name: 'AI 工作台' })).toBeVisible();
+
+    const sizeChip = page.getByRole('button', { name: /尺寸/ }).first();
+    await sizeChip.click();
+
+    const popover = page.locator('[data-radix-popper-content-wrapper]').last();
+    await expect(popover).toBeVisible();
+
+    // Click a preset size — popover should close.
+    const firstPreset = popover
+      .getByRole('button')
+      .filter({ hasText: /\d+×\d+/ })
+      .first();
+    await firstPreset.click();
+
+    await expect(popover).not.toBeVisible({ timeout: 2_000 });
+  });
+
+  test('size popover auto-closes after custom-size "确定"', async ({ page }) => {
+    await login(page, PLANNER);
+    await page.goto('/studio/ai-workbench');
+    await expect(page.getByRole('heading', { name: 'AI 工作台' })).toBeVisible();
+
+    const sizeChip = page.getByRole('button', { name: /尺寸/ }).first();
+    await sizeChip.click();
+
+    const popover = page.locator('[data-radix-popper-content-wrapper]').last();
+    await expect(popover).toBeVisible();
+
+    // Type custom dimensions + click 确定.
+    const widthInput = popover.getByLabel('自定义宽度 (mm)');
+    const heightInput = popover.getByLabel('自定义高度 (mm)');
+    await widthInput.fill('888');
+    await heightInput.fill('666');
+    await popover.getByRole('button', { name: '确定' }).click();
+
+    await expect(popover).not.toBeVisible({ timeout: 2_000 });
+
+    // The chip should now show the new dimensions.
+    await expect(page.getByRole('button', { name: /888×666/ }).first()).toBeVisible();
+  });
+
+  test('count popover auto-closes after picking a number', async ({ page }) => {
+    await login(page, PLANNER);
+    await page.goto('/studio/ai-workbench');
+    await expect(page.getByRole('heading', { name: 'AI 工作台' })).toBeVisible();
+
+    const countChip = page.getByRole('button', { name: /数量/ }).first();
+    await countChip.click();
+
+    const popover = page.locator('[data-radix-popper-content-wrapper]').last();
+    await expect(popover).toBeVisible();
+
+    await popover.getByRole('button', { name: /2张|3张/ }).first().click();
+
+    await expect(popover).not.toBeVisible({ timeout: 2_000 });
+  });
+});
+
+test.describe.serial('AI workbench — chip × is removed, reset lives inside popover', () => {
+  test('chip trigger has no × button (close is via outside-click or popover Esc)', async ({
+    page
+  }) => {
+    await login(page, PLANNER);
+    await page.goto('/studio/ai-workbench');
+    await expect(page.getByRole('heading', { name: 'AI 工作台' })).toBeVisible();
+
+    // The material chip trigger should NOT contain a close/× button anymore.
+    // Old design: chip had its own × with text-muted-foreground/0 (only visible on hover).
+    // New design: × is gone from the chip; reset is inside the popover as "重置默认".
+    const materialChip = page.getByRole('button', { name: /素材/ }).first();
+    const chipText = await materialChip.textContent();
+    expect(chipText, 'chip should not contain × glyph').not.toMatch(/[×✕✖]/);
+  });
+
+  test('material popover shows "重置默认" inside header after selecting a non-default material', async ({
+    page
+  }) => {
+    await login(page, PLANNER);
+    await page.goto('/studio/ai-workbench');
+    await expect(page.getByRole('heading', { name: 'AI 工作台' })).toBeVisible();
+
+    // Open the material popover and click a non-default material.
+    const materialChip = page.getByRole('button', { name: /素材/ }).first();
+    await materialChip.click();
+    const popover = page.locator('[data-radix-popper-content-wrapper]').last();
+    await expect(popover).toBeVisible();
+
+    const firstMaterial = popover
+      .getByRole('button')
+      .filter({ hasText: /智言卡|喜帖|餐卡/ })
+      .first();
+    await firstMaterial.click();
+
+    // Re-open the popover — the header should now show "重置默认" because
+    // selection is non-default.
+    await materialChip.click();
+    const popover2 = page.locator('[data-radix-popper-content-wrapper]').last();
+    await expect(popover2.getByRole('button', { name: /重置默认/ })).toBeVisible();
+  });
+});

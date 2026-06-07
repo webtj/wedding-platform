@@ -89,7 +89,7 @@ function MaterialTypeCard({
           {item.isSystem ? '内置' : '自定义'}
         </Badge>
         {canEdit && (
-          <div className='flex gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100'>
+          <div className='flex gap-0.5'>
             <Button variant='ghost' size='icon' className='size-6' onClick={() => onEdit(item)}>
               <Icons.edit className='size-3' />
             </Button>
