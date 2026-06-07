@@ -37,7 +37,8 @@ import { STATUS_OPTIONS, S_COLOR, S_LABEL, SOURCE_LABEL } from '../../constants'
 import { AddLeadDialog } from '../add-lead-dialog';
 import { DeleteLeadDialog } from '../delete-lead-dialog';
 import { CreateContractDialog } from '../create-contract-dialog';
-import { LeadDetailDrawer } from '../lead-detail-drawer';
+import { EditLeadDialog } from '../edit-lead-dialog';
+import { FollowupDrawer } from '../followup-drawer';
 import { exportLeadsCsv } from '../../api/service';
 
 export function LeadsTable() {
@@ -48,7 +49,8 @@ export function LeadsTable() {
     status: parseAsString.withDefault('')
   });
   const [searchInput, setSearchInput] = useState(params.search);
-  const [detailLeadId, setDetailLeadId] = useState<string | null>(null);
+  const [editLeadId, setEditLeadId] = useState<string | null>(null);
+  const [followupLeadId, setFollowupLeadId] = useState<string | null>(null);
   const debouncedSearch = useDebouncedCallback(
     (v: string) => setParams({ search: v, page: 1 }),
     400
@@ -143,14 +145,12 @@ export function LeadsTable() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className='py-2.5'>意向单编号</TableHead>
               <TableHead className='py-2.5'>客户</TableHead>
               <TableHead className='py-2.5'>电话</TableHead>
               <TableHead className='py-2.5'>来源</TableHead>
               <TableHead className='py-2.5'>婚期</TableHead>
               <TableHead className='py-2.5'>合同</TableHead>
               <TableHead className='py-2.5'>状态</TableHead>
-              <TableHead className='py-2.5'>跟进人</TableHead>
               <TableHead className='py-2.5'>更新时间</TableHead>
               <TableHead className='py-2.5'>操作</TableHead>
             </TableRow>
@@ -158,7 +158,7 @@ export function LeadsTable() {
           <TableBody>
             {data.items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className='h-48 text-center'>
+                <TableCell colSpan={8} className='h-48 text-center'>
                   <div className='flex flex-col items-center justify-center gap-3'>
                     <div className='flex items-center justify-center w-16 h-16 rounded-full bg-muted/50'>
                       <Icons.forms className='h-8 w-8 text-muted-foreground/40' />
@@ -174,17 +174,27 @@ export function LeadsTable() {
               </TableRow>
             ) : (
               data.items.map((lead) => (
-                <LeadRow key={lead.id} lead={lead} onOpenDetail={setDetailLeadId} />
+                <LeadRow
+                  key={lead.id}
+                  lead={lead}
+                  onEdit={setEditLeadId}
+                  onFollowup={setFollowupLeadId}
+                />
               ))
             )}
           </TableBody>
         </Table>
       </div>
 
-      <LeadDetailDrawer
-        leadId={detailLeadId}
-        open={!!detailLeadId}
-        onOpenChange={(o) => !o && setDetailLeadId(null)}
+      <EditLeadDialog
+        leadId={editLeadId}
+        open={!!editLeadId}
+        onOpenChange={(o) => !o && setEditLeadId(null)}
+      />
+      <FollowupDrawer
+        leadId={followupLeadId}
+        open={!!followupLeadId}
+        onOpenChange={(o) => !o && setFollowupLeadId(null)}
       />
 
       <div className='flex items-center justify-between pt-4 mt-4 border-t'>
@@ -219,7 +229,15 @@ export function LeadsTable() {
   );
 }
 
-function LeadRow({ lead, onOpenDetail }: { lead: Lead; onOpenDetail: (id: string) => void }) {
+function LeadRow({
+  lead,
+  onEdit,
+  onFollowup
+}: {
+  lead: Lead;
+  onEdit: (id: string) => void;
+  onFollowup: (id: string) => void;
+}) {
   const update = useMutationToast({
     ...updateLeadMutation,
     successMsg: '状态已更新',
@@ -233,9 +251,6 @@ function LeadRow({ lead, onOpenDetail }: { lead: Lead; onOpenDetail: (id: string
 
   return (
     <TableRow className={upcomingWedding ? 'bg-amber-50/40 hover:bg-amber-50/60' : undefined}>
-      <TableCell className='py-2'>
-        <code className='text-xs font-mono text-muted-foreground'>{lead.leadNo}</code>
-      </TableCell>
       <TableCell className='py-2'>
         <span className='font-medium text-sm'>
           {lead.name || lead.phone || '未知'}
@@ -293,9 +308,6 @@ function LeadRow({ lead, onOpenDetail }: { lead: Lead; onOpenDetail: (id: string
         </div>
       </TableCell>
       <TableCell className='py-2 text-sm text-muted-foreground'>
-        {lead.createdBy?.displayName ?? '-'}
-      </TableCell>
-      <TableCell className='py-2 text-sm text-muted-foreground'>
         {toDateDisplay(lead.updatedAt)}
       </TableCell>
       <TableCell className='py-2'>
@@ -343,7 +355,15 @@ function LeadRow({ lead, onOpenDetail }: { lead: Lead; onOpenDetail: (id: string
             variant='ghost'
             size='sm'
             className='h-7 text-xs px-2'
-            onClick={() => onOpenDetail(lead.id)}
+            onClick={() => onFollowup(lead.id)}
+          >
+            跟进
+          </Button>
+          <Button
+            variant='ghost'
+            size='sm'
+            className='h-7 text-xs px-2'
+            onClick={() => onEdit(lead.id)}
           >
             编辑
           </Button>
