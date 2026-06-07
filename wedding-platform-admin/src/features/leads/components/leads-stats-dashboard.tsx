@@ -16,15 +16,7 @@ import {
   Line,
   Legend
 } from 'recharts';
-
-const STATUS_LABELS: Record<string, string> = {
-  new: '新线索',
-  contacted: '已联系',
-  quoted: '已报价',
-  negotiating: '谈判中',
-  won: '已成交',
-  lost: '已流失'
-};
+import { S_LABEL as STATUS_LABELS, SOURCE_LABEL as SOURCE_LABELS } from '../constants';
 
 const STATUS_COLORS: Record<string, string> = {
   new: '#6366f1',
@@ -33,14 +25,6 @@ const STATUS_COLORS: Record<string, string> = {
   negotiating: '#c4b5fd',
   won: '#22c55e',
   lost: '#ef4444'
-};
-
-const SOURCE_LABELS: Record<string, string> = {
-  wechat: '微信',
-  xiaohongshu: '小红书',
-  douyin: '抖音',
-  referral: '转介绍',
-  other: '其他'
 };
 
 function SummaryCard({
