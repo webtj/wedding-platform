@@ -237,13 +237,9 @@ function LeadRow({ lead, onOpenDetail }: { lead: Lead; onOpenDetail: (id: string
         <code className='text-xs font-mono text-muted-foreground'>{lead.leadNo}</code>
       </TableCell>
       <TableCell className='py-2'>
-        <button
-          type='button'
-          onClick={() => onOpenDetail(lead.id)}
-          className='font-medium text-sm text-left hover:text-primary hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded'
-        >
+        <span className='font-medium text-sm'>
           {lead.name || lead.phone || '未知'}
-        </button>
+        </span>
       </TableCell>
       <TableCell className='py-2 text-sm font-mono text-muted-foreground'>
         {lead.phone || '-'}
@@ -343,6 +339,14 @@ function LeadRow({ lead, onOpenDetail }: { lead: Lead; onOpenDetail: (id: string
               建合同
             </Button>
           )}
+          <Button
+            variant='ghost'
+            size='sm'
+            className='h-7 w-7 p-0'
+            onClick={() => onOpenDetail(lead.id)}
+          >
+            <Icons.edit className='h-3.5 w-3.5' />
+          </Button>
           {!statusLocked && (
             <Button
               variant='ghost'
@@ -350,7 +354,6 @@ function LeadRow({ lead, onOpenDetail }: { lead: Lead; onOpenDetail: (id: string
               className='h-7 text-xs px-2 text-destructive hover:text-destructive hover:bg-destructive/10'
               onClick={() => setDeleteOpen(true)}
             >
-              <Icons.trash className='h-3.5 w-3.5 mr-1' />
               删除
             </Button>
           )}
