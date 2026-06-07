@@ -13,11 +13,23 @@ export class MaterialsService {
   ) {}
 
   async listCategories(input: { tenantId: string }) {
+    // Return built-in (tenantId=null) + tenant's own categories
     return this.prisma.materialCategory.findMany({
-      where: { tenantId: input.tenantId },
+      where: {
+        OR: [
+          { tenantId: null },      // built-in
+          { tenantId: input.tenantId }  // tenant's own
+        ]
+      },
       orderBy: { sortOrder: 'asc' },
       include: {
         materials: {
+          where: {
+            OR: [
+              { tenantId: null },
+              { tenantId: input.tenantId }
+            ]
+          },
           orderBy: { sortOrder: 'asc' }
         }
       }
@@ -50,6 +62,7 @@ export class MaterialsService {
       where: { id: input.categoryId, tenantId: input.tenantId }
     });
     if (!cat) throw new NotFoundException('Category not found');
+    if (!cat.tenantId) throw AppError.forbidden('内置分类不可编辑');
     if (input.data.name && input.data.name !== cat.name) {
       const dup = await this.prisma.materialCategory.findFirst({
         where: { tenantId: input.tenantId, name: input.data.name, id: { not: cat.id } }
@@ -78,6 +91,7 @@ export class MaterialsService {
       where: { id: input.categoryId, tenantId: input.tenantId }
     });
     if (!cat) throw new NotFoundException('Category not found');
+    if (!cat.tenantId) throw AppError.forbidden('内置分类不可删除');
     const materialCount = await this.prisma.material.count({
       where: { categoryId: input.categoryId }
     });
@@ -146,9 +160,10 @@ export class MaterialsService {
       where: { id: input.materialId },
       include: { category: true }
     });
-    if (!mat || mat.category.tenantId !== input.tenantId) {
-      throw new NotFoundException('Material not found');
-    }
+    if (!mat) throw new NotFoundException('Material not found');
+    // Built-in materials (tenantId=null) cannot be modified by tenants
+    if (!mat.tenantId) throw AppError.forbidden('内置物料不可编辑');
+    if (mat.tenantId !== input.tenantId) throw new NotFoundException('Material not found');
     const updated = await this.prisma.material.update({
       where: { id: input.materialId },
       data: input.data
@@ -169,9 +184,10 @@ export class MaterialsService {
       where: { id: input.materialId },
       include: { category: true }
     });
-    if (!mat || mat.category.tenantId !== input.tenantId) {
-      throw new NotFoundException('Material not found');
-    }
+    if (!mat) throw new NotFoundException('Material not found');
+    // Built-in materials (tenantId=null) cannot be deleted by tenants
+    if (!mat.tenantId) throw AppError.forbidden('内置物料不可删除');
+    if (mat.tenantId !== input.tenantId) throw new NotFoundException('Material not found');
     await this.prisma.material.delete({ where: { id: input.materialId } });
     await this.audit.record({
       tenantId: input.tenantId,

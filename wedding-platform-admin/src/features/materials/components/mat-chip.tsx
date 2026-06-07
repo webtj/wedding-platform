@@ -9,6 +9,7 @@ import { useMutationToast } from '@/lib/use-mutation-toast';
 import { toggleMaterialStatusMutation, deleteMaterialMutation } from '../api/queries';
 import { STATUS_LABEL } from '../constants';
 import type { Material } from '../api/types';
+import { isBuiltIn } from '../api/types';
 
 export function MatChip({
   material,
@@ -22,6 +23,7 @@ export function MatChip({
   const [popoverOpen, setPopoverOpen] = useState(false);
   const toggle = useMutationToast({ ...toggleMaterialStatusMutation, successMsg: '状态已更新' });
   const del = useMutationToast({ ...deleteMaterialMutation, successMsg: '物料已删除' });
+  const builtIn = isBuiltIn(material);
   const isAvail = material.status === 'available';
   const isOutOfStock = material.quantity === 0;
   const isPending = toggle.isPending || del.isPending;
@@ -29,7 +31,7 @@ export function MatChip({
 
   function handleToggle(e: React.MouseEvent | React.KeyboardEvent) {
     e.stopPropagation();
-    if (isPending) return;
+    if (isPending || builtIn) return;
     toggle.mutate({ id: material.id, categoryId, nextStatus });
   }
 
@@ -80,6 +82,11 @@ export function MatChip({
               }}
             >
               {material.name}
+              {builtIn && (
+                <Badge variant='secondary' className='ml-1 text-[9px] px-1 py-0'>
+                  内置
+                </Badge>
+              )}
             </span>
           </PopoverTrigger>
         </button>
@@ -94,31 +101,33 @@ export function MatChip({
             {material.quantity}
           </Badge>
         )}
-        <div className='hidden group-hover:flex items-center gap-0.5 flex-shrink-0'>
-          <Button
-            variant='ghost'
-            size='sm'
-            className='h-5 text-xs px-1'
-            onClick={(e) => {
-              e.stopPropagation();
-              setPopoverOpen(false);
-              onEdit();
-            }}
-          >
-            编辑
-          </Button>
-          <Button
-            variant='ghost'
-            size='sm'
-            className='h-5 text-xs px-1 text-destructive'
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDelete();
-            }}
-          >
-            删除
-          </Button>
-        </div>
+        {!builtIn && (
+          <div className='hidden group-hover:flex items-center gap-0.5 flex-shrink-0'>
+            <Button
+              variant='ghost'
+              size='sm'
+              className='h-5 text-xs px-1'
+              onClick={(e) => {
+                e.stopPropagation();
+                setPopoverOpen(false);
+                onEdit();
+              }}
+            >
+              编辑
+            </Button>
+            <Button
+              variant='ghost'
+              size='sm'
+              className='h-5 text-xs px-1 text-destructive'
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete();
+              }}
+            >
+              删除
+            </Button>
+          </div>
+        )}
       </div>
       <PopoverContent
         side='top'
@@ -150,28 +159,35 @@ export function MatChip({
             <p className='text-xs text-muted-foreground pt-1 border-t'>{material.note}</p>
           )}
         </div>
-        <div className='flex gap-1 pt-1 border-t'>
-          <Button
-            variant='outline'
-            size='sm'
-            className='flex-1 h-7 text-xs'
-            onClick={handleToggle}
-            disabled={isPending}
-          >
-            切换为 {STATUS_LABEL[nextStatus]}
-          </Button>
-          <Button
-            variant='outline'
-            size='sm'
-            className='h-7 text-xs'
-            onClick={() => {
-              setPopoverOpen(false);
-              onEdit();
-            }}
-          >
-            编辑
-          </Button>
-        </div>
+        {!builtIn && (
+          <div className='flex gap-1 pt-1 border-t'>
+            <Button
+              variant='outline'
+              size='sm'
+              className='flex-1 h-7 text-xs'
+              onClick={handleToggle}
+              disabled={isPending}
+            >
+              切换为 {STATUS_LABEL[nextStatus]}
+            </Button>
+            <Button
+              variant='outline'
+              size='sm'
+              className='h-7 text-xs'
+              onClick={() => {
+                setPopoverOpen(false);
+                onEdit();
+              }}
+            >
+              编辑
+            </Button>
+          </div>
+        )}
+        {builtIn && (
+          <p className='text-xs text-muted-foreground pt-1 border-t'>
+            内置物料，不可编辑
+          </p>
+        )}
       </PopoverContent>
     </Popover>
   );

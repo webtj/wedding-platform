@@ -3,8 +3,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Icons } from '@/components/icons';
 import type { MaterialCategory, Material } from '../api/types';
+import { isBuiltIn } from '../api/types';
 import { MatChip } from './mat-chip';
 import { QuickAddMat } from './quick-add-mat';
 
@@ -38,6 +40,7 @@ export function CategoryCard({
   }, [forceExpand]);
 
   const expanded = open;
+  const builtIn = isBuiltIn(category);
   const all = category.materials ?? [];
   const searchLower = search.toLowerCase();
   const categoryMatches = search && category.name.toLowerCase().includes(searchLower);
@@ -83,6 +86,11 @@ export function CategoryCard({
             <div className='flex items-center gap-3 flex-wrap'>
               <div className='flex items-baseline gap-2 min-w-0'>
                 <span className='font-semibold text-sm truncate'>{category.name}</span>
+                {builtIn && (
+                  <Badge variant='secondary' className='text-[10px] px-1.5 py-0'>
+                    内置
+                  </Badge>
+                )}
                 <span className='text-xs text-muted-foreground whitespace-nowrap'>
                   {materials.length} 件
                 </span>
@@ -103,21 +111,27 @@ export function CategoryCard({
             </div>
           </div>
           <div className='flex items-center gap-0.5 flex-shrink-0'>
-            <QuickAddMat catId={category.id} />
-            <Button variant='ghost' size='sm' className='h-7 text-xs' onClick={onAddMaterial}>
-              <Icons.add className='h-3 w-3' />
-            </Button>
-            <Button variant='ghost' size='sm' className='h-7 text-xs' onClick={onEdit}>
-              <Icons.edit className='h-3 w-3' />
-            </Button>
-            <Button
-              variant='ghost'
-              size='sm'
-              className='h-7 text-xs text-destructive'
-              onClick={onDeleteRequest}
-            >
-              <Icons.trash className='h-3 w-3' />
-            </Button>
+            {!builtIn && <QuickAddMat catId={category.id} />}
+            {!builtIn && (
+              <Button variant='ghost' size='sm' className='h-7 text-xs' onClick={onAddMaterial}>
+                <Icons.add className='h-3 w-3' />
+              </Button>
+            )}
+            {!builtIn && (
+              <Button variant='ghost' size='sm' className='h-7 text-xs' onClick={onEdit}>
+                <Icons.edit className='h-3 w-3' />
+              </Button>
+            )}
+            {!builtIn && (
+              <Button
+                variant='ghost'
+                size='sm'
+                className='h-7 text-xs text-destructive'
+                onClick={onDeleteRequest}
+              >
+                <Icons.trash className='h-3 w-3' />
+              </Button>
+            )}
           </div>
         </div>
       </CardHeader>
