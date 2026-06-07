@@ -47,7 +47,7 @@ export default function AiWorkbenchViewPage({ projectId }: AiWorkbenchViewPagePr
   const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null);
   const [size, setSize] = useState({ width: 600, height: 900 });
   const [style, setStyle] = useState(STYLES[0].id);
-  const [count, setCount] = useState(4);
+  const [count, setCount] = useState(1);
 
   const [referenceAssets, setReferenceAssets] = useState<AiReferenceAsset[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);

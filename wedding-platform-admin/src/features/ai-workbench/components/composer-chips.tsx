@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { Icons } from '@/components/icons';
 import { getMaterialTypeIcon } from '@/features/material-types/lib/icon-map';
@@ -111,7 +110,7 @@ export function ComposerChips({
     <div className='flex flex-wrap gap-1.5'>
       <Chip label='素材' value={selectedType?.name ?? '选择'} active={!!selectedType}>
         <p className='text-muted-foreground mb-2 text-xs'>选择素材类型</p>
-        <ScrollArea className='max-h-56'>
+        <div className='max-h-64 overflow-y-auto'>
           <div className='grid grid-cols-4 gap-1.5'>
             {materialTypes.map((m) => {
               const IconComp = getMaterialTypeIcon(m.icon);
@@ -138,7 +137,7 @@ export function ComposerChips({
               );
             })}
           </div>
-        </ScrollArea>
+        </div>
       </Chip>
 
       <Chip label='尺寸' value={`${size.width}×${size.height}`} active>
