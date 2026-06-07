@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { CreateAccountInput, UpdateAccountInput } from '@wedding/shared';
 import { BusinessException } from '../common/exceptions/business.exception';
 import type { AuthContext } from '../common/auth/auth-context';
@@ -12,8 +12,8 @@ export class SuperUsersService {
     private readonly passwordService: PasswordService
   ) {}
 
-  async list(params: { auth: AuthContext; search?: string; roleCode?: string; page?: number; pageSize?: number }) {
-    const tenantId = params.auth.tenantId;
+  async list(params: { auth: AuthContext; search?: string; roleCode?: string; tenantId?: string; page?: number; pageSize?: number }) {
+    const tenantId = params.tenantId ?? params.auth.tenantId;
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 10;
     const skip = (page - 1) * pageSize;
@@ -26,9 +26,13 @@ export class SuperUsersService {
       ];
     }
 
-    const memberConditions: Record<string, unknown> = { tenantId };
+    // Filter by tenant membership
+    const memberConditions: Record<string, unknown> = {};
+    if (tenantId) memberConditions.tenantId = tenantId;
     if (params.roleCode) memberConditions.roles = { some: { role: { code: params.roleCode } } };
-    where.tenantMembers = { some: memberConditions };
+    if (Object.keys(memberConditions).length > 0) {
+      where.tenantMembers = { some: memberConditions };
+    }
 
     const [items, total] = await Promise.all([
       this.prisma.user.findMany({
@@ -138,13 +142,21 @@ export class SuperUsersService {
     if (Object.keys(userData).length > 0) {
       await this.prisma.user.update({ where: { id: input.userId }, data: userData });
     }
-    if (roleIds && auth.tenantId) {
-      const member = await this.prisma.tenantMember.findFirst({ where: { userId: input.userId, tenantId: auth.tenantId, status: 'active' } });
-      if (member) {
-        await this.prisma.memberRole.deleteMany({ where: { memberId: member.id } });
-        if (roleIds.length > 0) {
-          await this.prisma.memberRole.createMany({ data: roleIds.map((roleId) => ({ memberId: member.id, roleId })) });
-        }
+    if (roleIds) {
+      const targetMember = await this.prisma.tenantMember.findFirstOrThrow({
+        where: { userId: input.userId, status: 'active' },
+        select: { id: true, tenantId: true }
+      });
+
+      if (auth.tenantId && auth.tenantId !== targetMember.tenantId) {
+        throw new ForbiddenException('Cannot edit members of other tenants in this scope');
+      }
+
+      await this.prisma.memberRole.deleteMany({ where: { memberId: targetMember.id } });
+      if (roleIds.length > 0) {
+        await this.prisma.memberRole.createMany({
+          data: roleIds.map((roleId) => ({ memberId: targetMember.id, roleId }))
+        });
       }
     }
     return this.getById(auth, input.userId);

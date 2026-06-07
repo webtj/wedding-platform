@@ -16,6 +16,7 @@ export class SuperUsersController {
     @CurrentAuth() auth: AuthContext,
     @Query('search') search?: string,
     @Query('roleCode') roleCode?: string,
+    @Query('tenantId') tenantId?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string
   ) {
@@ -23,6 +24,7 @@ export class SuperUsersController {
       auth,
       search,
       roleCode,
+      tenantId,
       page: page ? parseInt(page, 10) : undefined,
       pageSize: pageSize ? parseInt(pageSize, 10) : undefined
     });

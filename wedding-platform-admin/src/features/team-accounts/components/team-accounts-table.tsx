@@ -6,13 +6,13 @@ import { useState } from 'react';
 import { parseAsInteger, parseAsString, useQueryStates } from 'nuqs';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import {
-  accountsQueryOptions,
-  filterOptionsQueryOptions,
-  createAccountMutation,
-  updateAccountMutation,
-  deleteAccountMutation
+  teamAccountsQueryOptions,
+  teamFilterOptionsQueryOptions,
+  createTeamAccountMutation,
+  updateTeamAccountMutation,
+  deleteTeamAccountMutation
 } from '../api/queries';
-import type { Account } from '../api/types';
+import type { TeamMember } from '../api/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,13 +45,12 @@ import {
 
 // ── Main Table ─────────────────────────────────────────────────────────────
 
-export function AccountsTable() {
+export function TeamAccountsTable() {
   const [params, setParams] = useQueryStates({
     page: parseAsInteger.withDefault(1),
     perPage: parseAsInteger.withDefault(10),
     search: parseAsString.withDefault(''),
-    roleCode: parseAsString.withDefault(''),
-    tenantId: parseAsString.withDefault('')
+    roleCode: parseAsString.withDefault('')
   });
   const [searchInput, setSearchInput] = useState(params.search);
   const debouncedSearch = useDebouncedCallback(
@@ -63,12 +62,15 @@ export function AccountsTable() {
     page: params.page,
     limit: params.perPage,
     ...(params.search && { search: params.search }),
-    ...(params.roleCode && { roleCode: params.roleCode }),
-    ...(params.tenantId && { tenantId: params.tenantId })
+    ...(params.roleCode && { roleCode: params.roleCode })
   };
 
-  const { data, isLoading } = useQuery(accountsQueryOptions(filters));
-  const { data: opts } = useQuery(filterOptionsQueryOptions());
+  const { data, isLoading } = useQuery(teamAccountsQueryOptions(filters));
+  const { data: opts } = useQuery(teamFilterOptionsQueryOptions());
+
+  // 403 PERMISSION_DENIED is intercepted globally by QueryClient
+  // (lib/query-client.ts → QueryCache.onError → window event → panel).
+  // No per-page boundary needed.
 
   if (isLoading || !data) {
     return <div className='py-12 text-center text-muted-foreground'>加载中...</div>;
@@ -90,22 +92,6 @@ export function AccountsTable() {
               className='pl-9'
             />
           </div>
-          <Select
-            value={params.tenantId || '__all__'}
-            onValueChange={(v) => setParams({ tenantId: v === '__all__' ? '' : v, page: 1 })}
-          >
-            <SelectTrigger className='w-[160px]'>
-              <SelectValue placeholder='全部租户' />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value='__all__'>全部租户</SelectItem>
-              {opts?.tenants.map((t) => (
-                <SelectItem key={t.id} value={t.id}>
-                  {t.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
           <Select
             value={params.roleCode || '__all__'}
             onValueChange={(v) => setParams({ roleCode: v === '__all__' ? '' : v, page: 1 })}
@@ -132,7 +118,6 @@ export function AccountsTable() {
             <TableRow>
               <TableHead>账号</TableHead>
               <TableHead>姓名</TableHead>
-              <TableHead>租户</TableHead>
               <TableHead>角色</TableHead>
               <TableHead>状态</TableHead>
               <TableHead>操作</TableHead>
@@ -141,15 +126,15 @@ export function AccountsTable() {
           <TableBody>
             {data.items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className='h-24 text-center text-muted-foreground'>
+                <TableCell colSpan={5} className='h-24 text-center text-muted-foreground'>
                   暂无数据
                 </TableCell>
               </TableRow>
             ) : (
-              data.items.map((account) => (
+              data.items.map((member) => (
                 <AccountRow
-                  key={account.id}
-                  account={account}
+                  key={member.id}
+                  member={member}
                   opts={opts}
                 />
               ))
@@ -189,56 +174,38 @@ export function AccountsTable() {
 // ── Row ────────────────────────────────────────────────────────────────────
 
 function AccountRow({
-  account,
+  member,
   opts
 }: {
-  account: Account;
+  member: TeamMember;
   opts?: {
-    tenants: { id: string; name: string }[];
     roles: { id: string; code: string; name: string }[];
   } | null;
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  const roles =
-    account.tenantMembers
-      ?.flatMap((m) => m.roles.map((r) => ({ code: r.role.code, name: r.role.name })))
-      .filter((v, i, a) => a.findIndex((x) => x.code === v.code) === i) ?? [];
-
   return (
     <TableRow>
       <TableCell>
         <div className='flex flex-col'>
-          <code className='text-xs font-mono'>{account.authAccounts?.[0]?.identifier ?? '-'}</code>
+          <code className='text-xs font-mono'>{member.user.authAccounts?.[0]?.identifier ?? '-'}</code>
         </div>
       </TableCell>
-      <TableCell className='font-medium'>{account.displayName}</TableCell>
+      <TableCell className='font-medium'>{member.displayName}</TableCell>
       <TableCell>
         <div className='flex flex-wrap gap-1'>
-          {account.tenantMembers?.map((m) => (
-            <Badge key={m.tenant.id} variant='secondary' className='text-xs'>
-              {m.tenant.name}
+          {member.roles.map((r) => (
+            <Badge key={r.role.code} variant='outline' className='text-xs'>
+              {r.role.name}
             </Badge>
           ))}
-          {(!account.tenantMembers || account.tenantMembers.length === 0) && (
-            <span className='text-muted-foreground text-xs'>-</span>
-          )}
+          {member.roles.length === 0 && <span className='text-muted-foreground text-xs'>-</span>}
         </div>
       </TableCell>
       <TableCell>
-        <div className='flex flex-wrap gap-1'>
-          {roles.map((r) => (
-            <Badge key={r.code} variant='outline' className='text-xs'>
-              {r.name}
-            </Badge>
-          ))}
-          {roles.length === 0 && <span className='text-muted-foreground text-xs'>-</span>}
-        </div>
-      </TableCell>
-      <TableCell>
-        <Badge variant={account.status === 'active' ? 'default' : 'secondary'}>
-          {account.status === 'active' ? '启用' : '禁用'}
+        <Badge variant={member.status === 'active' ? 'default' : 'secondary'}>
+          {member.status === 'active' ? '启用' : '禁用'}
         </Badge>
       </TableCell>
       <TableCell>
@@ -253,10 +220,10 @@ function AccountRow({
         <EditAccountDialog
           open={editOpen}
           onOpenChange={setEditOpen}
-          account={account}
+          member={member}
           opts={opts}
         />
-        <DeleteAccountDialog open={deleteOpen} onOpenChange={setDeleteOpen} account={account} />
+        <DeleteAccountDialog open={deleteOpen} onOpenChange={setDeleteOpen} member={member} />
       </TableCell>
     </TableRow>
   );
@@ -267,29 +234,28 @@ function AccountRow({
 function EditAccountDialog({
   open,
   onOpenChange,
-  account,
+  member,
   opts
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  account: Account;
+  member: TeamMember;
   opts?: {
-    tenants: { id: string; name: string }[];
     roles: { id: string; code: string; name: string }[];
   } | null;
 }) {
   const update = useMutationToast({
-    ...updateAccountMutation,
+    ...updateTeamAccountMutation,
     successMsg: '账号已更新',
     errorMsg: '更新失败'
   });
-  const [displayName, setDisplayName] = useState(account.displayName);
-  const [status, setStatus] = useState(account.status);
+  const [displayName, setDisplayName] = useState(member.displayName);
+  const [status, setStatus] = useState(member.status);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [selectedRoles, setSelectedRoles] = useState<Set<string>>(
-    new Set(account.tenantMembers?.flatMap((m) => m.roles.map((r) => r.role.id)) ?? [])
+    new Set(member.roles.map((r) => r.role.id))
   );
 
   function toggleRole(roleId: string) {
@@ -324,7 +290,7 @@ function EditAccountDialog({
     if (!validatePassword()) return;
     update.mutate(
       {
-        id: account.id,
+        id: member.id,
         data: {
           displayName,
           status,
@@ -340,7 +306,7 @@ function EditAccountDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>编辑账号 — {account.displayName}</DialogTitle>
+          <DialogTitle>编辑账号 — {member.displayName}</DialogTitle>
           <DialogDescription>修改用户信息、角色分配。留空密码则不修改。</DialogDescription>
         </DialogHeader>
         <div className='flex flex-col gap-4 max-h-[60vh] overflow-y-auto'>
@@ -424,14 +390,14 @@ function EditAccountDialog({
 function DeleteAccountDialog({
   open,
   onOpenChange,
-  account
+  member
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  account: Account;
+  member: TeamMember;
 }) {
   const del = useMutationToast({
-    ...deleteAccountMutation,
+    ...deleteTeamAccountMutation,
     successMsg: '账号已删除',
     errorMsg: '删除失败'
   });
@@ -441,7 +407,7 @@ function DeleteAccountDialog({
         <DialogHeader>
           <DialogTitle>确认删除</DialogTitle>
           <DialogDescription>
-            确定要删除用户 <strong>{account.displayName}</strong> 吗？平台管理员不可删除。
+            确定要删除用户 <strong>{member.displayName}</strong> 吗？此操作不可撤销。
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -450,7 +416,7 @@ function DeleteAccountDialog({
           </Button>
           <Button
             variant='destructive'
-            onClick={() => del.mutate(account.id, { onSuccess: () => onOpenChange(false) })}
+            onClick={() => del.mutate(member.id, { onSuccess: () => onOpenChange(false) })}
           >
             删除
           </Button>
@@ -466,13 +432,12 @@ function AddAccountDialog({
   opts
 }: {
   opts?: {
-    tenants: { id: string; name: string }[];
     roles: { id: string; code: string; name: string }[];
   } | null;
 }) {
   const [open, setOpen] = useState(false);
   const create = useMutationToast({
-    ...createAccountMutation,
+    ...createTeamAccountMutation,
     successMsg: '账号已创建',
     errorMsg: '创建失败'
   });
@@ -533,7 +498,7 @@ function AddAccountDialog({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>新增账号</DialogTitle>
-            <DialogDescription>创建新的平台账号，选择归属租户和角色。</DialogDescription>
+            <DialogDescription>创建新的团队成员账号，分配角色。</DialogDescription>
           </DialogHeader>
           <div className='flex flex-col gap-4 max-h-[60vh] overflow-y-auto'>
             <div className='space-y-2'>

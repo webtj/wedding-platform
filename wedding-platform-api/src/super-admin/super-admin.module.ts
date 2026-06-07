@@ -10,6 +10,8 @@ import { SuperUsersController } from './super-users.controller';
 import { SuperUsersService } from './super-users.service';
 import { SuperMaterialTypesController } from './super-material-types.controller';
 import { SuperMaterialTypesService } from './super-material-types.service';
+import { SuperOverviewController } from './super-overview.controller';
+import { SuperOverviewService } from './super-overview.service';
 
 @Module({
   imports: [IdentityModule],
@@ -18,14 +20,16 @@ import { SuperMaterialTypesService } from './super-material-types.service';
     SuperUsersController,
     SuperMenusController,
     SuperRolesController,
-    SuperMaterialTypesController
+    SuperMaterialTypesController,
+    SuperOverviewController
   ],
   providers: [
     SuperTenantsService,
     SuperUsersService,
     SuperMenusService,
     SuperRolesService,
-    SuperMaterialTypesService
+    SuperMaterialTypesService,
+    SuperOverviewService
   ]
 })
 export class SuperAdminModule {}

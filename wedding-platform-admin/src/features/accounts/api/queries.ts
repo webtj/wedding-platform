@@ -9,6 +9,7 @@ import {
   deleteAccount
 } from './service';
 import type { Account, AccountFilters } from './types';
+import { roleKeys } from '@/features/roles/api/queries';
 
 export type { Account };
 
@@ -24,8 +25,7 @@ export const accountsQueryOptions = (filters: AccountFilters) =>
 export const filterOptionsQueryOptions = () =>
   queryOptions({
     queryKey: accountKeys.filterOptions(),
-    queryFn: () => getFilterOptions(),
-    staleTime: 5 * 60 * 1000
+    queryFn: () => getFilterOptions()
   });
 
 export const createAccountMutation = mutationOptions({

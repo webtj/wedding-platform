@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { SuperUsersService } from './super-users.service';
 
-const buildAuth = (overrides: Partial<{ tenantId: string; isPlatformAdmin: boolean; userId: string }> = {}) =>
+const buildAuth = (overrides: { tenantId?: string | null; isPlatformAdmin?: boolean; userId?: string } = {}) =>
   ({
-    tenantId: overrides.tenantId ?? 't1',
+    tenantId: overrides.tenantId === undefined ? 't1' : overrides.tenantId,
     userId: overrides.userId ?? 'admin_1',
     memberId: 'm1',
     isPlatformAdmin: overrides.isPlatformAdmin ?? false,
@@ -230,7 +230,7 @@ describe('SuperUsersService', () => {
           update: userUpdate
         },
         authAccount: { findFirst: vi.fn().mockResolvedValue({ id: 'aa1' }), update: vi.fn() },
-        tenantMember: { findFirst: vi.fn().mockResolvedValue({ id: 'm1' }) },
+        tenantMember: { findFirstOrThrow: vi.fn().mockResolvedValue({ id: 'm1', tenantId: 't1' }) },
         memberRole: { deleteMany: vi.fn(), createMany: vi.fn() }
       };
       const password = buildPasswordService();
@@ -259,6 +259,98 @@ describe('SuperUsersService', () => {
       await expect(
         service.update(buildAuth(), { userId: 'missing', data: { displayName: 'x' } as never })
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('super admin (tenantId=null) re-assigns roles against target member (regression for #2)', async () => {
+      const auth = buildAuth({ tenantId: null, isPlatformAdmin: true });
+      const prisma = {
+        user: {
+          findUnique: vi
+            .fn()
+            .mockResolvedValueOnce({ id: 'u1' })
+            .mockResolvedValueOnce({ id: 'u1', authAccounts: [], tenantMembers: [] }),
+          update: vi.fn()
+        },
+        authAccount: { findFirst: vi.fn().mockResolvedValue(null), update: vi.fn() },
+        tenantMember: {
+          findFirstOrThrow: vi.fn().mockResolvedValue({ id: 'm1', tenantId: 't_target' })
+        },
+        memberRole: { deleteMany: vi.fn(), createMany: vi.fn() }
+      };
+      const service = new SuperUsersService(prisma as never, buildPasswordService() as never);
+
+      await service.update(auth, {
+        userId: 'u1',
+        data: { roleIds: ['r1', 'r2'] } as never
+      });
+
+      expect(prisma.tenantMember.findFirstOrThrow).toHaveBeenCalledWith({
+        where: { userId: 'u1', status: 'active' },
+        select: { id: true, tenantId: true }
+      });
+      expect(prisma.memberRole.deleteMany).toHaveBeenCalledWith({ where: { memberId: 'm1' } });
+      expect(prisma.memberRole.createMany).toHaveBeenCalledWith({
+        data: [{ memberId: 'm1', roleId: 'r1' }, { memberId: 'm1', roleId: 'r2' }]
+      });
+    });
+
+    it('super admin passes the role block when roleIds is omitted', async () => {
+      const auth = buildAuth({ tenantId: null, isPlatformAdmin: true });
+      const prisma = {
+        user: {
+          findUnique: vi
+            .fn()
+            .mockResolvedValueOnce({ id: 'u1' })
+            .mockResolvedValueOnce({ id: 'u1', authAccounts: [], tenantMembers: [] }),
+          update: vi.fn()
+        },
+        authAccount: { findFirst: vi.fn().mockResolvedValue(null), update: vi.fn() },
+        tenantMember: { findFirstOrThrow: vi.fn() },
+        memberRole: { deleteMany: vi.fn(), createMany: vi.fn() }
+      };
+      const service = new SuperUsersService(prisma as never, buildPasswordService() as never);
+
+      await service.update(auth, { userId: 'u1', data: { displayName: '改名' } as never });
+
+      expect(prisma.tenantMember.findFirstOrThrow).not.toHaveBeenCalled();
+      expect(prisma.memberRole.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('throws Forbidden when non-platform admin tries to edit a member from a different tenant', async () => {
+      const auth = buildAuth({ tenantId: 't1', isPlatformAdmin: false });
+      const prisma = {
+        user: { findUnique: vi.fn().mockResolvedValue({ id: 'u1' }) },
+        authAccount: { findFirst: vi.fn().mockResolvedValue(null), update: vi.fn() },
+        tenantMember: {
+          findFirstOrThrow: vi.fn().mockResolvedValue({ id: 'm1', tenantId: 't_other' })
+        },
+        memberRole: { deleteMany: vi.fn(), createMany: vi.fn() }
+      };
+      const service = new SuperUsersService(prisma as never, buildPasswordService() as never);
+
+      await expect(
+        service.update(auth, { userId: 'u1', data: { roleIds: ['r1'] } as never })
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.memberRole.deleteMany).not.toHaveBeenCalled();
+      expect(prisma.memberRole.createMany).not.toHaveBeenCalled();
+    });
+
+    it('throws when roleIds is provided but target has no active tenant member (regression for #2)', async () => {
+      const auth = buildAuth({ tenantId: null, isPlatformAdmin: true });
+      const prisma = {
+        user: { findUnique: vi.fn().mockResolvedValue({ id: 'u1' }) },
+        authAccount: { findFirst: vi.fn().mockResolvedValue(null), update: vi.fn() },
+        tenantMember: {
+          findFirstOrThrow: vi.fn().mockRejectedValue(new Error('Record not found'))
+        },
+        memberRole: { deleteMany: vi.fn(), createMany: vi.fn() }
+      };
+      const service = new SuperUsersService(prisma as never, buildPasswordService() as never);
+
+      await expect(
+        service.update(auth, { userId: 'u1', data: { roleIds: ['r1'] } as never })
+      ).rejects.toThrow('Record not found');
+      expect(prisma.memberRole.deleteMany).not.toHaveBeenCalled();
     });
   });
 
