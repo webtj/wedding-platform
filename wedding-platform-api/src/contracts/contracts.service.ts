@@ -55,6 +55,18 @@ export class ContractsService {
     return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
   }
 
+  async listForExport(input: { tenantId: string; status?: string; search?: string }) {
+    const where = this.buildWhere(input);
+    return this.prisma.contract.findMany({
+      where,
+      include: {
+        project: { select: { projectNo: true, brideName: true, groomName: true } },
+        lead: { select: { leadNo: true, name: true, phone: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
   private buildWhere(input: { tenantId: string; status?: string; search?: string }) {
     const where: Record<string, unknown> = { tenantId: input.tenantId };
     if (input.status) where.status = input.status;

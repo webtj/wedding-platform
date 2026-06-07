@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { parseAsInteger, parseAsString, useQueryStates } from 'nuqs';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import { contractsQueryOptions } from '../../api/queries';
+import { exportContractsCsv } from '../../api/service';
 import type { Contract, ContractFilters } from '../../api/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -53,6 +54,26 @@ export function ContractsTable() {
     ...(params.status && { status: params.status })
   };
   const { data, isLoading } = useQuery(contractsQueryOptions(filters));
+  const [isExporting, setIsExporting] = useState(false);
+
+  async function handleExport() {
+    setIsExporting(true);
+    try {
+      const blob = await exportContractsCsv({ status: params.status, search: params.search });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `contracts-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export failed', err);
+    } finally {
+      setIsExporting(false);
+    }
+  }
 
   const totalPages = data ? Math.ceil(data.total / params.perPage) : 0;
 
@@ -87,6 +108,19 @@ export function ContractsTable() {
             ))}
           </SelectContent>
         </Select>
+        <div className='ml-auto'>
+          <Button
+            variant='outline'
+            size='sm'
+            className='h-9'
+            onClick={handleExport}
+            disabled={isExporting || !data || data.items.length === 0}
+            isLoading={isExporting}
+          >
+            <Icons.upload className='mr-1.5 h-4 w-4' />
+            导出 CSV
+          </Button>
+        </div>
       </div>
 
       {isLoading || !data ? (
