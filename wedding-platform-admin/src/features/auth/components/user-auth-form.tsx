@@ -4,10 +4,12 @@ import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { login, fetchMe, switchTenant } from '@/lib/auth/auth-client';
+import { login, switchTenant } from '@/lib/auth/auth-client';
+import { useAuth } from '@/lib/auth/use-auth';
 
 export default function UserAuthForm() {
   const router = useRouter();
+  const { revalidate } = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -28,7 +30,20 @@ export default function UserAuthForm() {
     setLoading(true);
     try {
       await login(identifier, password);
-      const me = await fetchMe();
+      // `login()` already cleared cachedMe + notified the auth context. We
+      // still need to AWAIT that re-bootstrap so that the redirect below
+      // lands on a page whose AuthGuard sees a fresh `isSignedIn: true`.
+      // Without this await, the React state in auth-context stays whatever
+      // it was when /auth/sign-in was first loaded (often `isSignedIn:
+      // false` from a prior failed bootstrap), and AuthGuard bounces the
+      // user back to /auth/sign-in. `revalidate()` returns the freshly
+      // fetched me so we can also drive the redirect from it (no more
+      // double-sourcing decisions between `me` and the React state).
+      const me = await revalidate();
+      if (!me) {
+        // /me failed; revalidate() already routed us to /auth/sign-in.
+        return;
+      }
 
       if (me.isPlatformAdmin) {
         router.replace('/admin/overview');

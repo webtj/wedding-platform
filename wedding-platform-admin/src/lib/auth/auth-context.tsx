@@ -12,7 +12,6 @@ import {
 import { useRouter } from 'next/navigation';
 import {
   fetchMe,
-  invalidateMe,
   logout,
   getCachedMe,
   switchTenant,
@@ -88,7 +87,7 @@ type AuthContextValue = AuthState & {
   signOut: () => Promise<void>;
   setActiveWorkspace: (workspaceId: string) => void;
   switchActiveWorkspace: (workspaceId: string) => Promise<void>;
-  revalidate: () => Promise<void>;
+  revalidate: () => Promise<CurrentUserResponse | null>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -218,15 +217,25 @@ export function ClerkProvider({
     return initialState;
   });
 
-  const bootstrap = useCallback(async () => {
+  // Single source of truth for "go fetch /me and apply it to React state".
+  // Returns the freshly fetched me on success, or null if /me failed (the
+  // state is reset and the user is bounced to /auth/sign-in in that case).
+  // Both `bootstrap` (initial mount) and `revalidate` (post-mutation) flow
+  // through this so callers can `await` and read the new me back.
+  const fetchAndApply = useCallback(async (): Promise<CurrentUserResponse | null> => {
     try {
       const me = await fetchMe();
       setState({ ...initialState, isLoaded: true, isSignedIn: true, ...buildState(me) });
+      return me;
     } catch {
       setState({ ...initialState, isLoaded: true });
       router.replace('/auth/sign-in');
+      return null;
     }
   }, [router]);
+
+  const bootstrap = useCallback(() => fetchAndApply(), [fetchAndApply]);
+  const revalidate = useCallback(() => fetchAndApply(), [fetchAndApply]);
 
   useEffect(() => {
     if (!state.isLoaded) {
@@ -321,11 +330,6 @@ export function ClerkProvider({
     },
     [state.me]
   );
-
-  const revalidate = useCallback(async () => {
-    invalidateMe();
-    await bootstrap();
-  }, [bootstrap]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

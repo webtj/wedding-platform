@@ -61,6 +61,15 @@ export async function login(identifier: string, password: string) {
   };
 
   setAccessToken(data.accessToken);
+  // The user has just transitioned to a new identity. Wipe the module-level
+  // `cachedMe` (could be the previous user's data) and notify the auth
+  // context so its React state — which AuthGuard reads to decide whether to
+  // bounce the user back to /auth/sign-in — is re-bootstrapped from the new
+  // access token. Without this, navigating to /studio/overview right after
+  // login lands on a page whose AuthGuard still sees `isSignedIn: false`
+  // from the previous (failed or stale) bootstrap.
+  invalidateMe();
+  notifyAuthMeInvalidated();
   return data;
 }
 
