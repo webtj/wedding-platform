@@ -155,10 +155,10 @@ export async function bookmarkImage(
 }
 
 export async function downloadGenerationImage(imageId: string): Promise<Blob> {
-  const token =
-    typeof window !== 'undefined' ? window.localStorage.getItem('wedding_access_token') : null;
+  const token = getAccessToken();
   const response = await fetch(`/api/ai/generation-images/${imageId}/download`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    credentials: 'include'
   });
   if (!response.ok) {
     throw new Error(`Download failed (${response.status})`);
@@ -167,10 +167,10 @@ export async function downloadGenerationImage(imageId: string): Promise<Blob> {
 }
 
 export async function downloadImage(id: string, index: number, filename: string): Promise<void> {
-  const token =
-    typeof window !== 'undefined' ? window.localStorage.getItem('wedding_access_token') : null;
+  const token = getAccessToken();
   const res = await fetch(`/api/ai/generations/${id}/download?index=${index}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    credentials: 'include'
   });
   if (!res.ok) {
     throw new Error(`下载失败 (${res.status})`);

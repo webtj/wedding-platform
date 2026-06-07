@@ -93,8 +93,26 @@ async function main() {
     console.log(`    删除 ${staleUserIds.length} 个非 seed 用户`);
   }
 
-  // Drop any role that is not one of the two built-ins (super_admin / planner) in any tenant
-  const builtInCodes = [BUILT_IN_ROLES.SUPER_ADMIN, BUILT_IN_ROLES.PLANNER];
+  // Drop any role that is not a built-in (planner) in any tenant
+  const builtInCodes = [BUILT_IN_ROLES.PLANNER];
+
+  // Clean up stale tenant memberships for platform admins (privacy boundary)
+  const platformAdminUserIds = await prisma.platformAdmin.findMany({
+    select: { userId: true }
+  });
+  if (platformAdminUserIds.length > 0) {
+    const paIds = platformAdminUserIds.map((pa) => pa.userId);
+    const orphanMembers = await prisma.tenantMember.findMany({
+      where: { userId: { in: paIds } },
+      select: { id: true }
+    });
+    if (orphanMembers.length > 0) {
+      await prisma.memberRole.deleteMany({ where: { memberId: { in: orphanMembers.map((m) => m.id) } } });
+      await prisma.tenantMember.deleteMany({ where: { id: { in: orphanMembers.map((m) => m.id) } } });
+      console.log(`    清理 ${orphanMembers.length} 个平台管理员的租户成员`);
+    }
+  }
+
   const staleRoles = await prisma.role.findMany({
     where: {
       code: { notIn: builtInCodes }
@@ -147,9 +165,9 @@ async function main() {
     RETURNING *`;
   const defaultTenant = defaultTenantRows[0];
 
-  // 3. Create tenant roles - super_admin (root) + planner (nature)
+  // 3. Create tenant roles - planner (nature)
   console.log('  👤 创建角色...');
-  const tenantRoleCodes = [BUILT_IN_ROLES.SUPER_ADMIN, BUILT_IN_ROLES.PLANNER] as const;
+  const tenantRoleCodes = [BUILT_IN_ROLES.PLANNER] as const;
   const tenantRoles = await Promise.all(
     tenantRoleCodes.map((roleCode) => {
       const label = BUILT_IN_ROLE_LABELS[roleCode];
@@ -177,15 +195,10 @@ async function main() {
   );
 
   // 5. Set role.permissionCodes as the single source of truth.
-  // Built-in super_admin gets all permissions; planner gets the standard set.
+  // Assign permissionCodes from BUILT_IN_ROLE_PERMISSIONS.
   console.log('  🔑 分配权限...');
-  const allRoles = [...tenantRoles];
-
-  for (const role of allRoles) {
-    const permissionCodes =
-      role.code === BUILT_IN_ROLES.SUPER_ADMIN
-        ? [...ALL_PERMISSION_CODES]
-        : BUILT_IN_ROLE_PERMISSIONS[role.code] ?? [];
+  for (const role of tenantRoles) {
+    const permissionCodes = BUILT_IN_ROLE_PERMISSIONS[role.code] ?? [];
     await prisma.role.update({
       where: { id: role.id },
       data: { permissionCodes }
@@ -195,7 +208,7 @@ async function main() {
   // 6. Create users - root (super admin) and nature (planner)
   console.log('  👥 创建用户...');
   // Seed accounts (passwords read from env vars SEED_ROOT_PASSWORD / SEED_NATURE_PASSWORD):
-  //   root    → platform admin + tenant super_admin
+  //   root    → platform super admin (no tenant membership, privacy boundary)
   //   nature  → tenant planner
   const rootUser = await upsertPasswordUser({
     identifier: 'root',
@@ -214,41 +227,8 @@ async function main() {
   });
   console.log('  ✅ 平台管理员已创建');
 
-  // Also give the platform admin a tenant membership so they can be scoped
-  // to a real tenant via the switch-tenant flow (e.g. for tenant-scoped QA).
-  const rootMember = await prisma.tenantMember.upsert({
-    where: {
-      tenantId_userId: {
-        tenantId: defaultTenant.id,
-        userId: rootUser.id
-      }
-    },
-    update: { status: 'active' },
-    create: {
-      tenantId: defaultTenant.id,
-      userId: rootUser.id,
-      displayName: '超级管理员'
-    }
-  });
-
-  // Grant super_admin role in the default tenant so the platform admin
-  // gets full permissions after switching context.
-  const superAdminRole = tenantRoles.find((role) => role.code === BUILT_IN_ROLES.SUPER_ADMIN);
-  if (superAdminRole) {
-    await prisma.memberRole.upsert({
-      where: {
-        memberId_roleId: {
-          memberId: rootMember.id,
-          roleId: superAdminRole.id
-        }
-      },
-      update: {},
-      create: {
-        memberId: rootMember.id,
-        roleId: superAdminRole.id
-      }
-    });
-  }
+  // root is platform-only (PlatformAdmin, level=super). No tenant membership —
+  // the privacy boundary prevents platform admins from accessing tenant data.
 
   const natureUser = await upsertPasswordUser({
     identifier: 'nature',

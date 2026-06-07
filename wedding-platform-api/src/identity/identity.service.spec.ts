@@ -545,8 +545,8 @@ describe('IdentityService', () => {
       expect(dto).toEqual({ tenantId: 't1', refreshToken: 'rt' });
     });
 
-    it('rejects a body without refreshToken (security: must force client to send old token for revoke)', () => {
-      expect(() => switchTenantDtoSchema.parse({ tenantId: 't1' })).toThrow();
+    it('accepts a body without refreshToken (controller reads from httpOnly cookie)', () => {
+      expect(() => switchTenantDtoSchema.parse({ tenantId: 't1' })).not.toThrow();
     });
 
     it('rejects a body with an empty refreshToken', () => {

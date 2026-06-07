@@ -1,7 +1,6 @@
 import {
   getAccessToken,
-  getRefreshToken,
-  saveTokens,
+  setAccessToken,
   clearTokens,
   clearActiveTenantId
 } from './auth-storage';
@@ -14,12 +13,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers.set('authorization', `Bearer ${accessToken}`);
   }
 
-  let res = await fetch(path, { ...init, headers });
+  let res = await fetch(path, { ...init, headers, credentials: 'include' });
 
-  if (res.status === 401 && getRefreshToken()) {
+  if (res.status === 401) {
     const nextToken = await refreshAccessToken();
     headers.set('authorization', `Bearer ${nextToken}`);
-    res = await fetch(path, { ...init, headers });
+    res = await fetch(path, { ...init, headers, credentials: 'include' });
   }
 
   if (!res.ok) {
@@ -31,27 +30,25 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export async function refreshAccessToken(): Promise<string> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) throw new Error('缺少刷新令牌');
-
-  const res = await fetch(`/api/identity/refresh`, {
+  const res = await fetch('/api/identity/refresh', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ refreshToken })
+    credentials: 'include'
   });
 
   if (!res.ok) throw new Error('登录已过期，请重新登录');
 
-  const tokens = (await res.json()) as { accessToken: string; refreshToken: string };
-  saveTokens(tokens);
-  return tokens.accessToken;
+  const data = (await res.json()) as { accessToken: string };
+  setAccessToken(data.accessToken);
+  return data.accessToken;
 }
 
 export async function login(identifier: string, password: string) {
-  const res = await fetch(`/api/identity/login`, {
+  const res = await fetch('/api/identity/login', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ identifier, password })
+    body: JSON.stringify({ identifier, password }),
+    credentials: 'include'
   });
 
   if (!res.ok) {
@@ -60,17 +57,15 @@ export async function login(identifier: string, password: string) {
 
   const data = (await res.json()) as {
     accessToken: string;
-    refreshToken: string;
     user: { id: string; displayName: string };
   };
 
-  saveTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken });
+  setAccessToken(data.accessToken);
   return data;
 }
 
 export type SwitchTenantResponse = {
   accessToken: string;
-  refreshToken: string;
   user: { id: string; displayName: string };
   activeTenant: { id: string; name: string; address?: string | null } | null;
   permissions: string[];
@@ -78,21 +73,16 @@ export type SwitchTenantResponse = {
   platformLevel: 'super' | 'admin' | null;
 };
 
-/**
- * Switch the active tenant context.
- * Returns a fresh access/refresh token pair scoped to the target tenant.
- * The previous refresh token is revoked server-side.
- */
 export async function switchTenant(tenantId: string): Promise<SwitchTenantResponse> {
-  const refreshToken = getRefreshToken();
   const accessToken = getAccessToken();
-  const res = await fetch(`/api/identity/switch-tenant`, {
+  const res = await fetch('/api/identity/switch-tenant', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
       ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {})
     },
-    body: JSON.stringify({ tenantId, refreshToken })
+    body: JSON.stringify({ tenantId }),
+    credentials: 'include'
   });
 
   if (!res.ok) {
@@ -101,7 +91,7 @@ export async function switchTenant(tenantId: string): Promise<SwitchTenantRespon
   }
 
   const data = (await res.json()) as SwitchTenantResponse;
-  saveTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken });
+  setAccessToken(data.accessToken);
   invalidateMe();
   return data;
 }
@@ -145,13 +135,6 @@ export function notifyAuthMeInvalidated() {
   window.dispatchEvent(new Event(AUTH_ME_INVALIDATED_EVENT));
 }
 
-/**
- * Notify subscribers that the current auth session has fully ended
- * (logout, manual reset). Distinct from `notifyAuthMeInvalidated`, which
- * signals "I changed something — re-fetch me with the same session". A
- * session-ended event triggers a hard reset to the signed-out state and
- * never re-bootstraps (otherwise the cleared tokens would 401).
- */
 export function notifyAuthSessionEnded() {
   if (typeof window === 'undefined') {
     return;
@@ -164,14 +147,11 @@ export { AUTH_ME_INVALIDATED_EVENT, AUTH_SESSION_ENDED_EVENT };
 
 export async function logout() {
   invalidateMe();
-  const refreshToken = getRefreshToken();
-  if (refreshToken) {
-    await fetch(`/api/identity/logout`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ refreshToken })
-    }).catch(() => {});
-  }
+  await fetch('/api/identity/logout', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    credentials: 'include'
+  }).catch(() => {});
   clearTokens();
   clearActiveTenantId();
   notifyAuthSessionEnded();

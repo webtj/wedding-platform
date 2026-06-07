@@ -18,11 +18,10 @@ export const switchTenantDtoSchema = z.object({
    */
   tenantId: z.string().min(1),
   /**
-   * Caller's previous refresh token. Required: switching tenant issues a new
-   * token pair AND revokes the old session so a stale (potentially null-tenant)
-   * JWT cannot be replayed. Forcing it through Zod prevents clients from
-   * skipping the revoke and silently leaving the old session alive.
+   * Caller's previous refresh token. Optional when using httpOnly cookie
+   * auth (the controller reads from the cookie as a fallback). Accepted
+   * for backward compatibility with body-based clients.
    */
-  refreshToken: z.string().min(1)
+  refreshToken: z.string().min(1).optional()
 });
 export type SwitchTenantDto = z.infer<typeof switchTenantDtoSchema>;

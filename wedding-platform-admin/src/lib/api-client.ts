@@ -1,4 +1,4 @@
-import { getRefreshToken, clearTokens } from '@/lib/auth/auth-storage';
+import { getAccessToken, setAccessToken, clearTokens } from '@/lib/auth/auth-storage';
 import { getErrorMessage, shouldToastError, type ApiErrorResponse } from '@/lib/error-codes';
 
 function getBaseUrl(): string {
@@ -7,23 +7,19 @@ function getBaseUrl(): string {
 }
 
 function getToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return window.localStorage.getItem('wedding_access_token');
+  return getAccessToken();
 }
 
 async function tryRefreshToken(): Promise<string | null> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return null;
   try {
     const res = await fetch('/api/identity/refresh', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ refreshToken })
+      credentials: 'include'
     });
     if (!res.ok) return null;
-    const data = (await res.json()) as { accessToken: string; refreshToken: string };
-    window.localStorage.setItem('wedding_access_token', data.accessToken);
-    window.localStorage.setItem('wedding_refresh_token', data.refreshToken);
+    const data = (await res.json()) as { accessToken: string };
+    setAccessToken(data.accessToken);
     return data.accessToken;
   } catch {
     return null;
@@ -55,8 +51,6 @@ async function parseErrorBody(res: Response): Promise<Partial<ApiErrorResponse>>
 export async function apiClient<T>(endpoint: string, options?: RequestInit & { silent?: boolean }): Promise<T> {
   const silent = options?.silent ?? false;
   const headers = new Headers(options?.headers);
-  // Allow callers to opt out of the default JSON content-type (e.g. for FormData uploads)
-  // by explicitly passing a Content-Type header set to a falsy value.
   const rawHeaders = options?.headers as Record<string, string> | undefined;
   const skipDefaultContentType = rawHeaders && 'Content-Type' in rawHeaders && !rawHeaders['Content-Type'];
   if (skipDefaultContentType) {
@@ -71,7 +65,8 @@ export async function apiClient<T>(endpoint: string, options?: RequestInit & { s
 
   let res = await fetch(`${getBaseUrl()}${endpoint}`, {
     ...options,
-    headers
+    headers,
+    credentials: 'include'
   });
 
   if (res.status === 401 && typeof window !== 'undefined') {
@@ -80,7 +75,8 @@ export async function apiClient<T>(endpoint: string, options?: RequestInit & { s
       headers.set('Authorization', `Bearer ${token}`);
       res = await fetch(`${getBaseUrl()}${endpoint}`, {
         ...options,
-        headers
+        headers,
+        credentials: 'include'
       });
     }
   }
@@ -96,10 +92,6 @@ export async function apiClient<T>(endpoint: string, options?: RequestInit & { s
     }
 
     if (res.status === 403 && typeof window !== 'undefined') {
-      // The 403 is also caught by QueryClient's mutationCache.onError (see
-      // lib/query-client.ts), so this dispatch is a fallback for non-React
-      // callers (route handlers, scripts, manual fetch in tests). It is safe
-      // to fire twice — the ForbiddenProvider dedupes by payload.
       const details = body.details as
         | { requiredPermissions?: string[]; resource?: string }
         | undefined;

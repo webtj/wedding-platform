@@ -91,15 +91,7 @@ export class IdentityService {
                 tenant: true,
                 roles: {
                   include: {
-                    role: {
-                      include: {
-                        permissions: {
-                          include: {
-                            permission: true
-                          }
-                        }
-                      }
-                    }
+                    role: true
                   }
                 }
               }
@@ -182,13 +174,7 @@ export class IdentityService {
                 tenant: true,
                 roles: {
                   include: {
-                    role: {
-                      include: {
-                        permissions: {
-                          include: { permission: true }
-                        }
-                      }
-                    }
+                    role: true
                   }
                 }
               }
@@ -274,6 +260,9 @@ export class IdentityService {
     // evicted, etc.) could keep re-using a snapshot of the old refresh token
     // to issue new pairs.
     const previousRefreshToken = input.refreshToken;
+    if (!previousRefreshToken) {
+      throw new BusinessException('AUTH_REFRESH_FAILED', '缺少刷新令牌', 401);
+    }
     {
       const tokenHash = this.tokenService.hashRefreshToken(previousRefreshToken);
       const previousSession = await this.prisma.refreshSession.findUnique({
@@ -316,10 +305,8 @@ export class IdentityService {
     const member = user.tenantMembers[0];
 
     // Privacy boundary: platform admins are sandboxed to /admin/*. They MUST
-    // NOT be able to issue tenant-scoped JWTs, even if they happen to also be
-    // a member of a tenant (the seed makes the super admin a super_admin of
-    // demo-tenant for support purposes, but the privacy contract is that they
-    // can never authenticate as that member in this app). Their console for
+    // NOT be able to issue tenant-scoped JWTs. Platform admins have no tenant
+    // memberships (the seed ensures root is platform-only). Their console for
     // tenant operations is at /admin/* and they go through the platform APIs
     // there, not switch-tenant.
     if (isPlatformAdmin) {
@@ -419,9 +406,6 @@ export class IdentityService {
                           include: { children: { orderBy: { sortOrder: 'asc' } } }
                         }
                       }
-                    },
-                    permissions: {
-                      include: { permission: true }
                     }
                   }
                 }
