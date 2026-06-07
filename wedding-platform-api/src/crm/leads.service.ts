@@ -5,6 +5,7 @@ import { AuditService } from '../audit/audit.service';
 import { AppError } from '../common/errors/app-error';
 import { parseDateOnly } from '../common/parse-date';
 import { PrismaService } from '../prisma/prisma.service';
+import { generateContractNo } from '../contracts/contract-no.util';
 import type { ConvertLeadDto, CreateLeadDto, CreateLeadFollowupDto, UpdateLeadDto } from './dto';
 
 @Injectable()
@@ -192,10 +193,7 @@ export class LeadsService {
 
     const signToken = randomBytes(32).toString('hex');
     const signTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    const now = new Date();
-    const datePart = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-    const randomPart = Array.from({ length: 8 }, () => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[Math.floor(Math.random() * 36)]).join('');
-    const contractNo = input.data.contractNo || `HT-${randomPart}-${datePart}`;
+    const contractNo = generateContractNo(input.data.contractNo);
 
     const result = await this.prisma.$transaction(async (tx) => {
       const contract = await tx.contract.create({

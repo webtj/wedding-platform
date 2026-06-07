@@ -31,6 +31,24 @@ describe('ContractsService', () => {
     });
   });
 
+  it('auto-generates a contractNo when caller omits it', async () => {
+    const prisma = { contract: { create: vi.fn().mockResolvedValue({ id: 'contract_2' }) } };
+    const audit = { record: vi.fn().mockResolvedValue({}) };
+    const service = new ContractsService(prisma as never, audit as never);
+
+    await service.create({
+      tenantId: 'tenant_1',
+      userId: 'user_1',
+      projectId: 'project_1',
+      data: {
+        title: '无合同号合同'
+      }
+    });
+
+    const call = prisma.contract.create.mock.calls[0]![0] as { data: { contractNo: string } };
+    expect(call.data.contractNo).toMatch(/^HT-[A-Z0-9]{8}-\d{8}$/);
+  });
+
   describe('list', () => {
     it('queries contracts scoped by tenant and project, ordered by createdAt desc', async () => {
       const prisma = { contract: { findMany: vi.fn().mockResolvedValue([]) } };

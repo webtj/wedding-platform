@@ -4,6 +4,7 @@ import { ContractStatus } from '@prisma/client';
 import { AppError } from '../common/errors/app-error';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { generateContractNo } from './contract-no.util';
 import type { CreateContractDto, UpdateContractDto } from './dto';
 
 @Injectable()
@@ -84,7 +85,7 @@ export class ContractsService {
       data: {
         tenantId: input.tenantId,
         projectId: input.projectId,
-        contractNo: input.data.contractNo,
+        contractNo: generateContractNo(input.data.contractNo),
         title: input.data.title,
         brideName: input.data.brideName,
         groomName: input.data.groomName,
