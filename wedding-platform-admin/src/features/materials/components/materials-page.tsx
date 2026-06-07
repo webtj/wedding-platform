@@ -25,6 +25,7 @@ import type { Material, MaterialCategory } from '../api/types';
 import { CategoryCard } from './category-card';
 import { CategoryDialog } from './category-dialog';
 import { MatDialog } from './mat-dialog';
+import { MaterialsStats } from './materials-stats';
 
 function useDebounced<T>(value: T, ms = 300): T {
   const [debounced, setDebounced] = useState(value);
@@ -54,6 +55,7 @@ export function MaterialsPage() {
 
   return (
     <div className='space-y-3'>
+      <MaterialsStats categories={categories} />
       <div className='flex items-center gap-3'>
         <Button size='sm' variant='outline' onClick={() => setAllExpanded(!allExpanded)}>
           {allExpanded ? (
