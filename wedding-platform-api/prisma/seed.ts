@@ -382,30 +382,151 @@ async function main() {
   console.log('  📦 创建素材管理...');
 
   const materialTypeData = [
-    { name: '誓言卡', code: 'vow_card', icon: '💍', defaultSize: { width: 120, height: 170 } },
-    { name: '餐卡', code: 'table_card', icon: '🍽️', defaultSize: { width: 100, height: 150 } },
-    { name: '手卡', code: 'hand_card', icon: '🤚', defaultSize: { width: 90, height: 140 } },
-    { name: '桌卡', code: 'place_card', icon: '🏷️', defaultSize: { width: 100, height: 150 } },
-    { name: '照片墙', code: 'photo_wall', icon: '🖼️', defaultSize: { width: 600, height: 900 } },
-    { name: '贴纸', code: 'sticker', icon: '✨', defaultSize: { width: 50, height: 50 } },
-    { name: '桌布', code: 'tablecloth', icon: '🧵', defaultSize: { width: 1800, height: 1800 } },
-    { name: '扇子封面', code: 'fan_cover', icon: '🪭', defaultSize: { width: 200, height: 300 } },
-    { name: '签到本', code: 'guestbook', icon: '📖', defaultSize: { width: 200, height: 200 } },
-    { name: '喜糖盒', code: 'candy_box', icon: '🍬', defaultSize: { width: 80, height: 80 } },
-    { name: '请柬', code: 'invitation', icon: '💌', defaultSize: { width: 180, height: 120 } },
-    { name: '桌号牌', code: 'table_number', icon: '🔢', defaultSize: { width: 100, height: 150 } }
+    {
+      name: '誓言卡',
+      code: 'vow_card',
+      icon: '💍',
+      defaultSize: { width: 120, height: 170 },
+      sizes: [
+        { width: 120, height: 170 },
+        { width: 100, height: 150 },
+        { width: 148, height: 210 }
+      ]
+    },
+    {
+      name: '餐卡',
+      code: 'table_card',
+      icon: '🍽️',
+      defaultSize: { width: 100, height: 150 },
+      sizes: [
+        { width: 100, height: 150 },
+        { width: 120, height: 170 },
+        { width: 90, height: 120 }
+      ]
+    },
+    {
+      name: '手卡',
+      code: 'hand_card',
+      icon: '🤚',
+      defaultSize: { width: 90, height: 140 },
+      sizes: [
+        { width: 90, height: 140 },
+        { width: 100, height: 150 },
+        { width: 80, height: 120 }
+      ]
+    },
+    {
+      name: '桌卡',
+      code: 'place_card',
+      icon: '🏷️',
+      defaultSize: { width: 100, height: 150 },
+      sizes: [
+        { width: 100, height: 150 },
+        { width: 120, height: 170 },
+        { width: 80, height: 120 }
+      ]
+    },
+    {
+      name: '照片墙',
+      code: 'photo_wall',
+      icon: '🖼️',
+      defaultSize: { width: 600, height: 900 },
+      sizes: [
+        { width: 600, height: 900 },
+        { width: 800, height: 1200 },
+        { width: 500, height: 750 }
+      ]
+    },
+    {
+      name: '贴纸',
+      code: 'sticker',
+      icon: '✨',
+      defaultSize: { width: 50, height: 50 },
+      sizes: [
+        { width: 50, height: 50 },
+        { width: 80, height: 80 },
+        { width: 100, height: 100 }
+      ]
+    },
+    {
+      name: '桌布',
+      code: 'tablecloth',
+      icon: '🧵',
+      defaultSize: { width: 1800, height: 1800 },
+      sizes: [
+        { width: 1800, height: 1800 },
+        { width: 2400, height: 2400 },
+        { width: 1500, height: 1500 }
+      ]
+    },
+    {
+      name: '扇子封面',
+      code: 'fan_cover',
+      icon: '🪭',
+      defaultSize: { width: 200, height: 300 },
+      sizes: [
+        { width: 200, height: 300 },
+        { width: 250, height: 350 },
+        { width: 180, height: 250 }
+      ]
+    },
+    {
+      name: '签到本',
+      code: 'guestbook',
+      icon: '📖',
+      defaultSize: { width: 200, height: 200 },
+      sizes: [
+        { width: 200, height: 200 },
+        { width: 250, height: 300 },
+        { width: 210, height: 297 }
+      ]
+    },
+    {
+      name: '喜糖盒',
+      code: 'candy_box',
+      icon: '🍬',
+      defaultSize: { width: 80, height: 80 },
+      sizes: [
+        { width: 80, height: 80 },
+        { width: 100, height: 100 },
+        { width: 60, height: 60 }
+      ]
+    },
+    {
+      name: '请柬',
+      code: 'invitation',
+      icon: '💌',
+      defaultSize: { width: 180, height: 120 },
+      sizes: [
+        { width: 180, height: 120 },
+        { width: 148, height: 210 },
+        { width: 200, height: 280 }
+      ]
+    },
+    {
+      name: '桌号牌',
+      code: 'table_number',
+      icon: '🔢',
+      defaultSize: { width: 100, height: 150 },
+      sizes: [
+        { width: 100, height: 150 },
+        { width: 120, height: 170 },
+        { width: 80, height: 120 }
+      ]
+    }
   ];
 
   for (const mt of materialTypeData) {
     await prisma.materialType.upsert({
       where: { tenantId_code: { tenantId: defaultTenant.id, code: mt.code } },
-      update: { name: mt.name, icon: mt.icon, defaultSize: mt.defaultSize, isSystem: true },
+      update: { name: mt.name, icon: mt.icon, defaultSize: mt.defaultSize, sizes: mt.sizes, isSystem: true },
       create: {
         tenantId: defaultTenant.id,
         name: mt.name,
         code: mt.code,
         icon: mt.icon,
         defaultSize: mt.defaultSize,
+        sizes: mt.sizes,
         isSystem: true
       }
     });

@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
@@ -59,16 +60,13 @@ function Chip({
   );
 }
 
-// Common preset sizes (mm) for material design
-const PRESET_SIZES = [
-  { label: '迎宾牌', w: 600, h: 900 },
-  { label: '誓言卡', w: 120, h: 170 },
-  { label: '餐卡 / 桌卡', w: 100, h: 150 },
-  { label: '手卡', w: 90, h: 140 },
-  { label: '指示牌', w: 200, h: 300 },
-  { label: '照片墙', w: 800, h: 1200 },
-  { label: '社媒方图', w: 1024, h: 1024 },
-  { label: '竖版海报', w: 1080, h: 1920 }
+// Common preset sizes (mm) used as fallback when a selected 素材 has no sizes[]
+const FALLBACK_SIZES: { width: number; height: number }[] = [
+  { width: 1024, height: 1024 },
+  { width: 1080, height: 1920 },
+  { width: 800, height: 1200 },
+  { width: 148, height: 210 },
+  { width: 210, height: 297 }
 ];
 
 export function ComposerChips({
@@ -95,10 +93,23 @@ export function ComposerChips({
         }))
       : QUICK_PROMPTS.map((prompt) => ({ key: prompt, label: prompt, prompt }));
 
+  const presetSizes =
+    selectedType?.sizes && selectedType.sizes.length > 0
+      ? selectedType.sizes
+      : selectedType?.defaultSize
+        ? [selectedType.defaultSize]
+        : FALLBACK_SIZES;
+  const presetSourceLabel =
+    selectedType?.sizes && selectedType.sizes.length > 0
+      ? `${selectedType.name} 预设尺寸`
+      : selectedType?.defaultSize
+        ? `${selectedType.name} 默认尺寸`
+        : '通用尺寸';
+
   return (
     <div className='flex flex-wrap gap-1.5'>
-      <Chip label='物料' value={selectedType?.name ?? '选择'} active={!!selectedType}>
-        <p className='text-muted-foreground mb-2 text-xs'>选择物料类型</p>
+      <Chip label='素材' value={selectedType?.name ?? '选择'} active={!!selectedType}>
+        <p className='text-muted-foreground mb-2 text-xs'>选择素材类型</p>
         <ScrollArea className='max-h-56'>
           <div className='grid grid-cols-3 gap-1.5'>
             {materialTypes.map((m) => (
@@ -126,28 +137,37 @@ export function ComposerChips({
         </ScrollArea>
       </Chip>
 
-      <Chip label='比例' value={`${size.width}×${size.height}`} active>
-        <p className='text-muted-foreground mb-2 text-xs'>常用婚礼物料尺寸</p>
-        <div className='grid grid-cols-2 gap-1.5'>
-          {PRESET_SIZES.map((s) => {
-            const isActive = s.w === size.width && s.h === size.height;
+      <Chip label='尺寸' value={`${size.width}×${size.height}`} active>
+        <p className='text-muted-foreground mb-2 text-xs'>{presetSourceLabel}</p>
+        <div className='grid grid-cols-3 gap-1.5'>
+          {presetSizes.map((s, i) => {
+            const isActive = s.width === size.width && s.height === size.height;
             return (
               <button
-                key={s.label}
+                key={`${s.width}x${s.height}-${i}`}
                 type='button'
-                onClick={() => onChangeSize({ width: s.w, height: s.h })}
+                onClick={() => onChangeSize({ width: s.width, height: s.height })}
                 className={cn(
-                  'flex items-center justify-between rounded-md px-2.5 py-2 text-xs transition-colors',
-                  isActive ? 'bg-primary/10 text-primary' : 'hover:bg-accent'
+                  'flex items-center justify-center rounded-md border px-2.5 py-2 text-xs transition-colors',
+                  isActive
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border hover:bg-accent'
                 )}
               >
-                <span>{s.label}</span>
-                <span className='text-muted-foreground font-mono text-[10px]'>
-                  {s.w}×{s.h}
+                <span className='font-mono'>
+                  {s.width}×{s.height}
                 </span>
               </button>
             );
           })}
+        </div>
+        <div className='mt-2 border-t pt-2'>
+          <p className='text-muted-foreground mb-1.5 text-xs'>自定义尺寸 (mm)</p>
+          <CustomSizeInput
+            width={size.width}
+            height={size.height}
+            onApply={onChangeSize}
+          />
         </div>
       </Chip>
 
@@ -219,6 +239,74 @@ export function ComposerChips({
           ))}
         </div>
       </Chip>
+    </div>
+  );
+}
+
+function CustomSizeInput({
+  width,
+  height,
+  onApply
+}: {
+  width: number;
+  height: number;
+  onApply: (size: { width: number; height: number }) => void;
+}) {
+  const [w, setW] = useState(String(width));
+  const [h, setH] = useState(String(height));
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setW(String(width));
+    setH(String(height));
+  }, [width, height]);
+
+  const handleApply = () => {
+    const wn = Number(w);
+    const hn = Number(h);
+    if (!Number.isFinite(wn) || !Number.isFinite(hn) || wn <= 0 || hn <= 0) {
+      setError('请输入正数');
+      return;
+    }
+    if (wn > 10000 || hn > 10000) {
+      setError('最大 10000mm');
+      return;
+    }
+    setError(null);
+    onApply({ width: Math.round(wn), height: Math.round(hn) });
+  };
+
+  return (
+    <div className='space-y-1.5'>
+      <div className='flex items-center gap-1.5'>
+        <input
+          type='number'
+          min={1}
+          max={10000}
+          value={w}
+          onChange={(e) => setW(e.target.value)}
+          aria-label='自定义宽度 (mm)'
+          className='border-input bg-background h-7 w-full rounded-md border px-2 text-xs'
+        />
+        <span className='text-muted-foreground text-xs'>×</span>
+        <input
+          type='number'
+          min={1}
+          max={10000}
+          value={h}
+          onChange={(e) => setH(e.target.value)}
+          aria-label='自定义高度 (mm)'
+          className='border-input bg-background h-7 w-full rounded-md border px-2 text-xs'
+        />
+        <button
+          type='button'
+          onClick={handleApply}
+          className='bg-primary text-primary-foreground hover:bg-primary/90 h-7 rounded-md px-2.5 text-xs font-medium'
+        >
+          应用
+        </button>
+      </div>
+      {error && <p className='text-destructive text-[11px]'>{error}</p>}
     </div>
   );
 }

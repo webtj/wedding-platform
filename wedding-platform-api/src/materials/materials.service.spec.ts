@@ -54,7 +54,12 @@ describe('MaterialsService', () => {
       expect(result).toEqual([{ id: 'c1', name: 'Floral' }]);
       expect(prisma.materialCategory.findMany).toHaveBeenCalledWith({
         where: { tenantId: 't1' },
-        orderBy: { sortOrder: 'asc' }
+        orderBy: { sortOrder: 'asc' },
+        include: {
+          materials: {
+            orderBy: { sortOrder: 'asc' }
+          }
+        }
       });
     });
   });

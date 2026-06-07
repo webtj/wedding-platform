@@ -16,6 +16,7 @@ export interface MaterialType {
   code: string;
   icon: string | null;
   defaultSize: { width: number; height: number } | null;
+  sizes: { width: number; height: number }[] | null;
   isSystem: boolean;
 }
 
