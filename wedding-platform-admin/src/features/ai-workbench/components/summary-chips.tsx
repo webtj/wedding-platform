@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Icons } from '@/components/icons';
 import { cn } from '@/lib/utils';
@@ -37,52 +37,63 @@ const FALLBACK_SIZES: { width: number; height: number }[] = [
 function SummaryChip({
   label,
   value,
-  showReset,
-  onReset,
   children
 }: {
   label: string;
   value: string;
-  showReset?: boolean;
-  onReset?: () => void;
-  children: React.ReactNode;
+  children: (close: () => void) => React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <div className='group inline-flex items-center'>
-        <PopoverTrigger asChild>
-          <button
-            type='button'
-            className={cn(
-              'inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs transition-colors',
-              'border-border bg-muted/40 text-muted-foreground hover:border-primary hover:text-primary'
-            )}
-          >
-            <span className='font-medium text-muted-foreground/70'>{label}</span>
-            <span className='font-medium text-foreground'>{value}</span>
-            <Icons.chevronDown className='size-3 text-muted-foreground/50' />
-          </button>
-        </PopoverTrigger>
-        {showReset && onReset && (
-          <button
-            type='button'
-            onClick={(e) => {
-              e.stopPropagation();
-              onReset();
-            }}
-            className='ml-0.5 flex size-5 items-center justify-center rounded-full text-muted-foreground/0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:text-muted-foreground/50'
-            title='重置'
-          >
-            <Icons.close className='size-3' />
-          </button>
-        )}
-      </div>
+      <PopoverTrigger asChild>
+        <button
+          type='button'
+          className={cn(
+            'inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs transition-colors',
+            'border-border bg-muted/40 text-muted-foreground hover:border-primary hover:text-primary'
+          )}
+        >
+          <span className='font-medium text-muted-foreground/70'>{label}</span>
+          <span className='font-medium text-foreground'>{value}</span>
+          <Icons.chevronDown className='size-3 text-muted-foreground/50' />
+        </button>
+      </PopoverTrigger>
       <PopoverContent align='start' side='top' className='w-80 p-3'>
-        {children}
+        {children(close)}
       </PopoverContent>
     </Popover>
+  );
+}
+
+// ── Picker Header (title + inline reset) ────────────────────────────────────
+
+function PickerHeader({
+  title,
+  showReset,
+  onReset
+}: {
+  title: string;
+  showReset?: boolean;
+  onReset?: () => void;
+}) {
+  return (
+    <div className='mb-2 flex items-center justify-between gap-2'>
+      <p className='text-muted-foreground text-xs'>{title}</p>
+      {showReset && onReset && (
+        <button
+          type='button'
+          onClick={onReset}
+          className='text-muted-foreground hover:text-destructive inline-flex items-center gap-0.5 text-xs transition-colors'
+          title='重置为默认'
+        >
+          <Icons.refresh className='size-3' />
+          重置默认
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -91,15 +102,21 @@ function SummaryChip({
 function MaterialPicker({
   materialTypes,
   selectedTypeId,
-  onSelect
+  onSelect,
+  showReset,
+  onReset,
+  close
 }: {
   materialTypes: MaterialType[];
   selectedTypeId: string | null;
   onSelect: (m: MaterialType) => void;
+  showReset?: boolean;
+  onReset?: () => void;
+  close: () => void;
 }) {
   return (
     <div>
-      <p className='text-muted-foreground mb-2 text-xs'>选择素材类型</p>
+      <PickerHeader title='选择素材类型' showReset={showReset} onReset={onReset} />
       <div className='max-h-56 overflow-y-auto'>
         <div className='grid grid-cols-4 gap-1.5'>
           {materialTypes.map((m) => {
@@ -108,7 +125,10 @@ function MaterialPicker({
               <button
                 key={m.id}
                 type='button'
-                onClick={() => onSelect(m)}
+                onClick={() => {
+                  onSelect(m);
+                  close();
+                }}
                 className={cn(
                   'flex flex-col items-center gap-0.5 rounded-lg border p-2 text-center transition-colors',
                   m.id === selectedTypeId
@@ -132,11 +152,17 @@ function MaterialPicker({
 function SizePicker({
   size,
   selectedType,
-  onChange
+  onChange,
+  showReset,
+  onReset,
+  close
 }: {
   size: { width: number; height: number };
   selectedType?: MaterialType | null;
   onChange: (size: { width: number; height: number }) => void;
+  showReset?: boolean;
+  onReset?: () => void;
+  close: () => void;
 }) {
   const presetSizes =
     selectedType?.sizes && selectedType.sizes.length > 0
@@ -154,7 +180,7 @@ function SizePicker({
 
   return (
     <div>
-      <p className='text-muted-foreground mb-2 text-xs'>{presetLabel}</p>
+      <PickerHeader title={presetLabel} showReset={showReset} onReset={onReset} />
       <div className='grid grid-cols-3 gap-1.5'>
         {presetSizes.map((s, i) => {
           const isActive = s.width === size.width && s.height === size.height;
@@ -162,7 +188,10 @@ function SizePicker({
             <button
               key={`${s.width}x${s.height}-${i}`}
               type='button'
-              onClick={() => onChange({ width: s.width, height: s.height })}
+              onClick={() => {
+                onChange({ width: s.width, height: s.height });
+                close();
+              }}
               className={cn(
                 'flex items-center justify-center rounded-md border px-2.5 py-2 text-xs transition-colors',
                 isActive
@@ -170,14 +199,23 @@ function SizePicker({
                   : 'border-border hover:bg-accent'
               )}
             >
-              <span className='font-mono'>{s.width}×{s.height}</span>
+              <span className='font-mono'>
+                {s.width}×{s.height}
+              </span>
             </button>
           );
         })}
       </div>
       <div className='mt-2 border-t pt-2'>
         <p className='text-muted-foreground mb-1.5 text-xs'>自定义尺寸 (mm)</p>
-        <CustomSizeInput width={size.width} height={size.height} onApply={onChange} />
+        <CustomSizeInput
+          width={size.width}
+          height={size.height}
+          onApply={(newSize) => {
+            onChange(newSize);
+            close();
+          }}
+        />
       </div>
     </div>
   );
@@ -187,14 +225,20 @@ function SizePicker({
 
 function StylePicker({
   currentStyle,
-  onChange
+  onChange,
+  showReset,
+  onReset,
+  close
 }: {
   currentStyle: string;
   onChange: (style: string) => void;
+  showReset?: boolean;
+  onReset?: () => void;
+  close: () => void;
 }) {
   return (
     <div>
-      <p className='text-muted-foreground mb-2 text-xs'>选择视觉风格</p>
+      <PickerHeader title='选择视觉风格' showReset={showReset} onReset={onReset} />
       <div className='grid grid-cols-4 gap-2'>
         {STYLES.map((s) => {
           const preview = STYLE_PREVIEWS[s.id];
@@ -202,7 +246,10 @@ function StylePicker({
             <button
               key={s.id}
               type='button'
-              onClick={() => onChange(s.id)}
+              onClick={() => {
+                onChange(s.id);
+                close();
+              }}
               className={cn(
                 'rounded-lg border p-1.5 text-left transition-colors',
                 s.id === currentStyle
@@ -230,20 +277,25 @@ function StylePicker({
 
 function CountPicker({
   currentCount,
-  onChange
+  onChange,
+  close
 }: {
   currentCount: number;
   onChange: (count: number) => void;
+  close: () => void;
 }) {
   return (
     <div>
-      <p className='text-muted-foreground mb-2 text-xs'>生成数量</p>
+      <PickerHeader title='生成数量' />
       <div className='grid grid-cols-4 gap-1.5'>
         {COUNT_OPTIONS.map((n) => (
           <button
             key={n}
             type='button'
-            onClick={() => onChange(n)}
+            onClick={() => {
+              onChange(n);
+              close();
+            }}
             className={cn(
               'rounded-lg border py-2 text-center text-xs font-medium transition-colors',
               n === currentCount
@@ -342,51 +394,65 @@ export function SummaryChips({
   onChangeStyle,
   onChangeCount
 }: SummaryChipsProps) {
-  const selectedType = materialTypes.find((m) => m.id === selectedTypeId);
-  const styleOpt = STYLES.find((s) => s.id === style);
+  const selectedType = useMemo(
+    () => materialTypes.find((m) => m.id === selectedTypeId),
+    [materialTypes, selectedTypeId]
+  );
+  const styleOpt = useMemo(() => STYLES.find((s) => s.id === style), [style]);
 
   const defaultType = materialTypes[0] ?? null;
   const defaultSize = selectedType?.defaultSize ?? { width: 600, height: 900 };
   const defaultStyle = STYLES[0]?.id ?? 'realistic';
 
+  const isTypeModified = !!selectedType && selectedType.id !== defaultType?.id;
+  const isSizeModified =
+    size.width !== defaultSize.width || size.height !== defaultSize.height;
+  const isStyleModified = style !== defaultStyle;
+
   return (
     <div className='flex flex-wrap items-center gap-1.5'>
-      <SummaryChip
-        label='素材'
-        value={selectedType?.name ?? '未选择'}
-        showReset={!!selectedType && selectedType.id !== defaultType?.id}
-        onReset={() => defaultType && onSelectType(defaultType)}
-      >
-        <MaterialPicker
-          materialTypes={materialTypes}
-          selectedTypeId={selectedTypeId}
-          onSelect={onSelectType}
-        />
+      <SummaryChip label='素材' value={selectedType?.name ?? '未选择'}>
+        {(close) => (
+          <MaterialPicker
+            materialTypes={materialTypes}
+            selectedTypeId={selectedTypeId}
+            onSelect={onSelectType}
+            showReset={isTypeModified}
+            onReset={() => defaultType && onSelectType(defaultType)}
+            close={close}
+          />
+        )}
       </SummaryChip>
 
-      <SummaryChip
-        label='尺寸'
-        value={`${size.width}×${size.height}`}
-        showReset={size.width !== defaultSize.width || size.height !== defaultSize.height}
-        onReset={() => onChangeSize(defaultSize)}
-      >
-        <SizePicker size={size} selectedType={selectedType} onChange={onChangeSize} />
+      <SummaryChip label='尺寸' value={`${size.width}×${size.height}`}>
+        {(close) => (
+          <SizePicker
+            size={size}
+            selectedType={selectedType}
+            onChange={onChangeSize}
+            showReset={isSizeModified}
+            onReset={() => onChangeSize(defaultSize)}
+            close={close}
+          />
+        )}
       </SummaryChip>
 
-      <SummaryChip
-        label='风格'
-        value={styleOpt?.label ?? style}
-        showReset={style !== defaultStyle}
-        onReset={() => onChangeStyle(defaultStyle)}
-      >
-        <StylePicker currentStyle={style} onChange={onChangeStyle} />
+      <SummaryChip label='风格' value={styleOpt?.label ?? style}>
+        {(close) => (
+          <StylePicker
+            currentStyle={style}
+            onChange={onChangeStyle}
+            showReset={isStyleModified}
+            onReset={() => onChangeStyle(defaultStyle)}
+            close={close}
+          />
+        )}
       </SummaryChip>
 
-      <SummaryChip
-        label='数量'
-        value={`${count} 张`}
-      >
-        <CountPicker currentCount={count} onChange={onChangeCount} />
+      <SummaryChip label='数量' value={`${count} 张`}>
+        {(close) => (
+          <CountPicker currentCount={count} onChange={onChangeCount} close={close} />
+        )}
       </SummaryChip>
     </div>
   );
