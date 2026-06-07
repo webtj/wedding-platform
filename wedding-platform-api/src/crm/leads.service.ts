@@ -51,7 +51,15 @@ export class LeadsService {
   async get(input: { tenantId: string; leadId: string }) {
     const lead = await this.prisma.lead.findFirst({
       where: { id: input.leadId, tenantId: input.tenantId, deletedAt: null },
-      include: { followups: { orderBy: { createdAt: 'desc' } } }
+      include: {
+        followups: {
+          orderBy: { createdAt: 'desc' },
+          include: { createdBy: { select: { displayName: true } } }
+        },
+        createdBy: { select: { displayName: true } },
+        convertedProject: { select: { id: true } },
+        contract: { select: { id: true, contractNo: true } }
+      }
     });
     if (!lead) {
       throw AppError.notFound('Lead', input.leadId);

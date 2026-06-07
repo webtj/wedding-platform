@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api-client';
-import type { Lead, LeadFilters, LeadResponse, LeadMutationPayload } from './types';
+import type { Lead, LeadFilters, LeadResponse, LeadMutationPayload, LeadFollowup } from './types';
 
 export async function getLeads(filters: LeadFilters): Promise<LeadResponse> {
   const params = new URLSearchParams();
@@ -37,6 +37,13 @@ export async function deleteLead(id: string) {
 
 export async function convertLead(id: string, data: Record<string, unknown>) {
   return apiClient<{ projectId: string }>(`/leads/${id}/convert`, {
+    method: 'POST',
+    body: JSON.stringify(data)
+  });
+}
+
+export async function addLeadFollowup(leadId: string, data: { content: string }) {
+  return apiClient<LeadFollowup>(`/leads/${leadId}/followups`, {
     method: 'POST',
     body: JSON.stringify(data)
   });

@@ -1,3 +1,11 @@
+export type LeadFollowup = {
+  id: string;
+  content: string;
+  nextFollowUpAt: string | null;
+  createdAt: string;
+  createdBy: { displayName: string } | null;
+};
+
 export type Lead = {
   id: string;
   leadNo: string;
@@ -16,6 +24,7 @@ export type Lead = {
   createdBy?: { displayName: string } | null;
   convertedProject?: { id: string } | null;
   contract?: { id: string; contractNo: string } | null;
+  followups?: LeadFollowup[];
 };
 
 export type LeadFilters = {
