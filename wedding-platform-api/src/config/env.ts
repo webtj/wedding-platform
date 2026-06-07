@@ -27,7 +27,8 @@ export const envSchema = z.object({
   WECHAT_MINI_APP_ID: z.string().optional(),
   WECHAT_MINI_APP_SECRET: z.string().optional(),
   DOUYIN_MINI_APP_ID: z.string().optional(),
-  DOUYIN_MINI_APP_SECRET: z.string().optional()
+  DOUYIN_MINI_APP_SECRET: z.string().optional(),
+  SETTINGS_ENCRYPTION_SECRET: z.string().min(16)
 });
 
 export type ApiEnv = z.infer<typeof envSchema>;
