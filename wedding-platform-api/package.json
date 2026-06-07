@@ -3,6 +3,8 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
+    "predev": "pnpm --filter @wedding/shared build",
+    "prebuild": "pnpm --filter @wedding/shared build",
     "dev": "nest start --watch",
     "build": "nest build",
     "lint": "tsc -p tsconfig.json --noEmit",

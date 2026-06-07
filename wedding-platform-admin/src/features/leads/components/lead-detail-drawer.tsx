@@ -25,7 +25,7 @@ import { Icons } from '@/components/icons';
 import { useMutationToast } from '@/lib/use-mutation-toast';
 import { addFollowupMutation, leadByIdOptions, updateLeadMutation } from '../api/queries';
 import { STATUS_OPTIONS, S_COLOR } from '../constants';
-import { toDateDisplay } from '@/lib/date-format';
+import { toDateDisplay, toDateTimeDisplay } from '@/lib/date-format';
 import type { Lead, LeadMutationPayload } from '../api/types';
 
 type FormState = {
@@ -293,27 +293,27 @@ export function LeadDetailDrawer({
                       key={f.id}
                       icon='chat'
                       title={f.content}
-                      meta={`${f.createdBy?.displayName ?? '未知'} · ${toDateDisplay(f.createdAt)}`}
+                      meta={`${f.createdBy?.displayName ?? '未知'} · ${toDateTimeDisplay(f.createdAt)}`}
                     />
                   ))}
                   {lead.contract && (
                     <TimelineItem
                       icon='check'
                       title={`已建合同 ${lead.contract.contractNo}`}
-                      meta={toDateDisplay(lead.updatedAt)}
+                      meta={toDateTimeDisplay(lead.updatedAt)}
                     />
                   )}
                   {lead.convertedProject && (
                     <TimelineItem
                       icon='check'
                       title='已转项目'
-                      meta={toDateDisplay(lead.updatedAt)}
+                      meta={toDateTimeDisplay(lead.updatedAt)}
                     />
                   )}
                   <TimelineItem
                     icon='add'
                     title='创建意向单'
-                    meta={`${lead.createdBy?.displayName ?? '未知'} · ${toDateDisplay(lead.createdAt)}`}
+                    meta={`${lead.createdBy?.displayName ?? '未知'} · ${toDateTimeDisplay(lead.createdAt)}`}
                   />
                 </ul>
               </section>

@@ -342,10 +342,10 @@ function LeadRow({ lead, onOpenDetail }: { lead: Lead; onOpenDetail: (id: string
           <Button
             variant='ghost'
             size='sm'
-            className='h-7 w-7 p-0'
+            className='h-7 text-xs px-2'
             onClick={() => onOpenDetail(lead.id)}
           >
-            <Icons.edit className='h-3.5 w-3.5' />
+            编辑
           </Button>
           {!statusLocked && (
             <Button

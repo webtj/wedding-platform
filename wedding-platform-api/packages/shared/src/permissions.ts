@@ -200,5 +200,5 @@ export function summarizePermissionGroups(
         (c) => PERMISSION_METADATA[c as PermissionCode]?.description ?? c
       )
     }))
-    .toSorted((a, b) => a.group.localeCompare(b.group));
+    .sort((a, b) => a.group.localeCompare(b.group));
 }

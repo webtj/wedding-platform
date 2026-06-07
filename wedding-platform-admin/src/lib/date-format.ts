@@ -18,6 +18,19 @@ export function toDateDisplay(iso: string | null | undefined): string {
   return new Date(iso).toLocaleDateString('zh-CN');
 }
 
+export function toDateTimeDisplay(iso: string | null | undefined): string {
+  if (!iso) return '-';
+  return new Date(iso).toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+}
+
 export function isWithinDays(iso: string | null | undefined, days: number): boolean {
   if (!iso) return false;
   const target = new Date(iso).getTime();
