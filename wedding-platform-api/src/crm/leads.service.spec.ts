@@ -286,6 +286,7 @@ describe('LeadsService', () => {
       };
       const prisma = {
         lead: { findFirst: vi.fn().mockResolvedValue({ id: 'lead_1', status: 'won', name: '李想' }) },
+        tenant: { findUnique: vi.fn().mockResolvedValue({ name: '测试公司', address: '测试地址' }) },
         $transaction: vi.fn((cb: (tx: Record<string, unknown>) => unknown) => cb(tx))
       };
       const service = new LeadsService(prisma as never, { record: vi.fn() } as never);

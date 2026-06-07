@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useOrganization } from '@clerk/nextjs';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,8 +14,9 @@ import {
   DialogTitle
 } from '@/components/ui/dialog';
 import { toDateInput } from '@/lib/date-format';
-import { toast } from 'sonner';
+import { useMutationToast } from '@/lib/use-mutation-toast';
 import { leadKeys } from '../api/queries';
+import { createContractFromLead } from '@/features/contracts/api/service';
 import type { Lead } from '../api/types';
 
 export function CreateContractDialog({
@@ -28,73 +28,55 @@ export function CreateContractDialog({
   onOpenChange: (v: boolean) => void;
   lead: Lead;
 }) {
-  const { organization } = useOrganization();
   const queryClient = useQueryClient();
-
-  const randomPart = Array.from(
-    { length: 8 },
-    () => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[Math.floor(Math.random() * 36)]
-  ).join('');
-  const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const [contractNo, setContractNo] = useState(`HT-${randomPart}-${datePart}`);
   const [title, setTitle] = useState(`${lead.name} 婚礼合同`);
   const [brideName, setBrideName] = useState(lead.name ?? '');
   const [groomName, setGroomName] = useState('');
   const [phone, setPhone] = useState(lead.phone ?? '');
-  const [_weddingDate, _setWeddingDate] = useState(toDateInput(lead.weddingDate));
+  const [weddingDate, setWeddingDate] = useState(toDateInput(lead.weddingDate));
   const [venue, setVenue] = useState('');
   const [amount, setAmount] = useState('');
   const [deposit, setDeposit] = useState('');
   const [serviceContent, setServiceContent] = useState('');
-  const [companyName, setCompanyName] = useState(organization?.name ?? '');
-  const [companyAddress, setCompanyAddress] = useState(
-    (organization as unknown as Record<string, string>)?.address ?? ''
-  );
+  const [companyName, setCompanyName] = useState('');
+  const [companyAddress, setCompanyAddress] = useState('');
 
-  async function handleSave() {
-    if (!contractNo.trim() || !title.trim() || !amount) return;
-    const { createContractFromLead } = await import('@/features/contracts/api/service');
-    try {
-      await createContractFromLead(lead.id, {
-        contractNo: contractNo.trim(),
+  const create = useMutationToast({
+    mutationFn: () =>
+      createContractFromLead(lead.id, {
         title: title.trim(),
         brideName: brideName || undefined,
         groomName: groomName || undefined,
         phone: phone || undefined,
-        weddingDate: _weddingDate || undefined,
+        weddingDate: weddingDate || undefined,
         venue: venue || undefined,
         amountCents: Math.round(Number(amount) * 100),
         depositCents: deposit ? Math.round(Number(deposit) * 100) : undefined,
         serviceContent: serviceContent || undefined,
         companyName: companyName || undefined,
         companyAddress: companyAddress || undefined
-      });
+      }),
+    successMsg: '合同创建成功',
+    errorMsg: '创建合同失败，请重试',
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: leadKeys.all });
-      toast.success('合同创建成功');
       onOpenChange(false);
-    } catch (error) {
-      toast.error('创建合同失败，请重试');
-      console.error('Contract creation failed:', error);
     }
-  }
+  });
+
+  const canSubmit = title.trim().length > 0 && amount.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='max-w-lg max-h-[85vh] overflow-y-auto'>
         <DialogHeader>
           <DialogTitle>新建合同 — {lead.name}</DialogTitle>
-          <DialogDescription>从意向单创建合同，客户信息自动带入</DialogDescription>
+          <DialogDescription>从意向单创建合同，客户信息自动带入。合同编号由系统自动生成。</DialogDescription>
         </DialogHeader>
         <div className='flex flex-col gap-4'>
-          <div className='grid grid-cols-2 gap-3'>
-            <div className='space-y-2'>
-              <Label>合同编号</Label>
-              <Input value={contractNo} onChange={(e) => setContractNo(e.target.value)} />
-            </div>
-            <div className='space-y-2'>
-              <Label>合同名称</Label>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} />
-            </div>
+          <div className='space-y-2'>
+            <Label>合同名称 *</Label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
           <div className='grid grid-cols-2 gap-3'>
             <div className='space-y-2'>
@@ -115,14 +97,14 @@ export function CreateContractDialog({
               <Label>婚期</Label>
               <Input
                 type='date'
-                value={_weddingDate}
-                onChange={(e) => _setWeddingDate(e.target.value)}
+                value={weddingDate}
+                onChange={(e) => setWeddingDate(e.target.value)}
               />
             </div>
           </div>
           <div className='grid grid-cols-2 gap-3'>
             <div className='space-y-2'>
-              <Label>合同总额（元）</Label>
+              <Label>合同总额（元）*</Label>
               <Input type='number' value={amount} onChange={(e) => setAmount(e.target.value)} />
             </div>
             <div className='space-y-2'>
@@ -151,12 +133,16 @@ export function CreateContractDialog({
               <Input
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
-                placeholder='婚庆公司名称'
+                placeholder='留空使用租户默认'
               />
             </div>
             <div className='space-y-2'>
               <Label>公司地址</Label>
-              <Input value={companyAddress} onChange={(e) => setCompanyAddress(e.target.value)} />
+              <Input
+                value={companyAddress}
+                onChange={(e) => setCompanyAddress(e.target.value)}
+                placeholder='留空使用租户默认'
+              />
             </div>
           </div>
         </div>
@@ -164,7 +150,7 @@ export function CreateContractDialog({
           <Button variant='outline' onClick={() => onOpenChange(false)}>
             取消
           </Button>
-          <Button onClick={handleSave} disabled={!contractNo.trim() || !title.trim() || !amount}>
+          <Button onClick={() => create.mutate()} disabled={!canSubmit} isLoading={create.isPending}>
             创建合同
           </Button>
         </DialogFooter>

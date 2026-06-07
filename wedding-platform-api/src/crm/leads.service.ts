@@ -152,7 +152,7 @@ export class LeadsService {
   }
 
   async createContract(input: { tenantId: string; leadId: string; data: {
-    contractNo: string; title: string;
+    contractNo?: string; title: string;
     brideName?: string; groomName?: string; phone?: string;
     weddingDate?: string; venue?: string;
     serviceContent?: string; companyName?: string; companyAddress?: string;
@@ -160,6 +160,11 @@ export class LeadsService {
     const lead = await this.get({ tenantId: input.tenantId, leadId: input.leadId });
     if (lead.status !== 'won' as LeadStatus) throw AppError.badRequest('Lead is not in won status');
     if (lead.contractId) throw AppError.badRequest('Lead already has a contract');
+
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: input.tenantId },
+      select: { name: true, address: true }
+    });
 
     const signToken = randomBytes(32).toString('hex');
     const signTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -181,8 +186,8 @@ export class LeadsService {
           weddingDate: input.data.weddingDate ? new Date(input.data.weddingDate) : lead.weddingDate ?? undefined,
           venue: input.data.venue ?? undefined,
           serviceContent: input.data.serviceContent ?? undefined,
-          companyName: input.data.companyName ?? undefined,
-          companyAddress: input.data.companyAddress ?? undefined,
+          companyName: input.data.companyName ?? tenant?.name ?? undefined,
+          companyAddress: input.data.companyAddress ?? tenant?.address ?? undefined,
           signToken,
           signTokenExpiresAt,
           status: 'pending_sign'

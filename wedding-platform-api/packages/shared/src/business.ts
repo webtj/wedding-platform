@@ -202,7 +202,7 @@ export const updateProjectStageSchema = z.object({
 });
 
 export const createContractSchema = z.object({
-  contractNo: z.string().trim().min(1).max(80),
+  contractNo: z.string().trim().min(1).max(80).optional(),
   title: z.string().trim().min(1).max(160),
   brideName: z.string().trim().min(1).max(80).optional(),
   groomName: z.string().trim().min(1).max(80).optional(),
