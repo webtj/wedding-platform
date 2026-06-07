@@ -60,7 +60,6 @@ export function LeadsTable() {
     ...(params.status && { status: params.status })
   };
   const { data, isLoading } = useQuery(leadsQueryOptions(filters));
-  const detailLead = detailLeadId ? data?.items.find((l) => l.id === detailLeadId) ?? null : null;
 
   if (isLoading || !data)
     return (
@@ -151,8 +150,8 @@ export function LeadsTable() {
       </div>
 
       <LeadDetailDrawer
-        lead={detailLead}
-        open={!!detailLead}
+        leadId={detailLeadId}
+        open={!!detailLeadId}
         onOpenChange={(o) => !o && setDetailLeadId(null)}
       />
 

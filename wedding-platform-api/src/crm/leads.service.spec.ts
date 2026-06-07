@@ -159,7 +159,15 @@ describe('LeadsService', () => {
 
     expect(prisma.lead.findFirst).toHaveBeenCalledWith({
       where: { id: 'lead_deleted', tenantId: 'tenant_1', deletedAt: null },
-      include: { followups: { orderBy: { createdAt: 'desc' } } }
+      include: {
+        followups: {
+          orderBy: { createdAt: 'desc' },
+          include: { createdBy: { select: { displayName: true } } }
+        },
+        createdBy: { select: { displayName: true } },
+        convertedProject: { select: { id: true } },
+        contract: { select: { id: true, contractNo: true } }
+      }
     });
   });
 

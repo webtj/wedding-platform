@@ -85,6 +85,7 @@ export function LeadDetailDrawer({
       setForm(toFormState(lead));
       setFollowupContent('');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lead?.id, open]);
 
   const update = useMutationToast({
