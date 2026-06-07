@@ -13,18 +13,23 @@ import {
 } from '@/components/ui/dialog';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { useMutationToast } from '@/lib/use-mutation-toast';
+import { apiClient } from '@/lib/api-client';
+import { getQueryClient } from '@/lib/query-client';
+import { toast } from 'sonner';
 import {
   categoriesQueryOptions,
+  categoryKeys,
   createCategoryMutation,
   updateCategoryMutation,
   deleteCategoryMutation,
   createMaterialMutation,
-  updateMaterialMutation
+  updateMaterialMutation,
+  materialKeys
 } from '../api/queries';
 import type { Material, MaterialCategory } from '../api/types';
 import { CategoryCard } from './category-card';
 import { CategoryDialog } from './category-dialog';
-import { MatDialog } from './mat-dialog';
+import { MatDialog, type MatDialogSavePayload } from './mat-dialog';
 import { MaterialsStats } from './materials-stats';
 import { TemplateImportButton } from './template-import-button';
 
@@ -54,6 +59,36 @@ export function MaterialsPage() {
   const deleteCat = useMutationToast({ ...deleteCategoryMutation, successMsg: '分类已删除' });
   const createMat = useMutationToast({ ...createMaterialMutation, successMsg: '物料已添加' });
   const updateMat = useMutationToast({ ...updateMaterialMutation, successMsg: '已更新' });
+
+  async function handleAddMatSave(catId: string, payload: MatDialogSavePayload) {
+    if (payload.mode === 'single') {
+      createMat.mutate(
+        { ...payload.data, categoryId: catId },
+        { onSuccess: () => setAddMatCatId(null) }
+      );
+    } else {
+      const results = await Promise.allSettled(
+        payload.items.map((item) =>
+          apiClient('/materials', {
+            method: 'POST',
+            body: JSON.stringify({
+              categoryId: catId,
+              name: item.name,
+              status: 'missing'
+            })
+          })
+        )
+      );
+      const ok = results.filter((r) => r.status === 'fulfilled').length;
+      const fail = results.length - ok;
+      getQueryClient().invalidateQueries({ queryKey: materialKeys.byCategory(catId) });
+      getQueryClient().invalidateQueries({ queryKey: categoryKeys.all });
+      setAddMatCatId(null);
+      toast.success(
+        fail > 0 ? `已添加 ${ok} 件，${fail} 件失败` : `已添加 ${ok} 件物料`
+      );
+    }
+  }
 
   return (
     <div className='space-y-3'>
@@ -164,12 +199,7 @@ export function MaterialsPage() {
         <MatDialog
           open
           onOpenChange={() => setAddMatCatId(null)}
-          onSave={(d) =>
-            createMat.mutate(
-              { ...d, categoryId: addMatCatId },
-              { onSuccess: () => setAddMatCatId(null) }
-            )
-          }
+          onSave={(payload) => handleAddMatSave(addMatCatId, payload)}
         />
       )}
       {editMat && (
@@ -177,9 +207,14 @@ export function MaterialsPage() {
           open
           onOpenChange={() => setEditMat(null)}
           initial={editMat}
-          onSave={(d) =>
-            updateMat.mutate({ id: editMat.id, data: d }, { onSuccess: () => setEditMat(null) })
-          }
+          onSave={(payload) => {
+            if (payload.mode === 'single') {
+              updateMat.mutate(
+                { id: editMat.id, data: payload.data },
+                { onSuccess: () => setEditMat(null) }
+              );
+            }
+          }}
         />
       )}
     </div>
