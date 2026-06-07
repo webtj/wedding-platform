@@ -237,6 +237,8 @@ model Tenant {
   materialCategories MaterialCategory[]
   materialTypes      MaterialType[]
   materials          Material[]
+  quickPromptCategories QuickPromptCategory[]
+  quickPrompts       QuickPrompt[]
   aiGenerations      AiGeneration[]
   aiConversations    AiConversation[]
   scenes             Scene[]
@@ -1277,6 +1279,39 @@ model Material {
   @@index([tenantId])
   @@index([categoryId])
   @@map("materials")
+}
+
+model QuickPromptCategory {
+  id        String   @id @default(cuid())
+  tenantId  String?  // null = built-in (platform-managed)
+  name      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant?        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  prompts QuickPrompt[]
+
+  @@index([tenantId])
+  @@map("quick_prompt_categories")
+}
+
+model QuickPrompt {
+  id         String   @id @default(cuid())
+  tenantId   String?  // null = built-in (platform-managed)
+  categoryId String
+  name       String
+  prompt     String
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant   Tenant?             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  category QuickPromptCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([categoryId])
+  @@map("quick_prompts")
 }
 
 model TaskMaterial {

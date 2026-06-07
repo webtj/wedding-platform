@@ -102,7 +102,7 @@ export function MatChip({
           </Badge>
         )}
         {!builtIn && (
-          <div className='hidden group-hover:flex items-center gap-0.5 flex-shrink-0'>
+          <div className='flex items-center gap-0.5 flex-shrink-0'>
             <Button
               variant='ghost'
               size='sm'

@@ -14,6 +14,7 @@ import { CrmModule } from './crm/crm.module';
 import { HealthController } from './health/health.controller';
 import { MaterialsModule } from './materials/materials.module';
 import { MaterialTypeModule } from './material/material-type.module';
+import { QuickPromptsModule } from './quick-prompts/quick-prompts.module';
 import { ProcessTemplatesModule } from './process-templates/process-templates.module';
 import { HealthService } from './health/health.service';
 import { IdentityModule } from './identity/identity.module';
@@ -56,6 +57,7 @@ import { TimelinesModule } from './timelines/timelines.module';
     PlatformModule,
     MaterialsModule,
     MaterialTypeModule,
+    QuickPromptsModule,
     ProcessTemplatesModule,
     SettingsModule,
     AiWorkbenchModule,

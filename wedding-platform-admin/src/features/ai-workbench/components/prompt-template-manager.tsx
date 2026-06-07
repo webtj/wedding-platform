@@ -65,7 +65,7 @@ function TemplateCard({
           </div>
           <p className='text-muted-foreground mt-0.5 font-mono text-[10px]'>{template.code}</p>
         </div>
-        <div className='flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
+        <div className='flex shrink-0 gap-1'>
           <Button
             type='button'
             variant='ghost'
