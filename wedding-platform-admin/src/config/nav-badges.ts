@@ -12,7 +12,8 @@
  * No sidebar code changes required.
  */
 export const NAV_BADGE_SOURCES = {
-  'leads-needs-followup': { url: '/studio/leads', label: '待跟进' }
+  'leads-needs-followup': { url: '/studio/leads', label: '待跟进' },
+  'contracts-pending-sign': { url: '/studio/contracts', label: '待签' }
 } as const;
 
 export type NavBadgeSourceKey = keyof typeof NAV_BADGE_SOURCES;

@@ -4,7 +4,8 @@ import { NavBadgesService } from './nav-badges.service';
 describe('NavBadgesService', () => {
   it('counts active leads with no followup in the last 7 days', async () => {
     const prisma = {
-      lead: { count: vi.fn().mockResolvedValue(7) }
+      lead: { count: vi.fn().mockResolvedValue(7) },
+      contract: { count: vi.fn().mockResolvedValue(3) }
     };
     const service = new NavBadgesService(prisma as never);
 
@@ -12,7 +13,8 @@ describe('NavBadgesService', () => {
 
     expect(result).toEqual({
       badges: {
-        'leads-needs-followup': { count: 7 }
+        'leads-needs-followup': { count: 7 },
+        'contracts-pending-sign': { count: 3 }
       }
     });
     expect(prisma.lead.count).toHaveBeenCalledWith({
@@ -22,6 +24,9 @@ describe('NavBadgesService', () => {
         status: { notIn: ['won', 'lost'] },
         followups: { none: { createdAt: { gte: expect.any(Date) } } }
       }
+    });
+    expect(prisma.contract.count).toHaveBeenCalledWith({
+      where: { tenantId: 'tenant_1', status: 'pending_sign' }
     });
     const callArg = prisma.lead.count.mock.calls[0]?.[0] as { where: { followups: { none: { createdAt: { gte: Date } } } } };
     expect(callArg).toBeDefined();

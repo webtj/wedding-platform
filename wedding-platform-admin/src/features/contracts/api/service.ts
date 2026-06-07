@@ -67,6 +67,12 @@ export async function voidContract(contractId: string) {
   });
 }
 
+export async function reissueSignToken(contractId: string) {
+  return apiClient<Contract>(`/contracts/${contractId}/reissue-sign-token`, {
+    method: 'POST'
+  });
+}
+
 export async function deleteContract(id: string) {
   return apiClient<void>(`/contracts/${id}`, { method: 'DELETE' });
 }

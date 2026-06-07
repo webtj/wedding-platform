@@ -1,6 +1,7 @@
 import { queryOptions, mutationOptions } from '@tanstack/react-query';
 import { getQueryClient } from '@/lib/query-client';
-import { getContracts, getContractById, updateContract, voidContract, deleteContract } from './service';
+import { getContracts, getContractById, updateContract, voidContract, deleteContract, reissueSignToken } from './service';
+import { navBadgesKey } from '@/lib/api/nav-badges';
 import type { Contract, ContractFilters, ContractMutationPayload } from './types';
 
 export type { Contract };
@@ -36,5 +37,10 @@ export const deleteContractMutation = mutationOptions({
 
 export const voidContractMutation = mutationOptions({
   mutationFn: (id: string) => voidContract(id),
+  onSuccess: () => getQueryClient().invalidateQueries({ queryKey: contractKeys.all })
+});
+
+export const reissueSignTokenMutation = mutationOptions({
+  mutationFn: (id: string) => reissueSignToken(id),
   onSuccess: () => getQueryClient().invalidateQueries({ queryKey: contractKeys.all })
 });

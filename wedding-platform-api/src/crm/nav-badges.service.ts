@@ -9,12 +9,14 @@ export class NavBadgesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getAll(tenantId: string): Promise<{ badges: NavBadgeMap }> {
-    const [leadsNeedsFollowup] = await Promise.all([
-      this.getLeadsNeedsFollowup(tenantId)
+    const [leadsNeedsFollowup, contractsPendingSign] = await Promise.all([
+      this.getLeadsNeedsFollowup(tenantId),
+      this.getContractsPendingSign(tenantId)
     ]);
     return {
       badges: {
-        'leads-needs-followup': leadsNeedsFollowup
+        'leads-needs-followup': leadsNeedsFollowup,
+        'contracts-pending-sign': contractsPendingSign
       }
     };
   }
@@ -30,6 +32,13 @@ export class NavBadgesService {
           none: { createdAt: { gte: sevenDaysAgo } }
         }
       }
+    });
+    return { count };
+  }
+
+  private async getContractsPendingSign(tenantId: string): Promise<NavBadgeCount> {
+    const count = await this.prisma.contract.count({
+      where: { tenantId, status: 'pending_sign' }
     });
     return { count };
   }

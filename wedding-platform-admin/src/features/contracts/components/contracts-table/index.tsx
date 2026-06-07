@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { parseAsInteger, parseAsString, useQueryStates } from 'nuqs';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
-import { contractsQueryOptions } from '../../api/queries';
+import { useMutationToast } from '@/lib/use-mutation-toast';
+import { contractsQueryOptions, reissueSignTokenMutation } from '../../api/queries';
 import { exportContractsCsv } from '../../api/service';
 import type { Contract, ContractFilters } from '../../api/types';
 import { Badge } from '@/components/ui/badge';
@@ -202,6 +203,12 @@ function ContractRow({ contract }: { contract: Contract }) {
   const isSigned = contract.status === 'signed';
   const upcomingWedding = isWithinDays(contract.weddingDate, 30);
 
+  const reissue = useMutationToast({
+    ...reissueSignTokenMutation,
+    successMsg: '签署链接已重发',
+    errorMsg: '重发失败'
+  });
+
   return (
     <TableRow className={upcomingWedding ? 'bg-amber-50/40 hover:bg-amber-50/60' : undefined}>
       <TableCell className='py-2'>
@@ -280,6 +287,17 @@ function ContractRow({ contract }: { contract: Contract }) {
               }}
             >
               签署
+            </Button>
+          )}
+          {contract.status === 'pending_sign' && (
+            <Button
+              variant='ghost'
+              size='sm'
+              className='h-7 text-xs px-2 text-muted-foreground hover:text-foreground'
+              onClick={() => reissue.mutate(contract.id)}
+              disabled={reissue.isPending}
+            >
+              重发链接
             </Button>
           )}
           {contract.status === 'pending_sign' && (
