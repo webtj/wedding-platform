@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const createQuickPromptCategorySchema = z.object({
   name: z.string().trim().min(1).max(80),
+  type: z.enum(['image_design', 'copywriting', 'general']).default('general'),
   sortOrder: z.number().int().optional()
 });
 

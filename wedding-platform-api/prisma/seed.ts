@@ -565,92 +565,6 @@ async function main() {
     }
   }
 
-  // ── AI Templates ────────────────────────────────────────────────────
-  console.log('  🤖 创建 AI 模板...');
-
-  const builtInAiTemplates = [
-    {
-      code: 'case_study_story',
-      name: '婚礼案例故事',
-      category: 'case_study' as const,
-      prompt: '根据婚礼风格、场地、素材和新人故事，生成一篇适合官网案例页的故事文案。'
-    },
-    {
-      code: 'planner_marketing_xhs',
-      name: '小红书案例文案',
-      category: 'planner_marketing' as const,
-      prompt: '根据项目亮点生成适合小红书发布的婚礼案例文案。'
-    },
-    {
-      code: 'thank_you_note',
-      name: '感谢文案',
-      category: 'planner_marketing' as const,
-      prompt: '为客户生成婚礼结束后的感谢亲友文案。'
-    },
-    {
-      code: 'image_window_white_roses',
-      name: '窗台白玫瑰',
-      category: 'image_design' as const,
-      prompt: '窗台上的白玫瑰，清晨自然光，柔和白纱，适合婚礼迎宾牌背景，画面干净高级。'
-    },
-    {
-      code: 'image_white_rose_welcome_sign',
-      name: '白玫瑰迎宾牌',
-      category: 'image_design' as const,
-      prompt: '白玫瑰婚礼迎宾牌，奶油白底，花艺围绕边角，中心留白，温柔高级的婚礼视觉。'
-    },
-    {
-      code: 'image_cream_table_card',
-      name: '奶油风桌卡',
-      category: 'image_design' as const,
-      prompt: '奶油风婚礼桌卡背景，柔和布纹纸张，浅香槟色花材，极简排版，保留文字留白。'
-    },
-    {
-      code: 'image_chinese_red_gold_invitation',
-      name: '新中式红金请柬',
-      category: 'image_design' as const,
-      prompt: '新中式红金婚礼请柬，宋式纹样，金色线描花卉，雅致留白，喜庆但不过度传统。'
-    },
-    {
-      code: 'image_garden_vow_card',
-      name: '花园誓言卡',
-      category: 'image_design' as const,
-      prompt: '户外花园婚礼誓言卡，浅绿色植物环绕，白色小花点缀，纸张质感，清新自然。'
-    }
-  ];
-
-  for (const template of builtInAiTemplates) {
-    const existingTemplate = await prisma.aiTemplate.findFirst({
-      where: {
-        tenantId: null,
-        code: template.code
-      }
-    });
-
-    if (existingTemplate) {
-      await prisma.aiTemplate.update({
-        where: { id: existingTemplate.id },
-        data: {
-          name: template.name,
-          category: template.category,
-          prompt: template.prompt,
-          isBuiltIn: true
-        }
-      });
-    } else {
-      await prisma.aiTemplate.create({
-        data: {
-          tenantId: null,
-          code: template.code,
-          name: template.name,
-          category: template.category,
-          prompt: template.prompt,
-          isBuiltIn: true
-        }
-      });
-    }
-  }
-
   // ── Platform Settings ──────────────────────────────────────────────
   console.log('  ⚙️ 创建平台配置...');
 
@@ -750,9 +664,8 @@ async function main() {
     ]},
     { label: 'AI 工具', icon: 'sparkles', sortOrder: 2, children: [
       { label: 'AI 工作台', href: '/studio/ai-workbench', icon: 'sparkles', sortOrder: 0, permissionCodes: ['ai.use', 'ai.generate', 'ai.generation.read', 'ai.generation.bookmark', 'ai.generation.series', 'ai.text.generate', 'ai.text.generation.read', 'ai.text.generation.bookmark'] },
-      { label: '生图模板', href: '/studio/ai-workbench/templates', icon: 'palette', sortOrder: 1, permissionCodes: ['template.read', 'template.manage'] },
-      { label: '素材管理', href: '/studio/material-types', icon: 'product', sortOrder: 2, permissionCodes: ['material_type.read', 'material_type.manage'] },
-      { label: '推荐词', href: '/studio/ai-workbench/quick-prompts', icon: 'sparkles', sortOrder: 3, permissionCodes: ['material.read', 'material.manage'] }
+      { label: '素材管理', href: '/studio/material-types', icon: 'product', sortOrder: 1, permissionCodes: ['material_type.read', 'material_type.manage'] },
+      { label: '提示词管理', href: '/studio/ai-workbench/quick-prompts', icon: 'sparkles', sortOrder: 2, permissionCodes: ['material.read', 'material.manage', 'template.read', 'template.manage'] }
     ]},
     { label: '任务', icon: 'checks', sortOrder: 3, children: [
       { label: '流程模板', href: '/studio/templates', icon: 'forms', sortOrder: 0, permissionCodes: ['task.read', 'task.create', 'task.assign', 'task.complete'] },
@@ -847,22 +760,35 @@ async function main() {
   console.log('  💬 创建推荐词...');
 
   const quickPromptData = [
-    { text: '摄影镜头', items: ['对称构图', '三分线构图', '斜线构图', '层次分明', '利用前景', '近景', '超广角', '俯拍', '背景虚化', '景深', '全景拍摄', '胶片相机'] },
-    { text: '光影', items: ['硬光', '柔光', '侧光', '逆光', '漫射光', '摄影棚照明', '自然光', '聚光灯', '丁达尔效应'] },
-    { text: '色调', items: ['暖色调', '冷色调', '高饱和色调', '低饱和色调', '单色调', '柔和色彩', '莫兰迪色调', '渐变色'] },
-    { text: '人像', items: ['小女孩', '女生', '氧气感', '托腮', '干净文艺男', '都市白领', '金发卷发', '大波浪发型', '戴眼镜', '帅哥', '白上衣'] },
-    { text: '背景', items: ['未来主义城市', '温馨卧室', '古城墙', '日式町屋街道', '韩剧小巷', '烛光摇曳的室内', '阳光透过窗帘房间', '迷雾森林'] }
+    { text: '摄影镜头', type: 'image_design' as const, items: ['对称构图', '三分线构图', '斜线构图', '层次分明', '利用前景', '近景', '超广角', '俯拍', '背景虚化', '景深', '全景拍摄', '胶片相机'] },
+    { text: '光影', type: 'image_design' as const, items: ['硬光', '柔光', '侧光', '逆光', '漫射光', '摄影棚照明', '自然光', '聚光灯', '丁达尔效应'] },
+    { text: '色调', type: 'image_design' as const, items: ['暖色调', '冷色调', '高饱和色调', '低饱和色调', '单色调', '柔和色彩', '莫兰迪色调', '渐变色'] },
+    { text: '人像', type: 'image_design' as const, items: ['小女孩', '女生', '氧气感', '托腮', '干净文艺男', '都市白领', '金发卷发', '大波浪发型', '戴眼镜', '帅哥', '白上衣'] },
+    { text: '背景', type: 'image_design' as const, items: ['未来主义城市', '温馨卧室', '古城墙', '日式町屋街道', '韩剧小巷', '烛光摇曳的室内', '阳光透过窗帘房间', '迷雾森林'] },
+    { text: '生图灵感', type: 'image_design' as const, items: [
+      '窗台上的白玫瑰，清晨自然光，柔和白纱，适合婚礼迎宾牌背景，画面干净高级',
+      '白玫瑰婚礼迎宾牌，奶油白底，花艺围绕边角，中心留白，温柔高级的婚礼视觉',
+      '奶油风婚礼桌卡背景，柔和布纹纸张，浅香槟色花材，极简排版，保留文字留白',
+      '新中式红金婚礼请柬，宋式纹样，金色线描花卉，雅致留白，喜庆但不过度传统',
+      '户外花园婚礼誓言卡，浅绿色植物环绕，白色小花点缀，纸张质感，清新自然'
+    ]},
+    { text: '文案灵感', type: 'copywriting' as const, items: [
+      '根据婚礼风格、场地、素材和新人故事，生成一篇适合官网案例页的故事文案',
+      '根据项目亮点生成适合小红书发布的婚礼案例文案',
+      '为客户生成婚礼结束后的感谢亲友文案'
+    ]}
   ];
 
   for (let ci = 0; ci < quickPromptData.length; ci++) {
     const catData = quickPromptData[ci];
     const cat = await prisma.quickPromptCategory.upsert({
       where: { id: `qpc-${ci}` },
-      update: { name: catData.text, sortOrder: ci },
+      update: { name: catData.text, sortOrder: ci, type: catData.type },
       create: {
         id: `qpc-${ci}`,
         tenantId: null,  // built-in
         name: catData.text,
+        type: catData.type,
         sortOrder: ci
       }
     });

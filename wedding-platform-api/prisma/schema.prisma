@@ -156,12 +156,10 @@ enum RetentionReminderStatus {
   dismissed
 }
 
-enum AiTemplateCategory {
-  couple
-  planner_marketing
-  timeline
-  case_study
+enum PromptCategoryType {
   image_design
+  copywriting
+  general
 }
 
 enum ProjectStageStatus {
@@ -231,7 +229,6 @@ model Tenant {
   archivePackages    ArchivePackage[]
   retentionPolicies  AssetRetentionPolicy[]
   retentionReminders RetentionReminder[]
-  aiTemplates        AiTemplate[]
 
   processTemplates   ProcessTemplate[]
   materialCategories MaterialCategory[]
@@ -959,23 +956,6 @@ model ArchivePackageItem {
   @@map("archive_package_items")
 }
 
-model AiTemplate {
-  id        String             @id @default(cuid())
-  tenantId  String?
-  code      String
-  name      String
-  category  AiTemplateCategory
-  prompt    String
-  isBuiltIn Boolean            @default(false)
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
-
-  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  @@unique([tenantId, code])
-  @@map("ai_templates")
-}
-
 model AiOutputVersion {
   id        String   @id @default(cuid())
   outputId  String
@@ -1282,12 +1262,13 @@ model Material {
 }
 
 model QuickPromptCategory {
-  id        String   @id @default(cuid())
-  tenantId  String?  // null = built-in (platform-managed)
+  id        String             @id @default(cuid())
+  tenantId  String?
   name      String
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  type      PromptCategoryType @default(general)
+  sortOrder Int                @default(0)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
 
   tenant Tenant?        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   prompts QuickPrompt[]

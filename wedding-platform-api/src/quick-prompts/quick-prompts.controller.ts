@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { PERMISSIONS } from '@wedding/shared';
 import { JwtAuthGuard } from '../common/auth/jwt-auth.guard';
 import { RequirePermissions } from '../common/auth/permissions.decorator';
@@ -22,9 +22,9 @@ export class QuickPromptsController {
 
   @RequirePermissions(PERMISSIONS.MATERIAL_READ)
   @Get('categories')
-  listCategories(@Req() r: { auth?: AuthContext }) {
+  listCategories(@Req() r: { auth?: AuthContext }, @Query('type') type?: string) {
     const tenant = requireTenant(r.auth);
-    return this.service.listCategories(tenant.tenantId);
+    return this.service.listCategories(tenant.tenantId, type);
   }
 
   @RequirePermissions(PERMISSIONS.MATERIAL_MANAGE)

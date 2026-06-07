@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import type { PromptCategoryType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AppError } from '../common/errors/app-error';
 import type {
@@ -14,10 +15,11 @@ export class QuickPromptsService {
 
   // ── Categories ──────────────────────────────────────────────────────────
 
-  async listCategories(tenantId: string) {
+  async listCategories(tenantId: string, type?: string) {
     return this.prisma.quickPromptCategory.findMany({
       where: {
-        OR: [{ tenantId: null }, { tenantId }]
+        OR: [{ tenantId: null }, { tenantId }],
+        ...(type ? { type: type as PromptCategoryType } : {})
       },
       orderBy: { sortOrder: 'asc' },
       include: {
