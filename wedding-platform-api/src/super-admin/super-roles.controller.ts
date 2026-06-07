@@ -42,8 +42,15 @@ export class SuperRolesController {
   }
 
   @Get(':roleId/menus')
-  getMenus(@CurrentAuth() auth: AuthContext, @Param('roleId') roleId: string) {
-    return this.superRolesService.getMenusForRole(auth, roleId);
+  async getMenus(@CurrentAuth() auth: AuthContext, @Param('roleId') roleId: string) {
+    // Editor needs both: the available menu tree (left pane) and which of
+    // them the role already has (right pane). One round-trip merges them;
+    // service keeps the two queries independent.
+    const [available, assigned] = await Promise.all([
+      this.superRolesService.getAvailableMenusForRole(auth),
+      this.superRolesService.getAssignedMenuIdsForRole(auth, roleId)
+    ]);
+    return { available, assigned };
   }
 
   @Put(':roleId/menus')

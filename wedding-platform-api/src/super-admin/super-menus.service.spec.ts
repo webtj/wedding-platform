@@ -54,7 +54,8 @@ describe('SuperMenusService', () => {
           href: null,
           icon: null,
           sortOrder: 1,
-          visible: true
+          visible: true,
+          permissionCodes: []
         }
       });
     });
@@ -86,7 +87,7 @@ describe('SuperMenusService', () => {
       const prisma = { menuItem: { findUnique: vi.fn().mockResolvedValue(null), update: vi.fn() } };
       const service = new SuperMenusService(prisma as never);
       await expect(
-        service.update({ menuItemId: 'missing', data: {} })
+        service.update({ menuItemId: 'missing', data: { permissionCodes: [] } })
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 

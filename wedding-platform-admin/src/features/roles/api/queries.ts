@@ -1,11 +1,11 @@
 import { queryOptions, mutationOptions } from '@tanstack/react-query';
 import { getQueryClient } from '@/lib/query-client';
 import { invalidateMe, notifyAuthMeInvalidated } from '@/lib/auth/auth-client';
+import { accountKeys } from '@/features/accounts/api/queries';
 import {
   getRoles,
-  getRoleMenus,
+  getRoleMenuState,
   assignRoleMenus,
-  getAllMenuTree,
   createRole,
   updateRole,
   deleteRole
@@ -17,22 +17,18 @@ export type { Role };
 export const roleKeys = {
   all: ['roles'] as const,
   list: (filters: RoleFilters) => [...roleKeys.all, 'list', filters] as const,
-  menus: (roleId: string) => [...roleKeys.all, 'menus', roleId] as const,
-  allMenus: () => [...roleKeys.all, 'allMenus'] as const
+  menuState: (roleId: string) => [...roleKeys.all, 'menuState', roleId] as const
 };
 
 export const rolesQueryOptions = (filters: RoleFilters) =>
   queryOptions({ queryKey: roleKeys.list(filters), queryFn: () => getRoles(filters) });
 
-export const roleMenusQueryOptions = (roleId: string) =>
+export const roleMenuStateQueryOptions = (roleId: string) =>
   queryOptions({
-    queryKey: roleKeys.menus(roleId),
-    queryFn: () => getRoleMenus(roleId),
+    queryKey: roleKeys.menuState(roleId),
+    queryFn: () => getRoleMenuState(roleId),
     enabled: !!roleId
   });
-
-export const allMenusQueryOptions = () =>
-  queryOptions({ queryKey: roleKeys.allMenus(), queryFn: () => getAllMenuTree() });
 
 export const assignRoleMenusMutation = mutationOptions({
   mutationFn: ({ roleId, menuIds }: { roleId: string; menuIds: string[] }) =>
@@ -48,6 +44,8 @@ export const createRoleMutation = mutationOptions({
   mutationFn: (data: Parameters<typeof createRole>[0]) => createRole(data),
   onSuccess: () => {
     getQueryClient().invalidateQueries({ queryKey: roleKeys.all });
+    // Role changes affect downstream consumers (account filter options, etc.)
+    getQueryClient().invalidateQueries({ queryKey: accountKeys.all });
     invalidateMe();
     notifyAuthMeInvalidated();
   }
@@ -58,6 +56,7 @@ export const updateRoleMutation = mutationOptions({
     updateRole(id, data),
   onSuccess: () => {
     getQueryClient().invalidateQueries({ queryKey: roleKeys.all });
+    getQueryClient().invalidateQueries({ queryKey: accountKeys.all });
     invalidateMe();
     notifyAuthMeInvalidated();
   }
@@ -67,6 +66,7 @@ export const deleteRoleMutation = mutationOptions({
   mutationFn: (id: string) => deleteRole(id),
   onSuccess: () => {
     getQueryClient().invalidateQueries({ queryKey: roleKeys.all });
+    getQueryClient().invalidateQueries({ queryKey: accountKeys.all });
     invalidateMe();
     notifyAuthMeInvalidated();
   }

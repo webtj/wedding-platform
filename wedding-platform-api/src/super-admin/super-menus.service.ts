@@ -40,7 +40,8 @@ export class SuperMenusService {
         href: data.href ?? null,
         icon: data.icon ?? null,
         sortOrder: data.sortOrder ?? 0,
-        visible: data.visible ?? true
+        visible: data.visible ?? true,
+        permissionCodes: data.permissionCodes ?? []
       }
     });
   }
@@ -56,9 +57,13 @@ export class SuperMenusService {
         throw new NotFoundException('父级菜单不存在');
       }
     }
+    const { permissionCodes, ...rest } = input.data;
     return this.prisma.menuItem.update({
       where: { id: input.menuItemId },
-      data: input.data
+      data: {
+        ...rest,
+        ...(permissionCodes !== undefined ? { permissionCodes } : {})
+      }
     });
   }
 

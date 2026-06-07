@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api-client';
-import type { Role, RoleFilters, RoleResponse, MenuTreeNode } from './types';
+import type { Role, RoleFilters, RoleResponse, MenuTreeNode, RoleMenuState } from './types';
 
 export async function getRoles(filters: RoleFilters): Promise<RoleResponse> {
   const params = new URLSearchParams();
@@ -11,8 +11,8 @@ export async function getRoles(filters: RoleFilters): Promise<RoleResponse> {
   return apiClient<RoleResponse>(`/super/roles${qs ? `?${qs}` : ''}`);
 }
 
-export async function getRoleMenus(roleId: string): Promise<MenuTreeNode[]> {
-  return apiClient<MenuTreeNode[]>(`/super/roles/${roleId}/menus`);
+export async function getRoleMenuState(roleId: string): Promise<RoleMenuState> {
+  return apiClient<RoleMenuState>(`/super/roles/${roleId}/menus`);
 }
 
 export async function assignRoleMenus(roleId: string, menuIds: string[]) {
@@ -20,10 +20,6 @@ export async function assignRoleMenus(roleId: string, menuIds: string[]) {
     method: 'PUT',
     body: JSON.stringify({ menuIds })
   });
-}
-
-export async function getAllMenuTree(): Promise<MenuTreeNode[]> {
-  return apiClient<MenuTreeNode[]>('/super/menus');
 }
 
 export async function createRole(data: {

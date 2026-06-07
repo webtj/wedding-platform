@@ -5,8 +5,8 @@ export type Role = {
   description?: string | null;
   scope: string;
   isBuiltIn: boolean;
+  permissionCodes?: string[];
   tenant?: { id: string; name: string } | null;
-  menus?: { menuItem: { id: string; label: string } }[];
   _count?: { members: number };
 };
 
@@ -25,4 +25,14 @@ export type MenuTreeNode = {
   label: string;
   href?: string | null;
   children?: MenuTreeNode[];
+};
+
+/**
+ * Editor payload for the role's menu assignment dialog. The server splits
+ * the "what could be assigned" set from the "what is assigned" set into
+ * one round-trip; this is the typed shape.
+ */
+export type RoleMenuState = {
+  available: MenuTreeNode[];
+  assigned: string[];
 };

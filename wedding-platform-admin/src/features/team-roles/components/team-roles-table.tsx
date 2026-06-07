@@ -6,15 +6,16 @@ import { useState, useEffect, useMemo } from 'react';
 import { parseAsInteger, parseAsString, useQueryStates } from 'nuqs';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import {
-  rolesQueryOptions,
-  roleMenuStateQueryOptions,
-  assignRoleMenusMutation,
-  createRoleMutation,
-  updateRoleMutation,
-  deleteRoleMutation
+  teamRolesQueryOptions,
+  teamRoleDetailQueryOptions,
+  tenantMenuTreeQueryOptions,
+  assignTeamRoleMenusMutation,
+  createTeamRoleMutation,
+  updateTeamRoleMutation,
+  deleteTeamRoleMutation
 } from '../api/queries';
 import { useAuthContext } from '@/lib/auth/auth-context';
-import type { Role, MenuTreeNode } from '../api/types';
+import type { TeamRole, MenuTreeNode } from '../api/types';
 import type { MenuItemData } from '@/lib/auth/types';
 import {
   ROLE_TEMPLATES,
@@ -76,7 +77,7 @@ function collectMenuIds(menus: MenuItemData[]): Set<string> {
 
 // ── Main Table ─────────────────────────────────────────────────────────────
 
-export function RolesTable() {
+export function TeamRolesTable() {
   const [params, setParams] = useQueryStates({
     page: parseAsInteger.withDefault(1),
     perPage: parseAsInteger.withDefault(10),
@@ -93,7 +94,7 @@ export function RolesTable() {
     limit: params.perPage,
     ...(params.search && { search: params.search })
   };
-  const { data, isLoading } = useQuery(rolesQueryOptions(filters));
+  const { data, isLoading } = useQuery(teamRolesQueryOptions(filters));
 
   if (isLoading || !data)
     return <div className='py-12 text-center text-muted-foreground'>加载中...</div>;
@@ -126,7 +127,6 @@ export function RolesTable() {
               <TableHead>类型</TableHead>
               <TableHead>权限功能</TableHead>
               <TableHead>菜单</TableHead>
-              <TableHead>成员</TableHead>
               <TableHead>操作</TableHead>
             </TableRow>
           </TableHeader>
@@ -134,7 +134,7 @@ export function RolesTable() {
             {data.items.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={8}
+                  colSpan={7}
                   className='h-24 text-center text-muted-foreground'
                 >
                   暂无数据
@@ -179,15 +179,20 @@ export function RolesTable() {
 
 // ── Row ────────────────────────────────────────────────────────────────────
 
-function RoleRow({ role }: { role: Role }) {
+function RoleRow({ role }: { role: TeamRole }) {
   const { menus, isPlatformAdmin } = useAuthContext();
   const [permsOpen, setPermsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  // Platform admins can toggle any menu (no restriction).
-  // Tenant users can only assign menus they themselves have access to.
-  const allowedMenuIds = isPlatformAdmin ? null : collectMenuIds(menus);
+  // Platform admins (cross-tenant) → no menu restriction, allow any.
+  // Tenant users → restrict to menus they themselves have access to.
+  // Fallback: if the user has zero menu overlap with this tenant (e.g. fresh
+  // role assignment), still allow them — the backend `canAssignMenu` is the
+  // security boundary and validates tenant scope on every save.
+  const allowedMenuIds = isPlatformAdmin
+    ? null
+    : (collectMenuIds(menus).size > 0 ? collectMenuIds(menus) : null);
 
   return (
     <TableRow>
@@ -202,7 +207,7 @@ function RoleRow({ role }: { role: Role }) {
         </Badge>
       </TableCell>
       <TableCell>
-        <PlatformRoleCapabilitiesCell permissionCodes={role.permissionCodes ?? []} />
+        <RoleCapabilitiesCell permissionCodes={role.permissionCodes ?? []} />
       </TableCell>
       <TableCell>
         <Button
@@ -217,11 +222,11 @@ function RoleRow({ role }: { role: Role }) {
         <MenuPermsDialog
           open={permsOpen}
           onOpenChange={setPermsOpen}
-          role={role}
+          roleId={role.id}
+          roleName={role.name}
           allowedMenuIds={allowedMenuIds}
         />
       </TableCell>
-      <TableCell className='text-muted-foreground'>{role._count?.members ?? 0}</TableCell>
       <TableCell>
         <div className='flex items-center gap-1'>
           <Button variant='ghost' size='sm' onClick={() => setEditOpen(true)}>
@@ -240,37 +245,87 @@ function RoleRow({ role }: { role: Role }) {
   );
 }
 
+// Hide permission codes from designers. Show the count of capability codes
+// + a popover with the human-readable group breakdown. The v2 single source
+// of truth is role.permissionCodes, set by the template picker or by the
+// menu union recompute; we never expose raw codes like "lead.read".
+function RoleCapabilitiesCell({ permissionCodes }: { permissionCodes: string[] }) {
+  if (permissionCodes.length === 0) {
+    return <span className='text-xs text-muted-foreground'>未配置</span>;
+  }
+  const groups = summarizePermissionGroups(permissionCodes);
+  const groupCount = groups.length;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant='outline' size='sm' className='h-7 px-2 text-xs'>
+          <Icons.lock className='mr-1 h-3.5 w-3.5' />
+          {permissionCodes.length} 项功能
+          <span className='ml-1 text-muted-foreground'>· {groupCount} 组</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className='w-80 max-h-80 overflow-y-auto' align='start'>
+        <p className='text-xs font-medium mb-2'>该角色可执行的功能</p>
+        <Accordion type='multiple' className='w-full'>
+          {groups.map((g) => (
+            <AccordionItem key={g.group} value={g.group} className='border-b-0'>
+              <AccordionTrigger className='text-sm py-2 hover:no-underline'>
+                <span className='flex items-center gap-2'>
+                  {g.group}
+                  <span className='text-xs text-muted-foreground'>（{g.codes.length}）</span>
+                </span>
+              </AccordionTrigger>
+              <AccordionContent>
+                <ul className='space-y-1 pl-5 list-disc text-xs text-muted-foreground'>
+                  {g.descriptions.map((d, i) => (
+                    <li key={i}>{d}</li>
+                  ))}
+                </ul>
+              </AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
+        <p className='text-xs text-muted-foreground pt-2 border-t mt-2'>
+          权限码对策划师不可见，只显示功能描述。
+        </p>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // ── Menu Permission Tree Dialog ────────────────────────────────────────────
 
 function MenuPermsDialog({
   open,
   onOpenChange,
-  role,
+  roleId,
+  roleName,
   allowedMenuIds
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  role: Role;
+  roleId: string;
+  roleName: string;
   allowedMenuIds: Set<string> | null;
 }) {
-  const { data: roleMenuState } = useQuery({ ...roleMenuStateQueryOptions(role.id), enabled: open });
-  const availableMenus = roleMenuState?.available;
+  const { data: tenantMenus } = useQuery({ ...tenantMenuTreeQueryOptions(), enabled: open });
+  const { data: roleDetail } = useQuery({ ...teamRoleDetailQueryOptions(roleId), enabled: open });
   const assign = useMutationToast({
-    ...assignRoleMenusMutation,
+    ...assignTeamRoleMenusMutation,
     successMsg: '菜单已保存',
     errorMsg: '保存失败'
   });
 
   const roleMenuIds = useMemo(
-    () => new Set(roleMenuState?.assigned ?? []),
-    [roleMenuState]
+    () => new Set(roleDetail?.menus?.map((m) => m.menuItem.id) ?? []),
+    [roleDetail]
   );
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  // Reset selection when dialog opens or roleMenuState data arrives
+  // Reset selection when role detail loads
   useEffect(() => {
-    if (open && roleMenuState) setSelected(new Set(roleMenuIds));
-  }, [open, roleMenuState, roleMenuIds]);
+    if (open && roleDetail) setSelected(new Set(roleMenuIds));
+  }, [open, roleDetail, roleMenuIds]);
 
   function toggle(id: string, children: MenuTreeNode[] | undefined) {
     if (allowedMenuIds && !allowedMenuIds.has(id)) return;
@@ -287,7 +342,7 @@ function MenuPermsDialog({
 
   function handleSave() {
     assign.mutate(
-      { roleId: role.id, menuIds: Array.from(selected) },
+      { roleId, menuItemIds: Array.from(selected) },
       { onSuccess: () => onOpenChange(false) }
     );
   }
@@ -296,14 +351,14 @@ function MenuPermsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='max-w-md max-h-[80vh]'>
         <DialogHeader>
-          <DialogTitle>取消关联菜单 — {role.name}</DialogTitle>
+          <DialogTitle>关联菜单 — {roleName}</DialogTitle>
           <DialogDescription>
-            默认显示该角色当前已关联的全部菜单。取消勾选即可解除关联，保存后生效。
+            勾选该角色可访问的菜单项。选中父菜单会自动勾选所有子菜单。
             关联的菜单会自动授予该角色对应的接口权限（在『菜单管理 → 接口权限』中配置）。
           </DialogDescription>
         </DialogHeader>
         <div className='overflow-y-auto max-h-[50vh] space-y-1 py-2'>
-          {availableMenus?.map((menu: MenuTreeNode) => (
+          {tenantMenus?.map((menu: MenuTreeNode) => (
             <MenuTreeRow
               key={menu.id}
               node={menu}
@@ -313,7 +368,7 @@ function MenuPermsDialog({
               allowedIds={allowedMenuIds}
             />
           ))}
-          {(!availableMenus || availableMenus.length === 0) && (
+          {(!tenantMenus || tenantMenus.length === 0) && (
             <p className='text-muted-foreground text-sm text-center py-4'>暂无菜单数据</p>
           )}
         </div>
@@ -383,52 +438,7 @@ function MenuTreeRow({
   );
 }
 
-// Hide permission codes from designers. Show the count of capability codes
-// + a popover with the human-readable group breakdown. The v2 single source
-// of truth is role.permissionCodes, set by the template picker or by the
-// menu union recompute; we never expose raw codes like "lead.read".
-function PlatformRoleCapabilitiesCell({ permissionCodes }: { permissionCodes: string[] }) {
-  if (permissionCodes.length === 0) {
-    return <span className='text-xs text-muted-foreground'>未配置</span>;
-  }
-  const groups = summarizePermissionGroups(permissionCodes);
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant='outline' size='sm' className='h-7 px-2 text-xs'>
-          <Icons.lock className='mr-1 h-3.5 w-3.5' />
-          {permissionCodes.length} 项功能
-          <span className='ml-1 text-muted-foreground'>· {groups.length} 组</span>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className='w-96 max-h-96 overflow-y-auto' align='start'>
-        <p className='text-xs font-medium mb-2'>该角色可执行的功能</p>
-        <Accordion type='multiple' className='w-full'>
-          {groups.map((g) => (
-            <AccordionItem key={g.group} value={g.group} className='border-b-0'>
-              <AccordionTrigger className='text-sm py-2 hover:no-underline'>
-                <span className='flex items-center gap-2'>
-                  {g.group}
-                  <span className='text-xs text-muted-foreground'>（{g.codes.length}）</span>
-                </span>
-              </AccordionTrigger>
-              <AccordionContent>
-                <ul className='space-y-1 pl-5 list-disc text-xs text-muted-foreground'>
-                  {g.codes.map((code, i) => (
-                    <li key={code}>
-                      {g.descriptions[i]}
-                      <code className='ml-1 text-[10px] opacity-60'>{code}</code>
-                    </li>
-                  ))}
-                </ul>
-              </AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
-      </PopoverContent>
-    </Popover>
-  );
-}
+// ── Edit Dialog ────────────────────────────────────────────────────────────
 
 function EditRoleDialog({
   open,
@@ -437,10 +447,10 @@ function EditRoleDialog({
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  role: Role;
+  role: TeamRole;
 }) {
   const update = useMutationToast({
-    ...updateRoleMutation,
+    ...updateTeamRoleMutation,
     successMsg: '角色已更新',
     errorMsg: '更新失败'
   });
@@ -495,10 +505,10 @@ function DeleteRoleDialog({
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  role: Role;
+  role: TeamRole;
 }) {
   const del = useMutationToast({
-    ...deleteRoleMutation,
+    ...deleteTeamRoleMutation,
     successMsg: '角色已删除',
     errorMsg: '删除失败'
   });
@@ -535,7 +545,7 @@ function AddRoleDialog() {
   const [open, setOpen] = useState(false);
   const [templateCode, setTemplateCode] = useState<string>(NO_TEMPLATE);
   const create = useMutationToast({
-    ...createRoleMutation,
+    ...createTeamRoleMutation,
     successMsg: '角色已创建',
     errorMsg: '创建失败'
   });
@@ -546,7 +556,8 @@ function AddRoleDialog() {
   const selectedTemplate =
     templateCode !== NO_TEMPLATE ? ROLE_TEMPLATES[templateCode as RoleTemplateCode] : null;
 
-  // When the user picks a template, prefill name + description (but never code).
+  // When the user picks a template, prefill name + description (but never code —
+  // codes must be tenant-unique and operators usually want a project-specific one).
   useEffect(() => {
     if (!open) return;
     if (selectedTemplate) {
@@ -606,7 +617,7 @@ function AddRoleDialog() {
           <DialogHeader>
             <DialogTitle>新增角色</DialogTitle>
             <DialogDescription>
-              平台级角色，可应用到多个租户。从模板开始可一键获得对应功能的 API 权限。
+              从模板开始可一键获得该角色对应的全部功能。模板可创建后再通过『关联菜单』微调。
             </DialogDescription>
           </DialogHeader>
           <div className='flex flex-col gap-4'>
@@ -658,6 +669,9 @@ function AddRoleDialog() {
                     </AccordionItem>
                   ))}
                 </Accordion>
+                <p className='text-xs text-muted-foreground pt-1'>
+                  隐藏码：策划师用户看不到具体接口权限码，只看到功能描述。
+                </p>
               </div>
             )}
 
@@ -666,7 +680,7 @@ function AddRoleDialog() {
               <Input
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                placeholder='小写字母+下划线，如 planner_v2'
+                placeholder='小写字母+下划线，如 designer'
               />
             </div>
             <div className='space-y-2'>

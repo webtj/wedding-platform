@@ -15,7 +15,7 @@ export class RolesService {
     const pageSize = input.pageSize ?? 10;
     const skip = (page - 1) * pageSize;
 
-    const where: Record<string, unknown> = { tenantId: input.tenantId };
+    const where: Record<string, unknown> = { tenantId: input.tenantId, isBuiltIn: false };
 
     if (input.search) {
       where.OR = [
@@ -28,7 +28,7 @@ export class RolesService {
     const [items, total] = await Promise.all([
       this.prisma.role.findMany({
         where,
-        include: { permissions: { include: { permission: true } }, menus: { include: { menuItem: true } }, tenant: true },
+        include: { _count: { select: { members: true } } },
         orderBy: { createdAt: 'asc' },
         skip,
         take: pageSize
@@ -43,8 +43,8 @@ export class RolesService {
     code: string;
     name: string;
     description?: string;
-    permissionIds?: string[];
     menuItemIds?: string[];
+    permissionCodes?: string[];
     userId: string;
   }) {
     // If menuItemIds are provided, verify the user can assign each menu
@@ -68,15 +68,6 @@ export class RolesService {
         }
       });
 
-      if (input.permissionIds?.length) {
-        await tx.rolePermission.createMany({
-          data: input.permissionIds.map((permissionId) => ({
-            roleId: role.id,
-            permissionId
-          }))
-        });
-      }
-
       if (input.menuItemIds?.length) {
         await tx.roleMenuItem.createMany({
           data: input.menuItemIds.map((menuItemId) => ({
@@ -86,9 +77,36 @@ export class RolesService {
         });
       }
 
+      // v2: permissionCodes are set by one of three paths (mutually exclusive):
+      //   1. menuItemIds provided → union of MenuItem.permissionCodes (computed below)
+      //   2. permissionCodes provided directly (template application, e.g. ROLE_TEMPLATES.sales)
+      //   3. nothing provided → []
+      //   Path 2 takes precedence over path 1; otherwise menus win.
+      let resolvedPermissionCodes: string[] = [];
+      if (input.permissionCodes !== undefined) {
+        resolvedPermissionCodes = [...new Set(input.permissionCodes)];
+      } else if (input.menuItemIds?.length) {
+        const selectedMenus = await tx.menuItem.findMany({
+          where: { id: { in: input.menuItemIds } },
+          select: { permissionCodes: true }
+        });
+        const union = new Set<string>();
+        for (const m of selectedMenus) {
+          for (const code of m.permissionCodes) union.add(code);
+        }
+        resolvedPermissionCodes = Array.from(union);
+      }
+
+      if (resolvedPermissionCodes.length > 0 || input.permissionCodes !== undefined) {
+        await tx.role.update({
+          where: { id: role.id },
+          data: { permissionCodes: resolvedPermissionCodes }
+        });
+      }
+
       return tx.role.findUniqueOrThrow({
         where: { id: role.id },
-        include: { permissions: { include: { permission: true } }, menus: { include: { menuItem: true } } }
+        include: { menus: { include: { menuItem: true } } }
       });
     });
   }
@@ -96,7 +114,7 @@ export class RolesService {
   async getById(input: { id: string; tenantId: string }) {
     const role = await this.prisma.role.findFirst({
       where: { id: input.id, tenantId: input.tenantId },
-      include: { permissions: { include: { permission: true } }, menus: { include: { menuItem: true } } }
+      include: { menus: { include: { menuItem: true } } }
     });
 
     if (!role) {
@@ -111,8 +129,8 @@ export class RolesService {
     tenantId: string;
     name?: string;
     description?: string;
-    permissionIds?: string[];
     menuItemIds?: string[];
+    permissionCodes?: string[];
     userId: string;
   }) {
     const existing = await this.prisma.role.findFirst({
@@ -148,23 +166,17 @@ export class RolesService {
         }
       });
 
-      // Replace permissions if provided
-      if (input.permissionIds !== undefined) {
-        await tx.rolePermission.deleteMany({ where: { roleId: input.id } });
-        if (input.permissionIds.length > 0) {
-          await tx.rolePermission.createMany({
-            data: input.permissionIds.map((permissionId) => ({
-              roleId: input.id,
-              permissionId
-            }))
-          });
-        }
-        // Revoke sessions for affected users so they pick up new permissions
+      // v2: permissionCodes resolution — same three-path precedence as create()
+      //   1. permissionCodes provided directly → use it (template application / manual override)
+      //   2. menuItemIds provided → recompute union from selected menus
+      //   3. neither provided → leave existing permissionCodes untouched
+      if (input.permissionCodes !== undefined) {
+        await tx.role.update({
+          where: { id: input.id },
+          data: { permissionCodes: [...new Set(input.permissionCodes)] }
+        });
         await this.tokenService.revokeSessionsByRoleId(input.id);
-      }
-
-      // Replace menu items if provided
-      if (input.menuItemIds !== undefined) {
+      } else if (input.menuItemIds !== undefined) {
         await tx.roleMenuItem.deleteMany({ where: { roleId: input.id } });
         if (input.menuItemIds.length > 0) {
           await tx.roleMenuItem.createMany({
@@ -174,11 +186,28 @@ export class RolesService {
             }))
           });
         }
+        // Recompute role.permissionCodes from selected menus' permissionCodes (union).
+        const selectedMenus =
+          input.menuItemIds.length > 0
+            ? await tx.menuItem.findMany({
+                where: { id: { in: input.menuItemIds } },
+                select: { permissionCodes: true }
+              })
+            : [];
+        const union = new Set<string>();
+        for (const m of selectedMenus) {
+          for (const code of m.permissionCodes) union.add(code);
+        }
+        await tx.role.update({
+          where: { id: input.id },
+          data: { permissionCodes: Array.from(union) }
+        });
+        await this.tokenService.revokeSessionsByRoleId(input.id);
       }
 
       return tx.role.findUniqueOrThrow({
         where: { id: input.id },
-        include: { permissions: { include: { permission: true } }, menus: { include: { menuItem: true } } }
+        include: { menus: { include: { menuItem: true } } }
       });
     });
   }
@@ -205,6 +234,61 @@ export class RolesService {
 
     await this.prisma.role.delete({ where: { id: input.id } });
     return { deleted: true };
+  }
+
+  async assignMenus(input: { id: string; tenantId: string; menuItemIds: string[]; userId: string }) {
+    const role = await this.prisma.role.findFirst({
+      where: { id: input.id, tenantId: input.tenantId }
+    });
+
+    if (!role) {
+      throw BusinessException.notFound('角色');
+    }
+
+    // Verify the user can assign each menu
+    for (const menuItemId of input.menuItemIds) {
+      const canAssign = await this.canAssignMenu(input.userId, input.tenantId, menuItemId);
+      if (!canAssign) {
+        throw BusinessException.permissionDenied();
+      }
+    }
+
+    await this.prisma.roleMenuItem.deleteMany({ where: { roleId: input.id } });
+    if (input.menuItemIds.length > 0) {
+      await this.prisma.roleMenuItem.createMany({
+        data: input.menuItemIds.map((menuItemId) => ({
+          roleId: input.id,
+          menuItemId
+        }))
+      });
+    }
+
+    // Recompute role.permissionCodes from selected menus' permissionCodes (union).
+    const selectedMenus =
+      input.menuItemIds.length > 0
+        ? await this.prisma.menuItem.findMany({
+            where: { id: { in: input.menuItemIds } },
+            select: { permissionCodes: true }
+          })
+        : [];
+    const union = new Set<string>();
+    for (const m of selectedMenus) {
+      for (const code of m.permissionCodes) union.add(code);
+    }
+    await this.prisma.role.update({
+      where: { id: input.id },
+      data: { permissionCodes: Array.from(union) }
+    });
+
+    return { success: true };
+  }
+
+  async getTenantMenus(tenantId: string) {
+    return this.prisma.menuItem.findMany({
+      where: { tenantId, scope: 'tenant', parentId: null },
+      include: { children: { where: { scope: 'tenant' }, orderBy: { sortOrder: 'asc' } } },
+      orderBy: { sortOrder: 'asc' }
+    });
   }
 
   async canAssignMenu(userId: string, tenantId: string, menuItemId: string): Promise<boolean> {
