@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { RomanticAuthHero } from '@/features/auth-hero/RomanticAuthHero';
 import UserAuthForm from './user-auth-form';
 
+
 export default function SignInViewPage() {
   return (
     <div className='relative min-h-screen overflow-hidden bg-[#f3ecdf]'>
@@ -40,17 +41,7 @@ export default function SignInViewPage() {
             <p className='mt-2 text-sm text-[#816f5f]'>输入账号密码登录婚礼 SaaS 平台</p>
           </div>
 
-          <UserAuthForm mode='signin' />
-
-          <div className='mt-5 px-2 text-center text-sm text-[#7d6b5d]'>
-            还没有账号？{' '}
-            <Link
-              href='/auth/sign-up'
-              className='font-medium text-[#b16272] underline-offset-4 hover:underline'
-            >
-              注册
-            </Link>
-          </div>
+          <UserAuthForm />
 
           <p className='mt-5 px-2 text-center text-xs leading-relaxed text-[#887463]'>
             点击登录即表示同意我们的{' '}

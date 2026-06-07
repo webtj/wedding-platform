@@ -246,23 +246,25 @@ function CategoryCard({
           className={`h-4 w-4 text-muted-foreground transition-transform duration-200 flex-shrink-0 ${expanded ? 'rotate-90' : ''}`}
         />
         <div className='flex-1 min-w-0'>
-          <div className='flex items-baseline gap-2'>
-            <span className='font-semibold text-sm'>{cat.name}</span>
-            <span className='text-xs text-muted-foreground'>{materials.length} 件</span>
-          </div>
-          {materials.length > 0 && (
-            <div className='flex items-center gap-2 mt-1'>
-              <div className='flex-1 max-w-[100px] h-1 rounded-full bg-secondary overflow-hidden'>
-                <div
-                  className='h-full bg-emerald-500 rounded-full transition-all duration-500'
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-              <span className='text-xs text-muted-foreground tabular-nums'>
-                {avail}/{materials.length} 已有
-              </span>
+          <div className='flex items-center gap-3'>
+            <div className='flex items-baseline gap-2'>
+              <span className='font-semibold text-sm'>{cat.name}</span>
+              <span className='text-xs text-muted-foreground'>{materials.length} 件</span>
             </div>
-          )}
+            {materials.length > 0 && (
+              <div className='flex items-center gap-2'>
+                <div className='w-[80px] h-1 rounded-full bg-secondary overflow-hidden'>
+                  <div
+                    className='h-full bg-emerald-500 rounded-full transition-all duration-500'
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <span className='text-xs text-muted-foreground tabular-nums'>
+                  {avail}/{materials.length} 已有
+                </span>
+              </div>
+            )}
+          </div>
         </div>
         <div className='flex items-center gap-0.5' onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.key === 'Enter' && e.stopPropagation()} role='button' tabIndex={0}>
           <QuickAddMat catId={cat.id} onAdded={() => refetch()} />
