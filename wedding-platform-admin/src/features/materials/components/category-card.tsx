@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,7 +30,16 @@ export function CategoryCard({
   onEditMaterial: (m: Material) => void;
 }) {
   const [open, setOpen] = useState(true);
-  const expanded = forceExpand ? true : open;
+  const prevForceRef = useRef(forceExpand);
+
+  useEffect(() => {
+    if (forceExpand !== prevForceRef.current) {
+      setOpen(forceExpand);
+      prevForceRef.current = forceExpand;
+    }
+  }, [forceExpand]);
+
+  const expanded = open;
   const { data } = useSuspenseQuery(materialsByCategoryOptions(category.id));
   const all = data.items;
   const searchLower = search.toLowerCase();
