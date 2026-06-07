@@ -358,10 +358,10 @@ function ContractRow({ contract }: { contract: Contract }) {
             <Button
               variant='ghost'
               size='sm'
-              className='h-7 text-xs px-1.5 text-muted-foreground hover:text-destructive'
+              className='h-7 text-xs px-2 text-destructive hover:text-destructive hover:bg-destructive/10'
               onClick={() => setDeleteOpen(true)}
             >
-              <Icons.trash className='h-3.5 w-3.5' />
+              删除
             </Button>
           )}
         </div>
