@@ -27,10 +27,15 @@ await page.keyboard.press('Escape');
 await page.waitForTimeout(300);
 
 // Pick a non-default material, then reopen
-const popover1 = page.locator('[data-radix-popper-content-wrapper]').last();
-const firstMaterial = popover1.getByRole('button').filter({ hasText: /智言卡|喜帖|餐卡/ }).nth(1);
-await firstMaterial.click();
+await page.getByRole('button', { name: /素材/ }).first().click();
 await page.waitForTimeout(400);
+const popover1 = page.locator('[data-radix-popper-content-wrapper]').last();
+const allMaterials = popover1.getByRole('button').filter({ hasText: /智言卡|喜帖|餐卡/ });
+const matCount = await allMaterials.count();
+console.log(`Found ${matCount} material(s)`);
+const targetMat = matCount > 1 ? allMaterials.nth(1) : allMaterials.first();
+await targetMat.click();
+await page.waitForTimeout(500);
 
 await page.getByRole('button', { name: /素材/ }).first().click();
 await page.waitForTimeout(400);

@@ -105,26 +105,28 @@ export function MatChip({
           <div className='hidden group-hover:flex items-center gap-0.5 flex-shrink-0'>
             <Button
               variant='ghost'
-              size='sm'
-              className='h-5 text-xs px-1'
+              size='icon'
+              className='size-6'
+              title='编辑'
               onClick={(e) => {
                 e.stopPropagation();
                 setPopoverOpen(false);
                 onEdit();
               }}
             >
-              编辑
+              <Icons.edit className='size-3' />
             </Button>
             <Button
               variant='ghost'
-              size='sm'
-              className='h-5 text-xs px-1 text-destructive'
+              size='icon'
+              className='size-6 text-destructive'
+              title='删除'
               onClick={(e) => {
                 e.stopPropagation();
                 handleDelete();
               }}
             >
-              删除
+              <Icons.trash className='size-3' />
             </Button>
           </div>
         )}
