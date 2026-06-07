@@ -1,101 +1,69 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { TemplateService } from './template.service';
 
 describe('TemplateService', () => {
+  let service: TemplateService;
+
+  beforeEach(async () => {
+    service = new TemplateService();
+    await service.onModuleInit();
+  });
+
   describe('getStyleDescription', () => {
-    it('returns default style when cache is empty', () => {
-      const prisma = { aiTemplate: { findMany: vi.fn().mockResolvedValue([]) } };
-      const service = new TemplateService(prisma as never);
+    it('returns default style description', () => {
       const desc = service.getStyleDescription('french_pastoral');
       expect(desc).toContain('French pastoral');
     });
 
-    it('returns the style code itself when not in cache or defaults', () => {
-      const prisma = { aiTemplate: { findMany: vi.fn().mockResolvedValue([]) } };
-      const service = new TemplateService(prisma as never);
+    it('returns the style code itself when not in defaults', () => {
       expect(service.getStyleDescription('unknown_style')).toBe('unknown_style');
     });
 
-    it('uses DB cache over defaults when available', async () => {
-      const prisma = {
-        aiTemplate: {
-          findMany: vi.fn()
-            .mockResolvedValueOnce([{ code: 'style_french_pastoral', prompt: 'DB style prompt' }])
-            .mockResolvedValueOnce([])
-        }
-      };
-      const service = new TemplateService(prisma as never);
-      await service.onModuleInit();
-      expect(service.getStyleDescription('french_pastoral')).toBe('DB style prompt');
+    it('returns all default styles', () => {
+      expect(service.getStyleDescription('cream')).toContain('Cream');
+      expect(service.getStyleDescription('morandi')).toContain('Morandi');
+      expect(service.getStyleDescription('oil_painting')).toContain('oil painting');
     });
   });
 
   describe('getMaterialPrompt', () => {
-    it('returns default material prompt when cache is empty', () => {
-      const prisma = { aiTemplate: { findMany: vi.fn().mockResolvedValue([]) } };
-      const service = new TemplateService(prisma as never);
+    it('returns default material prompt', () => {
       expect(service.getMaterialPrompt('vow_card')).toContain('vow card');
     });
 
     it('returns empty string for unknown material', () => {
-      const prisma = { aiTemplate: { findMany: vi.fn().mockResolvedValue([]) } };
-      const service = new TemplateService(prisma as never);
       expect(service.getMaterialPrompt('unknown')).toBe('');
+    });
+
+    it('returns all default materials', () => {
+      expect(service.getMaterialPrompt('table_card')).toContain('table');
+      expect(service.getMaterialPrompt('sticker')).toContain('sticker');
     });
   });
 
   describe('getMaterialInstruction', () => {
-    it('returns instruction from MATERIAL_INSTRUCTIONS', () => {
-      const prisma = { aiTemplate: { findMany: vi.fn().mockResolvedValue([]) } };
-      const service = new TemplateService(prisma as never);
+    it('returns instruction for known material', () => {
       expect(service.getMaterialInstruction('vow_card')).toContain('vow card');
     });
 
     it('returns empty string for unknown material', () => {
-      const prisma = { aiTemplate: { findMany: vi.fn().mockResolvedValue([]) } };
-      const service = new TemplateService(prisma as never);
       expect(service.getMaterialInstruction('unknown')).toBe('');
     });
   });
 
   describe('onModuleInit', () => {
-    it('warms caches from DB on init', async () => {
-      const prisma = {
-        aiTemplate: {
-          findMany: vi.fn()
-            .mockResolvedValueOnce([{ code: 'style_custom', prompt: 'custom style' }])
-            .mockResolvedValueOnce([{ code: 'material_custom', prompt: 'custom material' }])
-        }
-      };
-      const service = new TemplateService(prisma as never);
-      await service.onModuleInit();
-      expect(service.getStyleDescription('custom')).toBe('custom style');
-      expect(service.getMaterialPrompt('custom')).toBe('custom material');
-    });
-
-    it('falls back to defaults when DB read fails', async () => {
-      const prisma = { aiTemplate: { findMany: vi.fn().mockRejectedValue(new Error('db down')) } };
-      const service = new TemplateService(prisma as never);
-      await expect(service.onModuleInit()).resolves.toBeUndefined();
+    it('warms caches with defaults', () => {
+      // Already called in beforeEach
       expect(service.getStyleDescription('french_pastoral')).toContain('French pastoral');
+      expect(service.getMaterialPrompt('vow_card')).toContain('vow card');
     });
   });
 
   describe('refresh', () => {
-    it('clears caches and reloads from DB', async () => {
-      const prisma = {
-        aiTemplate: {
-          findMany: vi.fn()
-            .mockResolvedValueOnce([])
-            .mockResolvedValueOnce([])
-            .mockResolvedValueOnce([{ code: 'style_new', prompt: 'new style' }])
-            .mockResolvedValueOnce([])
-        }
-      };
-      const service = new TemplateService(prisma as never);
-      await service.onModuleInit();
+    it('clears and reloads caches', async () => {
       await service.refresh();
-      expect(service.getStyleDescription('new')).toBe('new style');
+      expect(service.getStyleDescription('french_pastoral')).toContain('French pastoral');
+      expect(service.getMaterialPrompt('vow_card')).toContain('vow card');
     });
   });
 });

@@ -1,5 +1,4 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
 
 // ── Style templates (fallback, loaded from DB when available) ──────────────
 const DEFAULT_STYLES: Record<string, string> = {
@@ -41,40 +40,21 @@ export class TemplateService implements OnModuleInit {
   private materialCache: Map<string, string> = new Map();
   private instructionCache: Map<string, string> = new Map(Object.entries(MATERIAL_INSTRUCTIONS));
 
-  constructor(private readonly prisma: PrismaService) {}
-
   async onModuleInit() {
-    await this.warmCaches();
+    this.warmCaches();
   }
 
-  private async warmCaches() {
-    try {
-      const [styleTemplates, materialTemplates] = await Promise.all([
-        this.prisma.aiTemplate.findMany({
-          where: { category: 'image_design', code: { startsWith: 'style_' } },
-          select: { code: true, prompt: true },
-        }),
-        this.prisma.aiTemplate.findMany({
-          where: { category: 'image_design', code: { startsWith: 'material_' } },
-          select: { code: true, prompt: true },
-        }),
-      ]);
-
-      for (const t of styleTemplates) {
-        const key = t.code.replace('style_', '');
-        this.styleCache.set(key, t.prompt);
-      }
-      for (const t of materialTemplates) {
-        const key = t.code.replace('material_', '');
-        this.materialCache.set(key, t.prompt);
-      }
-
-      this.logger.log(
-        `Template cache warmed: ${this.styleCache.size} styles, ${this.materialCache.size} materials`,
-      );
-    } catch (err) {
-      this.logger.warn(`Template cache warm failed, using defaults: ${err}`);
+  private warmCaches() {
+    // Use hardcoded defaults - DB overrides removed with ai_templates migration
+    for (const [key, value] of Object.entries(DEFAULT_STYLES)) {
+      this.styleCache.set(key, value);
     }
+    for (const [key, value] of Object.entries(DEFAULT_MATERIALS)) {
+      this.materialCache.set(key, value);
+    }
+    this.logger.log(
+      `Template cache warmed: ${this.styleCache.size} styles, ${this.materialCache.size} materials`,
+    );
   }
 
   /**
