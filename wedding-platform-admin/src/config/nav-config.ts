@@ -127,7 +127,7 @@ export const navGroups: NavGroup[] = [
     label: 'AI 工具',
     items: [
       { title: 'AI 工作台', url: '/studio/ai-workbench', icon: 'sparkles', shortcut: ['a', 'a'], isActive: false, items: [] },
-      { title: '生图模板', url: '/studio/ai-workbench/templates', icon: 'palette', shortcut: ['a', 't'], isActive: false, items: [] },
+      { title: '推荐词管理', url: '/studio/ai-workbench/quick-prompts', icon: 'palette', shortcut: ['a', 't'], isActive: false, items: [] },
       { title: '素材管理', url: '/studio/material-types', icon: 'product', shortcut: ['m', 't'], isActive: false, items: [] },
       { title: 'AI 文案生成', url: '/studio/ai-workbench/text', icon: 'post', shortcut: ['a', 'x'], isActive: false, items: [] }
     ]

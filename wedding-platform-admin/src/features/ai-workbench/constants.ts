@@ -74,13 +74,6 @@ export const STYLE_PREVIEWS: Record<string, { preview: string; hint: string }> =
 
 export const COUNT_OPTIONS = [1, 2, 4, 6];
 
-export const QUICK_PROMPTS = [
-  '窗台上的白玫瑰',
-  '白玫瑰婚礼迎宾牌',
-  '奶油风桌卡背景',
-  '新中式红金请柬'
-];
-
 export const REFINE_SUGGESTIONS = [
   '更像高端婚礼样张',
   '换成窗台白玫瑰',

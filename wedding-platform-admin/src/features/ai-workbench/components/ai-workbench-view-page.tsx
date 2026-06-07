@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Image from 'next/image';
 import { toast } from 'sonner';
@@ -10,7 +10,7 @@ import {
   downloadImage,
   deleteGeneration,
   listGenerations,
-  getAiTemplates,
+  getQuickPromptCategories,
   updateGenerationBookmark,
   selectImage as selectImageApi,
   bookmarkImage as bookmarkImageApi,
@@ -67,10 +67,15 @@ export default function AiWorkbenchViewPage({ projectId }: AiWorkbenchViewPagePr
     queryFn: () => listGenerations({ page: 1, pageSize: 12, projectId })
   });
 
-  const { data: imageTemplates } = useQuery({
-    queryKey: ['ai-workbench-templates', 'image_design'],
-    queryFn: () => getAiTemplates('image_design')
+  const { data: promptCategories } = useQuery({
+    queryKey: ['quick-prompts', 'image_design'],
+    queryFn: () => getQuickPromptCategories('image_design')
   });
+
+  const imageTemplates = useMemo(() =>
+    promptCategories?.flatMap(c => c.prompts) ?? [],
+    [promptCategories]
+  );
 
   const { data: conversationsData, isLoading: isConversationsLoading } = useQuery({
     queryKey: ['ai-workbench-conversations', projectId],

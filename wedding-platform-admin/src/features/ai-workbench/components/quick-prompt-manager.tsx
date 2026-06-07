@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -17,33 +17,19 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Icons } from '@/components/icons';
+import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
-
-// ── Types ───────────────────────────────────────────────────────────────────
-
-interface QuickPromptCategory {
-  id: string;
-  tenantId: string | null;
-  name: string;
-  sortOrder: number;
-  prompts: QuickPrompt[];
-}
-
-interface QuickPrompt {
-  id: string;
-  tenantId: string | null;
-  categoryId: string;
-  name: string;
-  prompt: string;
-  sortOrder: number;
-}
+import type { QuickPromptCategory, QuickPrompt, PromptCategoryType } from '../api/types';
 
 // ── API ─────────────────────────────────────────────────────────────────────
 
 const QUERY_KEY = ['quick-prompts'];
 
-function fetchCategories(): Promise<QuickPromptCategory[]> {
-  return apiClient<QuickPromptCategory[]>('/quick-prompts/categories');
+function fetchCategories(type?: string): Promise<QuickPromptCategory[]> {
+  const params = new URLSearchParams();
+  if (type) params.set('type', type);
+  const qs = params.toString();
+  return apiClient<QuickPromptCategory[]>(`/quick-prompts/categories${qs ? `?${qs}` : ''}`);
 }
 
 function createCategory(data: { name: string }) {
@@ -74,6 +60,16 @@ function updatePrompt(id: string, data: { name?: string; prompt?: string }) {
 function deletePrompt(id: string) {
   return apiClient(`/quick-prompts/${id}`, { method: 'DELETE' });
 }
+
+// ── Filter Tabs ─────────────────────────────────────────────────────────────
+
+type FilterTab = { value: string; label: string };
+
+const FILTER_TABS: FilterTab[] = [
+  { value: 'image_design', label: '生图灵感' },
+  { value: 'copywriting', label: '文案灵感' },
+  { value: '', label: '全部' }
+];
 
 // ── Components ──────────────────────────────────────────────────────────────
 
@@ -166,9 +162,12 @@ function CategorySection({
 
 export function QuickPromptManager() {
   const queryClient = useQueryClient();
+  const [activeType, setActiveType] = useState<string>('image_design');
+  const [search, setSearch] = useState('');
+
   const { data: categories, isLoading } = useQuery({
-    queryKey: QUERY_KEY,
-    queryFn: fetchCategories
+    queryKey: [...QUERY_KEY, activeType],
+    queryFn: () => fetchCategories(activeType || undefined)
   });
 
   const [addCatOpen, setAddCatOpen] = useState(false);
@@ -182,9 +181,31 @@ export function QuickPromptManager() {
   const [promptName, setPromptName] = useState('');
   const [promptText, setPromptText] = useState('');
 
-  function refresh() {
+  // Filter categories by search
+  const filteredCategories = useMemo(() => {
+    if (!categories) return [];
+    const keyword = search.trim().toLowerCase();
+    if (!keyword) return categories;
+    return categories
+      .map((cat) => ({
+        ...cat,
+        prompts: cat.prompts.filter(
+          (p) =>
+            p.name.toLowerCase().includes(keyword) ||
+            p.prompt.toLowerCase().includes(keyword)
+        )
+      }))
+      .filter((cat) => cat.prompts.length > 0);
+  }, [categories, search]);
+
+  const totalPrompts = useMemo(
+    () => filteredCategories.reduce((sum, c) => sum + c.prompts.length, 0),
+    [filteredCategories]
+  );
+
+  const refresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: QUERY_KEY });
-  }
+  }, [queryClient]);
 
   async function handleAddCategory() {
     if (!catName.trim()) return;
@@ -261,17 +282,48 @@ export function QuickPromptManager() {
 
   return (
     <div className='space-y-6'>
-      <div className='flex items-center justify-between'>
-        <p className='text-muted-foreground text-sm'>
-          {categories?.length ?? 0} 个分类，{categories?.reduce((sum, c) => sum + c.prompts.length, 0) ?? 0} 条推荐词
-        </p>
-        <Button size='sm' onClick={() => setAddCatOpen(true)}>
-          <Icons.add className='mr-1.5 h-3.5 w-3.5' />
-          添加分类
-        </Button>
+      {/* ── Type Filter Tabs ── */}
+      <div className='flex flex-wrap items-center gap-2'>
+        {FILTER_TABS.map((tab) => (
+          <button
+            key={tab.value}
+            type='button'
+            onClick={() => setActiveType(tab.value)}
+            className={cn(
+              'inline-flex h-8 items-center rounded-full px-3 text-sm transition-colors',
+              activeType === tab.value
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground hover:text-foreground'
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      {categories?.map((cat) => (
+      {/* ── Search + Stats + Add Button ── */}
+      <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
+        <div className='relative flex-1'>
+          <Icons.search className='pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground' />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder='搜索推荐词...'
+            className='h-9 pl-8'
+          />
+        </div>
+        <div className='flex items-center gap-3'>
+          <p className='text-muted-foreground text-sm'>
+            {filteredCategories.length} 个分类，{totalPrompts} 条推荐词
+          </p>
+          <Button size='sm' onClick={() => setAddCatOpen(true)}>
+            <Icons.add className='mr-1.5 h-3.5 w-3.5' />
+            添加分类
+          </Button>
+        </div>
+      </div>
+
+      {filteredCategories.map((cat) => (
         <CategorySection
           key={cat.id}
           category={cat}
@@ -290,10 +342,14 @@ export function QuickPromptManager() {
         />
       ))}
 
-      {categories?.length === 0 && (
+      {filteredCategories.length === 0 && (
         <div className='py-16 text-center border-2 border-dashed rounded-xl'>
-          <p className='text-sm text-muted-foreground mb-2'>暂无推荐词分类</p>
-          <p className='text-xs text-muted-foreground mb-4'>点击上方"添加分类"开始创建</p>
+          <p className='text-sm text-muted-foreground mb-2'>
+            {search.trim() ? '没有找到匹配的推荐词' : '暂无推荐词分类'}
+          </p>
+          <p className='text-xs text-muted-foreground mb-4'>
+            {search.trim() ? '尝试其他关键词' : '点击上方"添加分类"开始创建'}
+          </p>
         </div>
       )}
 

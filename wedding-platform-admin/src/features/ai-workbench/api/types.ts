@@ -81,29 +81,24 @@ export interface AiGenerationResponse {
   totalPages: number;
 }
 
-export interface AiTemplate {
+export type PromptCategoryType = 'image_design' | 'copywriting' | 'general';
+
+export interface QuickPromptCategory {
   id: string;
   tenantId: string | null;
-  code: string;
   name: string;
-  category: string;
-  prompt: string;
-  isBuiltIn: boolean;
-  createdAt: string;
-  updatedAt: string;
+  type: PromptCategoryType;
+  sortOrder: number;
+  prompts: QuickPrompt[];
 }
 
-export interface CreateAiTemplatePayload {
-  code: string;
+export interface QuickPrompt {
+  id: string;
+  tenantId: string | null;
+  categoryId: string;
   name: string;
-  category?: string;
   prompt: string;
-}
-
-export interface UpdateAiTemplatePayload {
-  name?: string;
-  category?: string;
-  prompt?: string;
+  sortOrder: number;
 }
 
 export interface GeneratePayload {
