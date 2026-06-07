@@ -751,7 +751,8 @@ async function main() {
     { label: 'AI 工具', icon: 'sparkles', sortOrder: 2, children: [
       { label: 'AI 工作台', href: '/studio/ai-workbench', icon: 'sparkles', sortOrder: 0, permissionCodes: ['ai.use', 'ai.generate', 'ai.generation.read', 'ai.generation.bookmark', 'ai.generation.series', 'ai.text.generate', 'ai.text.generation.read', 'ai.text.generation.bookmark'] },
       { label: '生图模板', href: '/studio/ai-workbench/templates', icon: 'palette', sortOrder: 1, permissionCodes: ['template.read', 'template.manage'] },
-      { label: '素材管理', href: '/studio/material-types', icon: 'product', sortOrder: 2, permissionCodes: ['material_type.read', 'material_type.manage'] }
+      { label: '素材管理', href: '/studio/material-types', icon: 'product', sortOrder: 2, permissionCodes: ['material_type.read', 'material_type.manage'] },
+      { label: '推荐词', href: '/studio/ai-workbench/quick-prompts', icon: 'sparkles', sortOrder: 3, permissionCodes: ['material.read', 'material.manage'] }
     ]},
     { label: '任务', icon: 'checks', sortOrder: 3, children: [
       { label: '流程模板', href: '/studio/templates', icon: 'forms', sortOrder: 0, permissionCodes: ['task.read', 'task.create', 'task.assign', 'task.complete'] },
