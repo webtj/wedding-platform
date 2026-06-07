@@ -22,6 +22,7 @@ import {
   IconChevronsDown,
   IconChevronsLeft,
   IconChevronsRight,
+  IconChevronsUp,
   IconCircle,
   IconCircleCheck,
   IconCirclePlus,
@@ -143,6 +144,7 @@ export const Icons = {
   chevronsDown: IconChevronsDown,
   chevronsLeft: IconChevronsLeft,
   chevronsRight: IconChevronsRight,
+  chevronsUp: IconChevronsUp,
   chevronsUpDown: IconSelector,
 
   // Layout
