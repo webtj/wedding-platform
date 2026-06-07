@@ -87,8 +87,7 @@ export function TextGenerationView() {
 
   const { data: historyData, isLoading: isHistoryLoading } = useQuery({
     queryKey: ['text-generations', selectedType],
-    queryFn: () => listTextGenerations({ type: selectedType, pageSize: 20 }),
-    staleTime: 30 * 1000,
+    queryFn: () => listTextGenerations({ type: selectedType, pageSize: 20 })
   });
 
   const handleGenerate = useCallback(async () => {

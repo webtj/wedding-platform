@@ -20,6 +20,8 @@ export async function getNotifications(params?: NotificationListParams): Promise
 }
 
 export async function getUnreadCount(): Promise<UnreadCountResponse> {
+  // The server returns { count: 0 } for users without a tenant context
+  // (e.g. platform super admins), so this 30s poll never produces a 403.
   return apiClient<UnreadCountResponse>('/notifications/unread-count');
 }
 

@@ -15,6 +15,14 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PermissionMultiSelect } from '@/components/permissions/permission-multi-select';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from '@/components/ui/popover';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { PERMISSION_METADATA } from '@/lib/permissions';
 import {
   Select,
   SelectContent,
@@ -168,6 +176,9 @@ export function MenusView() {
               <th className='px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell'>
                 路径
               </th>
+              <th className='px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider hidden lg:table-cell'>
+                接口权限
+              </th>
               <th className='px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider hidden md:table-cell'>
                 图标
               </th>
@@ -316,6 +327,9 @@ function MenuRow({
       <td className='px-4 py-2.5 text-muted-foreground font-mono text-xs hidden sm:table-cell'>
         {item.href || '—'}
       </td>
+      <td className='px-4 py-2.5 hidden lg:table-cell'>
+        <PermissionsCell codes={item.permissionCodes} />
+      </td>
       <td className='px-4 py-2.5 hidden md:table-cell'>
         {SiblingIcon ? (
           <SiblingIcon className='h-4 w-4 text-muted-foreground' />
@@ -438,6 +452,9 @@ function EditDialog({
   const [icon, setIcon] = useState(item.icon || '');
   const [visible, setVisible] = useState(item.visible ? 'true' : 'false');
   const [parentId, setParentId] = useState(item.parentId || '__none__');
+  const [permissionCodes, setPermissionCodes] = useState<string[]>(
+    item.permissionCodes ?? []
+  );
 
   const parentOptions = data ? makeParentOptions(data, item.id).filter((p) => !p.parentId) : [];
 
@@ -451,7 +468,8 @@ function EditDialog({
           href: href || undefined,
           icon: icon || undefined,
           visible: visible === 'true',
-          parentId: parentId === '__none__' ? null : parentId
+          parentId: parentId === '__none__' ? null : parentId,
+          permissionCodes
         }
       },
       { onSuccess: () => onOpenChange(false) }
@@ -463,7 +481,9 @@ function EditDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>编辑菜单 — {item.label}</DialogTitle>
-          <DialogDescription>修改菜单属性。如果父菜单隐藏，所有子菜单也会隐藏。</DialogDescription>
+          <DialogDescription>
+            修改菜单属性。接口权限决定拥有此菜单的角色能调用哪些后端接口；如果不勾选，角色能看到菜单但调用接口会被拒绝。
+          </DialogDescription>
         </DialogHeader>
         <div className='flex flex-col gap-4 max-h-[70vh] overflow-y-auto'>
           <div className='space-y-2'>
@@ -516,6 +536,18 @@ function EditDialog({
               </SelectContent>
             </Select>
           </div>
+          <div className='space-y-2'>
+            <div className='flex items-baseline justify-between'>
+              <Label>接口权限</Label>
+              <span className='text-muted-foreground text-xs'>
+                已选 {permissionCodes.length} 个
+              </span>
+            </div>
+            <PermissionMultiSelect
+              value={permissionCodes}
+              onChange={setPermissionCodes}
+            />
+          </div>
         </div>
         <DialogFooter>
           <Button variant='outline' onClick={() => onOpenChange(false)}>
@@ -553,6 +585,7 @@ function AddMenuDialog({
   const [label, setLabel] = useState('');
   const [href, setHref] = useState('');
   const [icon, setIcon] = useState('');
+  const [permissionCodes, setPermissionCodes] = useState<string[]>([]);
 
   function handleSave() {
     if (!label.trim()) return;
@@ -561,7 +594,8 @@ function AddMenuDialog({
         parentId,
         label: label.trim(),
         href: href || undefined,
-        icon: icon || undefined
+        icon: icon || undefined,
+        permissionCodes
       },
       {
         onSuccess: () => {
@@ -569,6 +603,7 @@ function AddMenuDialog({
           setLabel('');
           setHref('');
           setIcon('');
+          setPermissionCodes([]);
         }
       }
     );
@@ -612,6 +647,18 @@ function AddMenuDialog({
               <Label>图标</Label>
               <IconPicker value={icon} onChange={setIcon} />
             </div>
+            <div className='space-y-2'>
+              <div className='flex items-baseline justify-between'>
+                <Label>接口权限</Label>
+                <span className='text-muted-foreground text-xs'>
+                  已选 {permissionCodes.length} 个
+                </span>
+              </div>
+              <PermissionMultiSelect
+                value={permissionCodes}
+                onChange={setPermissionCodes}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant='outline' onClick={() => setOpen(false)}>
@@ -624,5 +671,65 @@ function AddMenuDialog({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+// ── Permissions Cell (read-only with overflow popover) ──────────────────────
+
+function PermissionsCell({ codes }: { codes: string[] }) {
+  if (codes.length === 0) {
+    return <span className='text-muted-foreground text-xs'>—</span>;
+  }
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type='button'
+          className='hover:bg-muted/60 flex max-w-[200px] items-center gap-1 rounded px-1 py-0.5 text-left'
+        >
+          {codes.length <= 2 ? (
+            codes.map((c) => (
+              <Badge key={c} variant='secondary' className='font-mono text-[10px]'>
+                {c}
+              </Badge>
+            ))
+          ) : (
+            <>
+              <Badge variant='secondary' className='font-mono text-[10px]'>
+                {codes[0]}
+              </Badge>
+              <Badge variant='outline' className='text-[10px]'>
+                +{codes.length - 1}
+              </Badge>
+            </>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className='w-80 p-0' align='start'>
+        <ScrollArea className='max-h-[320px]'>
+          <div className='space-y-1 p-3'>
+            <div className='text-muted-foreground mb-2 text-xs'>
+              共 {codes.length} 个权限码
+            </div>
+            {codes.map((c) => {
+              const meta = PERMISSION_METADATA[c];
+              return (
+                <div
+                  key={c}
+                  className='flex items-start justify-between gap-2 rounded px-2 py-1.5 hover:bg-muted/40'
+                >
+                  <code className='bg-muted rounded px-1 py-0.5 font-mono text-xs'>
+                    {c}
+                  </code>
+                  <span className='text-muted-foreground text-xs'>
+                    {meta?.description ?? '—'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </ScrollArea>
+      </PopoverContent>
+    </Popover>
   );
 }

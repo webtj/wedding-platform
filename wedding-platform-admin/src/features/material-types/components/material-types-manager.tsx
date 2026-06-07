@@ -206,7 +206,6 @@ export default function MaterialTypesManager({ mode }: { mode: ManagerMode }) {
   const { data: tenantsData } = useQuery({
     queryKey: ['super-tenants-list'],
     queryFn: () => getTenants(),
-    staleTime: 5 * 60 * 1000,
     enabled: isSuper
   });
 

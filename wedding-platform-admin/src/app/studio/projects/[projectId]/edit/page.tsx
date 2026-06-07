@@ -758,8 +758,7 @@ function MemberSelect({
   const [open, setOpen] = useState(false);
   const { data: members } = useQuery({
     queryKey: ['tenant-members'],
-    queryFn: () => apiClient<{ id: string; displayName: string }[]>('/tenant-members'),
-    staleTime: 2 * 60 * 1000
+    queryFn: () => apiClient<{ id: string; displayName: string }[]>('/tenant-members')
   });
   const assigneeIds = new Set(assignees.map((a) => a.memberId));
 

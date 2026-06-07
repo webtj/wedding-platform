@@ -1,5 +1,9 @@
 import { apiClient } from '@/lib/api-client';
-import type { MenuItem } from './types';
+import type {
+  CreateMenuItemPayload,
+  MenuItem,
+  UpdateMenuItemPayload
+} from './types';
 
 export async function getMenus(): Promise<MenuItem[]> {
   return apiClient<MenuItem[]>('/super/menus');
@@ -9,21 +13,14 @@ export async function getAllMenus(): Promise<MenuItem[]> {
   return apiClient<MenuItem[]>('/super/menus/all');
 }
 
-export async function createMenu(data: {
-  parentId?: string;
-  label: string;
-  href?: string;
-  icon?: string;
-  sortOrder?: number;
-  visible?: boolean;
-}) {
+export async function createMenu(data: CreateMenuItemPayload) {
   return apiClient<MenuItem>('/super/menus', {
     method: 'POST',
     body: JSON.stringify(data)
   });
 }
 
-export async function updateMenu(id: string, data: Record<string, unknown>) {
+export async function updateMenu(id: string, data: UpdateMenuItemPayload) {
   return apiClient<MenuItem>(`/super/menus/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(data)

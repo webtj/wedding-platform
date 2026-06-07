@@ -59,26 +59,22 @@ export default function AiWorkbenchViewPage({ projectId }: AiWorkbenchViewPagePr
 
   const { data: materialData } = useQuery({
     queryKey: ['ai-workbench-material-types'],
-    queryFn: getMaterialTypes,
-    staleTime: 5 * 60 * 1000,
+    queryFn: getMaterialTypes
   });
 
   const { data: generationHistory, isLoading: isHistoryLoading } = useQuery({
     queryKey: ['ai-workbench-generations', 'recent', projectId],
-    queryFn: () => listGenerations({ page: 1, pageSize: 12, projectId }),
-    staleTime: 30 * 1000,
+    queryFn: () => listGenerations({ page: 1, pageSize: 12, projectId })
   });
 
   const { data: imageTemplates } = useQuery({
     queryKey: ['ai-workbench-templates', 'image_design'],
-    queryFn: () => getAiTemplates('image_design'),
-    staleTime: 5 * 60 * 1000,
+    queryFn: () => getAiTemplates('image_design')
   });
 
   const { data: conversationsData, isLoading: isConversationsLoading } = useQuery({
     queryKey: ['ai-workbench-conversations', projectId],
-    queryFn: () => listConversations({ projectId }),
-    staleTime: 30 * 1000,
+    queryFn: () => listConversations({ projectId })
   });
 
   const materialTypes = materialData?.items ?? [];

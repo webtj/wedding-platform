@@ -126,8 +126,7 @@ export function PromptTemplateManager() {
 
   const { data: templates, isLoading } = useQuery({
     queryKey: ['ai-workbench-templates', TEMPLATE_CATEGORY],
-    queryFn: () => getAiTemplates(TEMPLATE_CATEGORY),
-    staleTime: 30 * 1000
+    queryFn: () => getAiTemplates(TEMPLATE_CATEGORY)
   });
 
   const items = useMemo(() => templates ?? [], [templates]);

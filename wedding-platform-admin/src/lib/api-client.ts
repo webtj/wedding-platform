@@ -95,6 +95,26 @@ export async function apiClient<T>(endpoint: string, options?: RequestInit & { s
       window.location.href = '/auth/sign-in';
     }
 
+    if (res.status === 403 && typeof window !== 'undefined') {
+      // The 403 is also caught by QueryClient's mutationCache.onError (see
+      // lib/query-client.ts), so this dispatch is a fallback for non-React
+      // callers (route handlers, scripts, manual fetch in tests). It is safe
+      // to fire twice — the ForbiddenProvider dedupes by payload.
+      const details = body.details as
+        | { requiredPermissions?: string[]; resource?: string }
+        | undefined;
+      window.dispatchEvent(
+        new CustomEvent('app:forbidden', {
+          detail: {
+            requiredPermissions: details?.requiredPermissions,
+            resource: details?.resource,
+            source: 'mutation' as const,
+            message
+          }
+        })
+      );
+    }
+
     if (!silent && shouldToastError(code) && typeof window !== 'undefined') {
       const { toast } = await import('sonner');
       toast.error(message, {
