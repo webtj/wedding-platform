@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Icons } from '@/components/icons';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { ComposerChips } from './composer-chips';
+import { SummaryChips } from './summary-chips';
+import { QuickPrompts } from './quick-prompts';
 import { uploadReferenceAsset } from '../api/queries';
 import type { AiTemplate, MaterialType, AiReferenceAsset } from '../api/types';
 
@@ -15,7 +16,7 @@ type ReferenceMode = 'style' | 'subject' | 'pet';
 const REFERENCE_MODE_OPTIONS: Array<{ value: ReferenceMode; label: string }> = [
   { value: 'style', label: '风格参考' },
   { value: 'subject', label: '主体参考' },
-  { value: 'pet', label: '宠物图' },
+  { value: 'pet', label: '宠物图' }
 ];
 
 interface ComposerProps {
@@ -97,7 +98,6 @@ export function Composer({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file
     if (!file.type.startsWith('image/')) {
       toast.error('请上传图片文件');
       return;
@@ -131,68 +131,69 @@ export function Composer({
   return (
     <div
       className={cn(
-        'bg-card focus-within:border-primary focus-within:ring-primary/15 rounded-2xl border border-primary/50 p-3 shadow-sm shadow-primary/10 transition-all focus-within:ring-4'
+        'bg-card focus-within:border-primary focus-within:ring-primary/15 rounded-2xl border border-primary/50 shadow-sm shadow-primary/10 transition-all focus-within:ring-4'
       )}
     >
-      <div className='mb-1.5 flex min-h-6 flex-wrap items-center gap-1.5'>
-        <span className='inline-flex h-6 items-center gap-1 rounded-md bg-primary/10 px-2 text-xs font-medium text-primary'>
-          AI生图
-          <Icons.close className='size-3' />
-        </span>
-        <span className='text-sm text-muted-foreground'>帮我画</span>
-        {selectedType && (
-          <span className='rounded-md bg-primary/10 px-1.5 py-0.5 text-sm font-medium text-primary'>
-            {selectedType.name}
-          </span>
-        )}
-        {referenceAssets.map((asset) => {
-          const modeLabel = REFERENCE_MODE_OPTIONS.find((o) => o.value === asset.role)?.label ?? '参考图';
-          return (
-            <span
-              key={asset.id}
-              className='inline-flex h-6 items-center gap-1 rounded-md bg-blue-100 px-2 text-xs font-medium text-blue-700'
-            >
-              <Icons.paperclip className='size-3' />
-              {modeLabel}
-              <button
-                type='button'
-                onClick={() => onRemoveReference?.(asset.id)}
-                className='ml-1 hover:text-blue-900'
-              >
-                <Icons.close className='size-3' />
-              </button>
-            </span>
-          );
-        })}
-      </div>
-      <Textarea
-        ref={ref}
-        rows={1}
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={handleKeyDown}
-        className='max-h-40 min-h-14 resize-none border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0'
-      />
-      <div className='mt-2.5 flex items-end justify-between gap-2'>
-        {showChips ? (
-          <ComposerChips
+      {/* ── Summary chips (selected config) ── */}
+      {showChips && (
+        <div className='border-b border-border/50 px-3 pt-2.5 pb-2'>
+          <SummaryChips
             materialTypes={materialTypes}
-            promptTemplates={promptTemplates}
             selectedTypeId={selectedTypeId}
             size={size}
             style={style}
             count={count}
             onSelectType={onSelectType}
-            onUsePromptTemplate={onChange}
             onChangeSize={onChangeSize}
             onChangeStyle={onChangeStyle}
             onChangeCount={onChangeCount}
           />
-        ) : (
-          <div />
-        )}
-        <div className='flex shrink-0 items-center gap-1'>
+        </div>
+      )}
+
+      {/* ── Reference assets display ── */}
+      {referenceAssets.length > 0 && (
+        <div className='flex flex-wrap items-center gap-1.5 px-3 pt-2'>
+          {referenceAssets.map((asset) => {
+            const modeLabel =
+              REFERENCE_MODE_OPTIONS.find((o) => o.value === asset.role)?.label ?? '参考图';
+            return (
+              <span
+                key={asset.id}
+                className='inline-flex h-6 items-center gap-1 rounded-md bg-blue-100 px-2 text-xs font-medium text-blue-700'
+              >
+                <Icons.paperclip className='size-3' />
+                {modeLabel}
+                <button
+                  type='button'
+                  onClick={() => onRemoveReference?.(asset.id)}
+                  className='ml-1 hover:text-blue-900'
+                >
+                  <Icons.close className='size-3' />
+                </button>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Text input ── */}
+      <div className='px-3 pt-2 pb-1'>
+        <Textarea
+          ref={ref}
+          rows={1}
+          value={value}
+          placeholder={placeholder}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+          className='max-h-40 min-h-10 resize-none border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0'
+        />
+      </div>
+
+      {/* ── Bottom toolbar ── */}
+      <div className='flex items-center justify-between gap-2 border-t border-border/50 px-3 py-2'>
+        <div className='flex items-center gap-1'>
+          {/* Reference upload */}
           <input
             ref={fileInputRef}
             type='file'
@@ -205,7 +206,7 @@ export function Composer({
             <select
               value={referenceMode}
               onChange={(e) => setReferenceMode(e.target.value as ReferenceMode)}
-              className='h-8 rounded-md border border-input bg-transparent px-1.5 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary'
+              className='h-7 rounded-md border border-input bg-transparent px-1.5 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary'
               title='参考图模式'
             >
               {REFERENCE_MODE_OPTIONS.map((opt) => (
@@ -218,24 +219,34 @@ export function Composer({
               type='button'
               variant='ghost'
               size='icon'
-              className='text-muted-foreground hover:text-primary size-8'
+              className='text-muted-foreground hover:text-primary size-7'
               title='上传参考图'
               disabled={isUploading}
               onClick={() => fileInputRef.current?.click()}
             >
               {isUploading ? (
-                <Icons.spinner className='size-4 animate-spin' />
+                <Icons.spinner className='size-3.5 animate-spin' />
               ) : (
-                <Icons.paperclip className='size-4' />
+                <Icons.paperclip className='size-3.5' />
               )}
             </Button>
           </div>
+
+          {/* Quick prompts */}
+          <QuickPrompts
+            promptTemplates={promptTemplates}
+            onSelect={onChange}
+          />
+        </div>
+
+        {/* Send / Stop */}
+        <div className='flex shrink-0 items-center gap-1'>
           {isGenerating ? (
             <Button
               type='button'
               size='icon'
               variant='destructive'
-              className='size-9 rounded-full'
+              className='size-8 rounded-full'
               onClick={onCancel}
               title='停止生成'
             >
@@ -245,7 +256,7 @@ export function Composer({
             <Button
               type='button'
               size='icon'
-              className='size-9 rounded-full'
+              className='size-8 rounded-full'
               disabled={disabled || !value.trim()}
               onClick={onSend}
               title='生成'
