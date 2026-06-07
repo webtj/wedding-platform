@@ -10,6 +10,19 @@ export const refreshDtoSchema = z.object({
 export type RefreshDto = z.infer<typeof refreshDtoSchema>;
 
 export const switchTenantDtoSchema = z.object({
-  tenantId: z.string().min(1)
+  /**
+   * Target tenant ID. The caller MUST be an active member of that tenant.
+   * Platform admins do not have a fallback path here — they have no business
+   * acting on a tenant's data; their admin console is at /admin/*, not in
+   * the studio. This keeps the data boundary strict.
+   */
+  tenantId: z.string().min(1),
+  /**
+   * Caller's previous refresh token. Required: switching tenant issues a new
+   * token pair AND revokes the old session so a stale (potentially null-tenant)
+   * JWT cannot be replayed. Forcing it through Zod prevents clients from
+   * skipping the revoke and silently leaving the old session alive.
+   */
+  refreshToken: z.string().min(1)
 });
 export type SwitchTenantDto = z.infer<typeof switchTenantDtoSchema>;

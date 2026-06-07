@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PERMISSIONS } from "./permissions.js";
 
 export const LEAD_STATUS = {
   NEW: "new",
@@ -231,6 +232,7 @@ export const updateContractSchema = z.object({
 });
 
 export const createTenantRoleSchema = z.object({
+  tenantId: z.string().optional(),
   code: z
     .string()
     .trim()
@@ -240,11 +242,14 @@ export const createTenantRoleSchema = z.object({
   name: z.string().trim().min(1).max(80),
   description: z.string().trim().max(300).optional(),
   permissionCodes: z.array(z.string()).default([]),
+  menuItemIds: z.array(z.string()).optional(),
 });
 
 export const updateTenantRoleSchema = z.object({
   name: z.string().trim().min(1).max(80).optional(),
   description: z.string().trim().max(300).optional(),
+  permissionCodes: z.array(z.string()).optional(),
+  menuItemIds: z.array(z.string()).optional(),
 });
 
 export const createTenantAdminSchema = z.object({
@@ -270,6 +275,10 @@ export type UpdateTenantAdminInput = z.infer<typeof updateTenantAdminSchema>;
 
 // ── Menu & Role Permissions ──────────────────────────────────────────────
 
+const permissionCodeSchema = z.enum(
+  Object.values(PERMISSIONS) as [string, ...string[]]
+);
+
 export const createMenuItemSchema = z.object({
   parentId: z.string().optional(),
   label: z.string().trim().min(1).max(80),
@@ -277,6 +286,7 @@ export const createMenuItemSchema = z.object({
   icon: z.string().trim().max(50).optional(),
   sortOrder: z.number().int().min(0).default(0),
   visible: z.boolean().default(true),
+  permissionCodes: z.array(permissionCodeSchema).default([]),
 });
 
 export const updateMenuItemSchema = z.object({
@@ -286,6 +296,7 @@ export const updateMenuItemSchema = z.object({
   icon: z.string().trim().max(50).nullable().optional(),
   sortOrder: z.number().int().min(0).optional(),
   visible: z.boolean().optional(),
+  permissionCodes: z.array(permissionCodeSchema).default([]),
 });
 
 export const assignRoleMenusSchema = z.object({

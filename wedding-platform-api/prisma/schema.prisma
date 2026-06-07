@@ -326,18 +326,18 @@ model TenantMember {
 }
 
 model Role {
-  id          String    @id @default(cuid())
-  tenantId    String?
-  scope       RoleScope
-  code        String
-  name        String
-  description String?
-  isBuiltIn   Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  tenantId        String?
+  scope           RoleScope
+  code            String
+  name            String
+  description     String?
+  isBuiltIn       Boolean   @default(false)
+  permissionCodes String[]  @default([])  // 单一权限来源：菜单勾选后自动派发；内置角色 seed 一次性写入
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   tenant        Tenant?               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  permissions   RolePermission[]
   members       MemberRole[]
   menus         RoleMenuItem[]
   templateTasks ProcessTemplateTask[]
@@ -356,20 +356,7 @@ model Permission {
   description String?
   createdAt   DateTime @default(now())
 
-  roles RolePermission[]
-
   @@map("permissions")
-}
-
-model RolePermission {
-  roleId       String
-  permissionId String
-
-  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-
-  @@id([roleId, permissionId])
-  @@map("role_permissions")
 }
 
 model MemberRole {
@@ -384,17 +371,18 @@ model MemberRole {
 }
 
 model MenuItem {
-  id        String    @id @default(cuid())
-  tenantId  String?
-  scope     MenuScope @default(tenant)
-  parentId  String?
-  label     String
-  href      String?
-  icon      String?
-  sortOrder Int       @default(0)
-  visible   Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  tenantId        String?
+  scope           MenuScope @default(tenant)
+  parentId        String?
+  label           String
+  href            String?
+  icon            String?
+  sortOrder       Int       @default(0)
+  visible         Boolean   @default(true)
+  permissionCodes String[]  @default([])  // 1:N — 勾选此菜单时自动给角色授予这些权限
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   tenant   Tenant?        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   parent   MenuItem?      @relation("MenuTree", fields: [parentId], references: [id], onDelete: Cascade)

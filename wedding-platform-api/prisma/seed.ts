@@ -1,6 +1,13 @@
 import { PrismaClient, AuthProvider, RoleScope } from '@prisma/client';
 import { ALL_PERMISSION_CODES, BUILT_IN_ROLE_LABELS, BUILT_IN_ROLE_PERMISSIONS, BUILT_IN_ROLES } from '@wedding/shared';
 import bcrypt from 'bcryptjs';
+import {
+  SEED_NATURE_PASSWORD,
+  SEED_ROOT_PASSWORD,
+  warnIfUsingDefaultSeedPasswords
+} from './seed-credentials';
+
+warnIfUsingDefaultSeedPasswords();
 
 const prisma = new PrismaClient();
 
@@ -87,7 +94,7 @@ async function main() {
   }
 
   // Drop any role that is not one of the two built-ins (super_admin / planner) in any tenant
-  const builtInCodes = ['super_admin', BUILT_IN_ROLES.PLANNER];
+  const builtInCodes = [BUILT_IN_ROLES.SUPER_ADMIN, BUILT_IN_ROLES.PLANNER];
   const staleRoles = await prisma.role.findMany({
     where: {
       code: { notIn: builtInCodes }
@@ -97,32 +104,23 @@ async function main() {
   const staleRoleIds = staleRoles.map((r) => r.id);
 
   if (staleRoleIds.length > 0) {
-    await prisma.rolePermission.deleteMany({ where: { roleId: { in: staleRoleIds } } });
     await prisma.roleMenuItem.deleteMany({ where: { roleId: { in: staleRoleIds } } });
     await prisma.memberRole.deleteMany({ where: { roleId: { in: staleRoleIds } } });
     await prisma.role.deleteMany({ where: { id: { in: staleRoleIds } } });
     console.log(`    删除 ${staleRoleIds.length} 个非 seed 角色`);
   }
 
-  // Reset stale role-permission rows for built-in roles in the seed tenant.
-  // (Step 5 below will repopulate them from BUILT_IN_ROLE_PERMISSIONS / ALL_PERMISSION_CODES.)
+  // Built-in roles in the seed tenant are refreshed via role.permissionCodes
+  // (the single source of truth). No intermediate role_permission table to clear.
   const builtinRolesInSeedTenant = await prisma.role.findMany({
     where: {
       scope: RoleScope.tenant,
-      tenantId: 'demo-tenant-default',
+      tenantId: 'zirangongsheng',
       code: { in: builtInCodes }
     },
     select: { id: true }
   });
   const builtinRoleIds = builtinRolesInSeedTenant.map((r) => r.id);
-  if (builtinRoleIds.length > 0) {
-    const r = await prisma.rolePermission.deleteMany({
-      where: { roleId: { in: builtinRoleIds } }
-    });
-    if (r.count > 0) {
-      console.log(`    清理 ${r.count} 个 built-in 角色 stale 权限（待重新分配）`);
-    }
-  }
 
   // 1. Upsert all permissions from ALL_PERMISSION_CODES
   console.log('  📋 创建权限...');
@@ -144,20 +142,17 @@ async function main() {
   // 2. Create default tenant - 自然共生
   console.log('  🏢 创建默认租户...');
   const defaultTenantRows = await prisma.$queryRaw<any[]>`INSERT INTO tenants (id, name, description, status, "createdAt", "updatedAt")
-    VALUES ('demo-tenant-default', '自然共生', '专注自然风格婚礼策划，提供全案定制服务。', 'active', NOW(), NOW())
+    VALUES ('zirangongsheng', '自然共生', '专注自然风格婚礼策划，提供全案定制服务。', 'active', NOW(), NOW())
     ON CONFLICT (id) DO UPDATE SET name = '自然共生', description = '专注自然风格婚礼策划，提供全案定制服务。'
     RETURNING *`;
   const defaultTenant = defaultTenantRows[0];
 
   // 3. Create tenant roles - super_admin (root) + planner (nature)
   console.log('  👤 创建角色...');
-  const tenantRoleCodes = ['super_admin', BUILT_IN_ROLES.PLANNER] as const;
+  const tenantRoleCodes = [BUILT_IN_ROLES.SUPER_ADMIN, BUILT_IN_ROLES.PLANNER] as const;
   const tenantRoles = await Promise.all(
     tenantRoleCodes.map((roleCode) => {
-      const label =
-        roleCode === 'super_admin'
-          ? '超级管理员'
-          : BUILT_IN_ROLE_LABELS[roleCode as keyof typeof BUILT_IN_ROLE_LABELS];
+      const label = BUILT_IN_ROLE_LABELS[roleCode];
       return prisma.role.upsert({
         where: {
           scope_tenantId_code: {
@@ -181,49 +176,30 @@ async function main() {
     })
   );
 
-  // 5. Assign permissions to roles based on BUILT_IN_ROLE_PERMISSIONS
+  // 5. Set role.permissionCodes as the single source of truth.
+  // Built-in super_admin gets all permissions; planner gets the standard set.
   console.log('  🔑 分配权限...');
   const allRoles = [...tenantRoles];
-  const permissions = await prisma.permission.findMany();
-  const permissionByCode = new Map(permissions.map((permission) => [permission.code, permission]));
 
   for (const role of allRoles) {
     const permissionCodes =
-      role.code === 'super_admin'
+      role.code === BUILT_IN_ROLES.SUPER_ADMIN
         ? [...ALL_PERMISSION_CODES]
         : BUILT_IN_ROLE_PERMISSIONS[role.code] ?? [];
-    for (const code of permissionCodes) {
-      const permission = permissionByCode.get(code);
-      if (!permission) {
-        continue;
-      }
-      await prisma.rolePermission.upsert({
-        where: {
-          roleId_permissionId: {
-            roleId: role.id,
-            permissionId: permission.id
-          }
-        },
-        update: {},
-        create: {
-          roleId: role.id,
-          permissionId: permission.id
-        }
-      });
-    }
+    await prisma.role.update({
+      where: { id: role.id },
+      data: { permissionCodes }
+    });
   }
 
   // 6. Create users - root (super admin) and nature (planner)
   console.log('  👥 创建用户...');
-  // Hardcoded credentials — only two seed accounts:
-  //   root / xdd930328   → platform admin + tenant super_admin
-  //   nature / nature123456 → tenant planner
-  const rootPwd = 'xdd930328';
-  const naturePwd = 'nature123456';
-
+  // Seed accounts (passwords read from env vars SEED_ROOT_PASSWORD / SEED_NATURE_PASSWORD):
+  //   root    → platform admin + tenant super_admin
+  //   nature  → tenant planner
   const rootUser = await upsertPasswordUser({
     identifier: 'root',
-    password: rootPwd,
+    password: SEED_ROOT_PASSWORD,
     displayName: '超级管理员'
   });
 
@@ -257,7 +233,7 @@ async function main() {
 
   // Grant super_admin role in the default tenant so the platform admin
   // gets full permissions after switching context.
-  const superAdminRole = tenantRoles.find((role) => role.code === 'super_admin');
+  const superAdminRole = tenantRoles.find((role) => role.code === BUILT_IN_ROLES.SUPER_ADMIN);
   if (superAdminRole) {
     await prisma.memberRole.upsert({
       where: {
@@ -276,7 +252,7 @@ async function main() {
 
   const natureUser = await upsertPasswordUser({
     identifier: 'nature',
-    password: naturePwd,
+    password: SEED_NATURE_PASSWORD,
     displayName: '自然共生策划'
   });
 
@@ -476,6 +452,7 @@ async function main() {
       for (let i = 0; i < items.length; i++) {
         await prisma.material.create({
           data: {
+            tenantId: defaultTenant.id,
             categoryId: cat.id,
             name: items[i],
             status: i % 5 === 0 ? 'missing' : 'available',
@@ -600,17 +577,19 @@ async function main() {
   console.log('  📋 创建菜单...');
 
   // Platform-level menus (super admin)
+  // permissionCodes: the union of API permissions a role must hold to use this
+  // menu's pages. Empty array = no API access (parent label only).
   const platformMenuData = [
     { label: '平台', icon: 'lock', sortOrder: 0, children: [
-      { label: '租户管理', href: '/admin/tenants', icon: 'workspace', sortOrder: 0 },
-      { label: '账号管理', href: '/admin/accounts', icon: 'user', sortOrder: 1 },
-      { label: '角色管理', href: '/admin/roles', icon: 'badgeCheck', sortOrder: 2 },
-      { label: '菜单管理', href: '/admin/menus', icon: 'forms', sortOrder: 3 }
+      { label: '租户管理', href: '/admin/tenants', icon: 'workspace', sortOrder: 0, permissionCodes: ['platform.setting.read', 'tenant.read'] },
+      { label: '账号管理', href: '/admin/accounts', icon: 'user', sortOrder: 1, permissionCodes: ['platform.setting.read'] },
+      { label: '角色管理', href: '/admin/roles', icon: 'badgeCheck', sortOrder: 2, permissionCodes: ['platform.setting.read'] },
+      { label: '菜单管理', href: '/admin/menus', icon: 'forms', sortOrder: 3, permissionCodes: ['platform.setting.read'] }
     ]},
     { label: '运营', icon: 'settings', sortOrder: 1, children: [
-      { label: '套餐计费', href: '/admin/billing', icon: 'billing', sortOrder: 0 },
-      { label: '通用设置', href: '/admin/settings', icon: 'settings', sortOrder: 1 },
-      { label: '素材管理', href: '/admin/material-types', icon: 'product', sortOrder: 2 }
+      { label: '套餐计费', href: '/admin/billing', icon: 'billing', sortOrder: 0, permissionCodes: ['platform.setting.manage'] },
+      { label: '通用设置', href: '/admin/settings', icon: 'settings', sortOrder: 1, permissionCodes: ['platform.setting.manage'] },
+      { label: '素材管理', href: '/admin/material-types', icon: 'product', sortOrder: 2, permissionCodes: ['material_type.manage'] }
     ]}
   ];
 
@@ -632,7 +611,13 @@ async function main() {
     for (const childData of parentData.children) {
       const child = await prisma.menuItem.upsert({
         where: { id: `menu-platform-${childData.href}` },
-        update: { label: childData.label, href: childData.href, icon: childData.icon, sortOrder: childData.sortOrder },
+        update: {
+          label: childData.label,
+          href: childData.href,
+          icon: childData.icon,
+          sortOrder: childData.sortOrder,
+          permissionCodes: childData.permissionCodes
+        },
         create: {
           id: `menu-platform-${childData.href}`,
           scope: 'platform',
@@ -640,32 +625,41 @@ async function main() {
           label: childData.label,
           href: childData.href,
           icon: childData.icon,
-          sortOrder: childData.sortOrder
+          sortOrder: childData.sortOrder,
+          permissionCodes: childData.permissionCodes
         }
       });
       platformMenus.push(child);
     }
   }
 
-  // Tenant-level menus (planner)
+  // Tenant-level menus (planner).
+  // Note: /studio/projects also covers /studio/projects/:id/scenes (sub-page).
+  // The scenes controller requires SCENE_*; we pack those into the parent menu
+  // so a role with project access automatically gets scene access.
   const tenantMenuData = [
     { label: '工作台', icon: 'dashboard', sortOrder: 0, children: [
-      { label: '总览面板', href: '/studio/overview', icon: 'dashboard', sortOrder: 0 },
-      { label: '项目管理', href: '/studio/projects', icon: 'kanban', sortOrder: 1 }
+      { label: '总览面板', href: '/studio/overview', icon: 'dashboard', sortOrder: 0, permissionCodes: ['project.read', 'task.read'] },
+      { label: '项目管理', href: '/studio/projects', icon: 'kanban', sortOrder: 1, permissionCodes: ['project.read', 'project.create', 'project.update', 'project.archive', 'scene.read', 'scene.create', 'scene.update', 'scene.delete'] }
     ]},
     { label: '商务', icon: 'billing', sortOrder: 1, children: [
-      { label: '意向单', href: '/studio/leads', icon: 'user', sortOrder: 0 },
-      { label: '合同管理', href: '/studio/contracts', icon: 'post', sortOrder: 1 },
-      { label: '物料管理', href: '/studio/materials', icon: 'product', sortOrder: 2 }
+      { label: '意向单', href: '/studio/leads', icon: 'user', sortOrder: 0, permissionCodes: ['lead.read', 'lead.create', 'lead.update', 'lead.convert'] },
+      { label: '合同管理', href: '/studio/contracts', icon: 'post', sortOrder: 1, permissionCodes: ['contract.read', 'contract.manage'] },
+      { label: '物料管理', href: '/studio/materials', icon: 'product', sortOrder: 2, permissionCodes: ['material.read', 'material.manage'] }
     ]},
     { label: 'AI 工具', icon: 'sparkles', sortOrder: 2, children: [
-      { label: 'AI 工作台', href: '/studio/ai-workbench', icon: 'sparkles', sortOrder: 0 },
-      { label: '生图模板', href: '/studio/ai-workbench/templates', icon: 'palette', sortOrder: 1 },
-      { label: '素材管理', href: '/studio/material-types', icon: 'product', sortOrder: 2 }
+      { label: 'AI 工作台', href: '/studio/ai-workbench', icon: 'sparkles', sortOrder: 0, permissionCodes: ['ai.use', 'ai.generate', 'ai.generation.read', 'ai.generation.bookmark', 'ai.generation.series', 'ai.text.generate', 'ai.text.generation.read', 'ai.text.generation.bookmark'] },
+      { label: '生图模板', href: '/studio/ai-workbench/templates', icon: 'palette', sortOrder: 1, permissionCodes: ['template.read', 'template.manage'] },
+      { label: '素材管理', href: '/studio/material-types', icon: 'product', sortOrder: 2, permissionCodes: ['material_type.read', 'material_type.manage'] }
     ]},
     { label: '任务', icon: 'checks', sortOrder: 3, children: [
-      { label: '流程模板', href: '/studio/templates', icon: 'forms', sortOrder: 0 },
-      { label: '婚礼日程', href: '/studio/timeline', icon: 'calendar', sortOrder: 1 }
+      { label: '流程模板', href: '/studio/templates', icon: 'forms', sortOrder: 0, permissionCodes: ['task.read', 'task.create', 'task.assign', 'task.complete'] },
+      { label: '婚礼日程', href: '/studio/timeline', icon: 'calendar', sortOrder: 1, permissionCodes: ['timeline.read', 'timeline.manage'] }
+    ]},
+    { label: '团队管理', icon: 'user', sortOrder: 4, children: [
+      { label: '账号管理', href: '/studio/accounts', icon: 'user', sortOrder: 0, permissionCodes: ['member.read', 'member.manage'] },
+      { label: '角色管理', href: '/studio/roles', icon: 'badgeCheck', sortOrder: 1, permissionCodes: ['role.read', 'role.manage'] },
+      { label: '通知中心', href: '/studio/notifications', icon: 'bell', sortOrder: 2, permissionCodes: ['notification.read'] }
     ]}
   ];
 
@@ -690,7 +684,14 @@ async function main() {
       const isPlatformScoped = childScope === 'platform';
       const child = await prisma.menuItem.upsert({
         where: { id: `menu-tenant-${childData.href}` },
-        update: { label: childData.label, href: childData.href, icon: childData.icon, sortOrder: childData.sortOrder, scope: childScope },
+        update: {
+          label: childData.label,
+          href: childData.href,
+          icon: childData.icon,
+          sortOrder: childData.sortOrder,
+          scope: childScope,
+          permissionCodes: childData.permissionCodes
+        },
         create: {
           id: `menu-tenant-${childData.href}`,
           scope: childScope,
@@ -699,7 +700,8 @@ async function main() {
           label: childData.label,
           href: childData.href,
           icon: childData.icon,
-          sortOrder: childData.sortOrder
+          sortOrder: childData.sortOrder,
+          permissionCodes: childData.permissionCodes
         }
       });
       tenantMenus.push(child);
@@ -715,13 +717,35 @@ async function main() {
         create: { roleId: plannerRole.id, menuItemId: menu.id }
       });
     }
+    // Materialize role.permissionCodes as the union of its menus' permissionCodes.
+    // This is the single source of truth for what the role can do at the API
+    // level; identity.service.collectPermissions reads from here, not from the
+    // legacy role.permissions join table.
+    const plannerMenuIds = (
+      await prisma.roleMenuItem.findMany({
+        where: { roleId: plannerRole.id },
+        select: { menuItemId: true }
+      })
+    ).map((rm) => rm.menuItemId);
+    const selectedMenus = await prisma.menuItem.findMany({
+      where: { id: { in: plannerMenuIds } },
+      select: { permissionCodes: true }
+    });
+    const union = new Set<string>();
+    for (const m of selectedMenus) {
+      for (const code of m.permissionCodes) union.add(code);
+    }
+    await prisma.role.update({
+      where: { id: plannerRole.id },
+      data: { permissionCodes: Array.from(union) }
+    });
   }
 
   console.log('✅ 数据库初始化完成！');
   console.log('');
   console.log('📋 账号信息：');
-  console.log(`  超级管理员: root / ${rootPwd} (平台管理员)`);
-  console.log(`  策划师:     nature / ${naturePwd} (租户: 自然共生)`);
+  console.log(`  超级管理员: root / ${SEED_ROOT_PASSWORD} (平台管理员)`);
+  console.log(`  策划师:     nature / ${SEED_NATURE_PASSWORD} (租户: 自然共生)`);
   console.log('');
 }
 

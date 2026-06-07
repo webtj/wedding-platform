@@ -32,11 +32,7 @@ export class IdentityController {
     @Body() body: unknown
   ) {
     const dto = switchTenantDtoSchema.parse(body);
-    const previousRefreshToken =
-      typeof (body as { refreshToken?: unknown }).refreshToken === 'string'
-        ? (body as { refreshToken: string }).refreshToken
-        : undefined;
-    return this.identityService.switchTenant(auth.userId, dto, previousRefreshToken);
+    return this.identityService.switchTenant(auth.userId, dto);
   }
 
   @UseGuards(JwtAuthGuard)

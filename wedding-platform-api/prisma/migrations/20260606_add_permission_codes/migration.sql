@@ -1,0 +1,2 @@
+-- Manually applied: menu_items.permissionCodes, roles.permissionCodes
+-- (Prisma shadow DB was out of sync; ALTER TABLE done directly)

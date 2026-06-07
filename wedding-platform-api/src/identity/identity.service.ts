@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AuthProvider } from '@prisma/client';
-import { LoginResponse } from '@wedding/shared';
+import { BUILT_IN_ROLE_PERMISSIONS, LoginResponse } from '@wedding/shared';
 import { BusinessException } from '../common/exceptions/business.exception';
 import { PrismaService } from '../prisma/prisma.service';
 import { PasswordService } from './password.service';
@@ -21,6 +21,7 @@ type LoginMember = {
   id: string;
   tenantId: string;
   status: string;
+  createdAt: Date;
   tenant: {
     id: string;
     name: string;
@@ -29,9 +30,35 @@ type LoginMember = {
   roles: Array<{
     role: {
       code: string;
-      permissions: Array<{
-        permission: {
-          code: string;
+      permissionCodes: string[];
+    };
+  }>;
+};
+
+type TenantMemberWithRelations = {
+  id: string;
+  tenantId: string;
+  status: string;
+  tenant: { id: string; name: string; address: string | null; status: string };
+  roles: Array<{
+    role: {
+      code: string;
+      permissionCodes: string[];
+      menus: Array<{
+        menuItem: {
+          id: string;
+          label: string;
+          href: string | null;
+          icon: string | null;
+          sortOrder: number;
+          parentId: string | null;
+          children: Array<{
+            id: string;
+            label: string;
+            href: string | null;
+            icon: string | null;
+            sortOrder: number;
+          }>;
         };
       }>;
     };
@@ -59,6 +86,7 @@ export class IdentityService {
           include: {
             platformAdmin: true,
             tenantMembers: {
+              orderBy: { createdAt: 'asc' },
               include: {
                 tenant: true,
                 roles: {
@@ -115,7 +143,7 @@ export class IdentityService {
     }
 
     // Regular tenant user
-    const activeMember = this.pickActiveMember(user.tenantMembers);
+    const activeMember = this.pickActiveMember(user.tenantMembers, user.lastActiveTenantId);
     if (!activeMember) {
       throw new BusinessException('AUTH_NO_TENANT', '用户未关联任何租户', 403);
     }
@@ -147,6 +175,7 @@ export class IdentityService {
           include: {
             platformAdmin: true,
             tenantMembers: {
+              orderBy: { createdAt: 'asc' },
               include: {
                 tenant: true,
                 roles: {
@@ -190,7 +219,7 @@ export class IdentityService {
       });
     }
 
-    const activeMember = this.pickActiveMember(user.tenantMembers);
+    const activeMember = this.pickActiveMember(user.tenantMembers, user.lastActiveTenantId);
     if (!activeMember) {
       throw new BusinessException('AUTH_NO_TENANT', '用户未关联任何租户', 403);
     }
@@ -230,25 +259,48 @@ export class IdentityService {
    * plus the active member's permissions so the client can re-render the UI
    * without an extra /me call.
    *
-   * If `previousRefreshToken` is provided, the old session is revoked so the
-   * previous (potentially null-tenant) JWT cannot be replayed.
+   * The caller's previous refresh token (required by the DTO) is validated
+   * and revoked so the previous (potentially null-tenant) JWT cannot be
+   * replayed. Zod enforces the field is present so a client cannot skip the
+   * revoke and silently leave the old session alive.
    */
-  async switchTenant(
-    userId: string,
-    input: SwitchTenantDto,
-    previousRefreshToken?: string
-  ) {
+  async switchTenant(userId: string, input: SwitchTenantDto) {
+    // Reject revoked/expired previous refresh tokens BEFORE issuing a new
+    // token pair. Without this, a client that lost a session (logged out,
+    // evicted, etc.) could keep re-using a snapshot of the old refresh token
+    // to issue new pairs.
+    const previousRefreshToken = input.refreshToken;
+    {
+      const tokenHash = this.tokenService.hashRefreshToken(previousRefreshToken);
+      const previousSession = await this.prisma.refreshSession.findUnique({
+        where: { tokenHash }
+      });
+      if (
+        !previousSession ||
+        previousSession.revokedAt ||
+        previousSession.expiresAt.getTime() <= Date.now() ||
+        previousSession.userId !== userId
+      ) {
+        throw new BusinessException(
+          'AUTH_REFRESH_FAILED',
+          '登录已过期，请重新登录',
+          401
+        );
+      }
+    }
+
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
       include: {
         platformAdmin: true,
         tenantMembers: {
           where: { tenantId: input.tenantId },
+          orderBy: { createdAt: 'asc' },
           include: {
             tenant: true,
             roles: {
               include: {
-                role: { include: { permissions: { include: { permission: true } } } }
+                role: true
               }
             }
           }
@@ -259,32 +311,49 @@ export class IdentityService {
     const isPlatformAdmin = !!user.platformAdmin;
     const member = user.tenantMembers[0];
 
-    // Regular users can only switch to a tenant they have an active membership in.
-    // Platform admins can fall back to the null-tenant token (platform overview)
-    // when no membership is found for the requested tenant.
-    if (!isPlatformAdmin && !member) {
+    // Privacy boundary: platform admins are sandboxed to /admin/*. They MUST
+    // NOT be able to issue tenant-scoped JWTs, even if they happen to also be
+    // a member of a tenant (the seed makes the super admin a super_admin of
+    // demo-tenant for support purposes, but the privacy contract is that they
+    // can never authenticate as that member in this app). Their console for
+    // tenant operations is at /admin/* and they go through the platform APIs
+    // there, not switch-tenant.
+    if (isPlatformAdmin) {
+      throw new BusinessException(
+        'PERMISSION_DENIED',
+        'Platform admins cannot access tenant data; use /admin/*',
+        403
+      );
+    }
+    if (!member) {
       throw new BusinessException('PERMISSION_DENIED', 'No access to this tenant', 403);
     }
-
-    if (member && member.status !== 'active') {
+    if (member.status !== 'active') {
       throw new BusinessException('PERMISSION_DENIED', 'Membership is not active', 403);
     }
-    if (member && member.tenant.status !== 'active') {
+    if (member.tenant.status !== 'active') {
       throw new BusinessException('PERMISSION_DENIED', 'Tenant is not active', 403);
     }
 
-    const permissions = member
-      ? Array.from(
-          new Set(
-            member.roles.flatMap((mr) => mr.role.permissions.map((rp) => rp.permission.code))
-          )
-        )
-      : [];
+    // Read role.permissionCodes as the single source of truth, with the same
+    // built-in fallback as login() — see collectPermissions() for rationale.
+    const codes = new Set<string>();
+    for (const mr of member.roles) {
+      if (mr.role.permissionCodes.length > 0) {
+        for (const code of mr.role.permissionCodes) codes.add(code);
+      } else {
+        const fallback = BUILT_IN_ROLE_PERMISSIONS[mr.role.code];
+        if (fallback) {
+          for (const code of fallback) codes.add(code);
+        }
+      }
+    }
+    const permissions = Array.from(codes);
 
     const tokens = await this.tokenService.issueTokenPair({
       sub: user.id,
-      tenantId: member?.tenantId ?? null,
-      memberId: member?.id ?? null,
+      tenantId: member.tenantId,
+      memberId: member.id,
       isPlatformAdmin,
       platformLevel: user.platformAdmin?.level as 'super' | 'admin' | undefined,
       permissions
@@ -294,12 +363,21 @@ export class IdentityService {
       await this.revokeRefreshToken(previousRefreshToken);
     }
 
+    // Persist the user's last-active tenant so the next login() can default
+    // to it (and so /me + switchTenant ordering is consistent across sessions).
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { lastActiveTenantId: input.tenantId }
+    });
+
     return {
       ...tokens,
       user: { id: user.id, displayName: user.displayName },
-      activeTenant: member
-        ? { id: member.tenant.id, name: member.tenant.name, address: member.tenant.address }
-        : null,
+      activeTenant: {
+        id: member.tenant.id,
+        name: member.tenant.name,
+        address: member.tenant.address
+      },
       permissions,
       isPlatformAdmin,
       platformLevel: user.platformAdmin?.level ?? null
@@ -323,6 +401,7 @@ export class IdentityService {
       include: {
         platformAdmin: true,
         tenantMembers: {
+          orderBy: { createdAt: 'asc' },
           include: {
             tenant: true,
             roles: {
@@ -350,149 +429,48 @@ export class IdentityService {
 
     const isPlatformAdmin = !!user.platformAdmin;
 
-    // Platform admin: return platform menus
+    // Platform admin: return platform menus only. We deliberately do NOT leak
+    // the platform admin's tenant memberships into `tenants[]` — a platform
+    // admin's job is to manage the SaaS infrastructure, not to view any
+    // tenant's business data. If they need tenant-level access, they should
+    // log in with a tenant-member account.
     if (isPlatformAdmin) {
-      const platformMenus = await this.prisma.menuItem.findMany({
+      const platformMenuRows = await this.prisma.menuItem.findMany({
         where: { scope: 'platform', parentId: null },
         include: { children: { orderBy: { sortOrder: 'asc' } } },
         orderBy: { sortOrder: 'asc' }
       });
 
-      const platformTenant = {
-        id: '__platform__',
-        name: '平台管理',
-        memberId: '',
-        roles: ['platform_admin'],
-        permissions: [],
-        menus: platformMenus.map((item) => ({
-          id: item.id,
-          label: item.label,
-          href: item.href,
-          icon: item.icon,
-          sortOrder: item.sortOrder,
-          parentId: item.parentId,
-          children: item.children.map((c) => ({
-            id: c.id,
-            label: c.label,
-            href: c.href,
-            icon: c.icon,
-            sortOrder: c.sortOrder
-          }))
+      const platformMenus: MenuNode[] = platformMenuRows.map((item) => ({
+        id: item.id,
+        label: item.label,
+        href: item.href,
+        icon: item.icon,
+        sortOrder: item.sortOrder,
+        parentId: item.parentId,
+        children: item.children.map((c) => ({
+          id: c.id,
+          label: c.label,
+          href: c.href,
+          icon: c.icon,
+          sortOrder: c.sortOrder,
+          parentId: c.parentId,
+          children: []
         }))
-      };
-
-      const scopedTenants = user.tenantMembers.map((member) => {
-        const roleCodes = member.roles.map((mr) => mr.role.code);
-        const permissions = Array.from(
-          new Set(
-            member.roles.flatMap((mr) =>
-              mr.role.permissions.map((rp) => rp.permission.code)
-            )
-          )
-        );
-
-        const menuMap = new Map<string, MenuNode>();
-        for (const mr of member.roles) {
-          for (const rm of mr.role.menus) {
-            const item = rm.menuItem;
-            if (!menuMap.has(item.id)) {
-              menuMap.set(item.id, {
-                id: item.id,
-                label: item.label,
-                href: item.href,
-                icon: item.icon,
-                sortOrder: item.sortOrder,
-                parentId: item.parentId,
-                children: []
-              });
-            }
-          }
-        }
-        const allItems = Array.from(menuMap.values());
-        const parentItems = allItems.filter((m) => !m.parentId);
-        const childItems = allItems.filter((m) => m.parentId);
-        for (const child of childItems) {
-          const parent = parentItems.find((p) => p.id === child.parentId);
-          if (parent && !parent.children.some((c) => c.id === child.id)) {
-            parent.children.push(child);
-          } else if (!parent) {
-            child.parentId = null;
-            parentItems.push(child);
-          }
-        }
-
-        return {
-          id: member.tenant.id,
-          name: member.tenant.name,
-          address: member.tenant.address,
-          memberId: member.id,
-          roles: roleCodes,
-          permissions,
-          menus: parentItems.sort((a, b) => a.sortOrder - b.sortOrder)
-        };
-      });
+      }));
 
       return {
         id: user.id,
         displayName: user.displayName,
         isPlatformAdmin: true,
         platformLevel: user.platformAdmin!.level,
-        tenants: [platformTenant, ...scopedTenants]
+        platformMenus,
+        tenants: []
       };
     }
 
     // Regular tenant user: existing flow
-    const tenants = user.tenantMembers.map((member) => {
-      const roleCodes = member.roles.map((mr) => mr.role.code);
-      const permissions = Array.from(
-        new Set(
-          member.roles.flatMap((mr) =>
-            mr.role.permissions.map((rp) => rp.permission.code)
-          )
-        )
-      );
-
-      const menuMap = new Map<string, any>();
-      for (const mr of member.roles) {
-        for (const rm of mr.role.menus) {
-          const item = rm.menuItem;
-          if (!menuMap.has(item.id)) {
-            menuMap.set(item.id, {
-              id: item.id,
-              label: item.label,
-              href: item.href,
-              icon: item.icon,
-              sortOrder: item.sortOrder,
-              parentId: item.parentId,
-              children: []
-            });
-          }
-        }
-      }
-
-      const allItems = Array.from(menuMap.values());
-      const parentItems = allItems.filter((m) => !m.parentId);
-      const childItems = allItems.filter((m) => m.parentId);
-      for (const child of childItems) {
-        const parent = parentItems.find((p) => p.id === child.parentId);
-        if (parent && !parent.children.some((c: any) => c.id === child.id)) {
-          parent.children.push(child);
-        } else if (!parent) {
-          child.parentId = null;
-          parentItems.push(child);
-        }
-      }
-
-      return {
-        id: member.tenant.id,
-        name: member.tenant.name,
-        address: member.tenant.address,
-        memberId: member.id,
-        roles: roleCodes,
-        permissions,
-        menus: parentItems.sort((a: any, b: any) => a.sortOrder - b.sortOrder)
-      };
-    });
+    const tenants = user.tenantMembers.map((member) => this.buildTenantView(member));
 
     return {
       id: user.id,
@@ -502,18 +480,117 @@ export class IdentityService {
     };
   }
 
-  private pickActiveMember(members: LoginMember[]) {
-    const activeMembers = members.filter((member) => member.status === 'active' && member.tenant.status === 'active');
+  private buildTenantView(member: TenantMemberWithRelations) {
+    const roleCodes = member.roles.map((mr) => mr.role.code);
+    // Single source of truth: role.permissionCodes (with built-in fallback).
+    // See collectPermissions() for full rationale.
+    const codes = new Set<string>();
+    for (const mr of member.roles) {
+      if (mr.role.permissionCodes.length > 0) {
+        for (const code of mr.role.permissionCodes) codes.add(code);
+      } else {
+        const fallback = BUILT_IN_ROLE_PERMISSIONS[mr.role.code];
+        if (fallback) {
+          for (const code of fallback) codes.add(code);
+        }
+      }
+    }
+    const permissions = Array.from(codes);
+
+    const menuMap = new Map<string, MenuNode>();
+    for (const mr of member.roles) {
+      for (const rm of mr.role.menus) {
+        const item = rm.menuItem;
+        if (!menuMap.has(item.id)) {
+          menuMap.set(item.id, {
+            id: item.id,
+            label: item.label,
+            href: item.href,
+            icon: item.icon,
+            sortOrder: item.sortOrder,
+            parentId: item.parentId,
+            children: []
+          });
+        }
+      }
+    }
+
+    const allItems = Array.from(menuMap.values());
+    const parentItems = allItems.filter((m) => !m.parentId);
+    const childItems = allItems.filter((m) => m.parentId);
+    for (const child of childItems) {
+      const parent = parentItems.find((p) => p.id === child.parentId);
+      if (parent && !parent.children.some((c) => c.id === child.id)) {
+        parent.children.push(child);
+      } else if (!parent) {
+        child.parentId = null;
+        parentItems.push(child);
+      }
+    }
+
+    return {
+      id: member.tenant.id,
+      name: member.tenant.name,
+      address: member.tenant.address,
+      memberId: member.id,
+      roles: roleCodes,
+      permissions,
+      menus: parentItems.sort((a, b) => a.sortOrder - b.sortOrder)
+    };
+  }
+
+  /**
+   * Pick the tenant-scoped member used to issue tokens.
+   *
+   * Stability matters: login() and refresh() both funnel through here for
+   * multi-tenant users, and switchTenant() relies on the same ordering
+   * being predictable. So we sort by createdAt asc — the same order Prisma
+   * returns from the includes above, mirrored in JS in case the includes
+   * ever stop carrying orderBy.
+   *
+   * If `preferredTenantId` is set (the user's `lastActiveTenantId` written
+   * by switchTenant) and that tenant is still an active membership, prefer
+   * it. Otherwise fall through to the oldest-first default.
+   */
+  private pickActiveMember(
+    members: LoginMember[],
+    preferredTenantId?: string | null
+  ) {
+    const activeMembers = members.filter(
+      (member) => member.status === 'active' && member.tenant.status === 'active'
+    );
+    activeMembers.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    if (preferredTenantId) {
+      const preferred = activeMembers.find((m) => m.tenantId === preferredTenantId);
+      if (preferred) return preferred;
+    }
     return activeMembers[0] ?? null;
   }
 
+  /**
+   * Collects the union of permission codes across all roles held by the member.
+   *
+   * Source of truth: `role.permissionCodes` (materialized from selected menus'
+   * `permissionCodes` unions at assign-time). This makes the menu editor the
+   * single place that controls what a role can do at the API level.
+   *
+   * Fallback for built-in roles: if the DB row's `permissionCodes` is empty
+   * (e.g. fresh seed before menus get assigned), fall back to the in-code
+   * `BUILT_IN_ROLE_PERMISSIONS` map so the planner still has access on first
+   * login. Custom roles never hit this branch.
+   */
   private collectPermissions(member: LoginMember) {
-    return Array.from(
-      new Set(
-        member.roles.flatMap((memberRole) =>
-          memberRole.role.permissions.map((rolePermission) => rolePermission.permission.code)
-        )
-      )
-    );
+    const codes = new Set<string>();
+    for (const { role } of member.roles) {
+      if (role.permissionCodes.length > 0) {
+        for (const code of role.permissionCodes) codes.add(code);
+      } else {
+        const fallback = BUILT_IN_ROLE_PERMISSIONS[role.code];
+        if (fallback) {
+          for (const code of fallback) codes.add(code);
+        }
+      }
+    }
+    return Array.from(codes);
   }
 }

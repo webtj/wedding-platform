@@ -6,7 +6,6 @@ import { AppModule } from './app.module';
 import { requestContextMiddleware } from './security/request-context.middleware';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { RequestLoggerInterceptor } from './common/logging/request-logger.interceptor';
-import { TenantContextInterceptor } from './common/interceptors/tenant-context.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -34,7 +33,7 @@ async function bootstrap() {
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   }));
   app.use(requestContextMiddleware);
-  app.useGlobalInterceptors(new TenantContextInterceptor(), new RequestLoggerInterceptor());
+  app.useGlobalInterceptors(new RequestLoggerInterceptor());
   app.useGlobalFilters(new HttpExceptionFilter());
   app.enableCors({
     origin: corsOrigins,

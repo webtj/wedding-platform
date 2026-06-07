@@ -14,8 +14,24 @@ export class BusinessException extends HttpException {
     return new BusinessException('RESOURCE_NOT_FOUND', `${resource} 不存在`, HttpStatus.NOT_FOUND);
   }
 
-  static permissionDenied() {
-    return new BusinessException('PERMISSION_DENIED', '权限不足，请联系管理员', HttpStatus.FORBIDDEN);
+  /**
+   * 403 PERMISSION_DENIED. `details` may include:
+   * - `requiredPermissions`: string[] of permission codes the action needs
+   * - `resource`: optional human-readable label of the resource the user tried
+   *   to access (e.g. "项目", "角色管理"). The frontend surfaces this in the
+   *   403 panel to tell the user what they're missing and which menu/permission
+   *   would unblock them.
+   */
+  static permissionDenied(details?: {
+    requiredPermissions?: string[];
+    resource?: string;
+  }) {
+    return new BusinessException(
+      'PERMISSION_DENIED',
+      '权限不足，请联系管理员',
+      HttpStatus.FORBIDDEN,
+      details
+    );
   }
 
   static validationError(message: string) {

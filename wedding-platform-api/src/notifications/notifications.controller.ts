@@ -80,10 +80,18 @@ export class NotificationsController {
 
   @Get('unread-count')
   async unreadCount(@Req() request: { auth?: AuthContext }) {
-    const tenant = requireTenant(request.auth);
+    // Ambient endpoint: header bell polls this every 30s. Platform super
+    // admins have no tenant context, so instead of 403ing and forcing the
+    // client to silence the global forbidden panel on every tick, return 0
+    // — the natural answer for "how many unread notifications does a user
+    // who isn't in any workspace have?" (zero).
+    const auth = request.auth;
+    if (!auth?.tenantId || !auth.memberId) {
+      return { count: 0 };
+    }
     const count = await this.notificationsService.unreadCount({
-      tenantId: tenant.tenantId,
-      userId: tenant.userId
+      tenantId: auth.tenantId,
+      userId: auth.userId
     });
     return { count };
   }
