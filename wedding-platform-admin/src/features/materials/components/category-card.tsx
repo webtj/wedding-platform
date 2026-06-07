@@ -14,6 +14,7 @@ export function CategoryCard({
   category,
   forceExpand,
   search,
+  missingOnly,
   onEdit,
   onDeleteRequest,
   onAddMaterial,
@@ -22,6 +23,7 @@ export function CategoryCard({
   category: MaterialCategory;
   forceExpand: boolean;
   search: string;
+  missingOnly: boolean;
   onEdit: () => void;
   onDeleteRequest: () => void;
   onAddMaterial: () => void;
@@ -33,15 +35,20 @@ export function CategoryCard({
   const all = data.items;
   const searchLower = search.toLowerCase();
   const categoryMatches = search && category.name.toLowerCase().includes(searchLower);
-  const materials = search
-    ? categoryMatches
+  let materials = all;
+  if (search) {
+    materials = categoryMatches
       ? all
-      : all.filter((m) => m.name.toLowerCase().includes(searchLower))
-    : all;
+      : all.filter((m) => m.name.toLowerCase().includes(searchLower));
+  }
+  if (missingOnly) {
+    materials = materials.filter((m) => m.status === 'missing');
+  }
   const avail = all.filter((m) => m.status === 'available').length;
   const pct = all.length > 0 ? Math.round((avail / all.length) * 100) : 0;
 
   if (search && !categoryMatches && materials.length === 0) return null;
+  if (missingOnly && materials.length === 0 && !search) return null;
 
   function handleHeaderKey(e: React.KeyboardEvent) {
     if (e.key === 'Enter' || e.key === ' ') {

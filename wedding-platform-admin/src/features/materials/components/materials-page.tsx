@@ -41,6 +41,7 @@ export function MaterialsPage() {
   const { data: categories } = useSuspenseQuery(categoriesQueryOptions());
   const [allExpanded, setAllExpanded] = useState(false);
   const [search, setSearch] = useState('');
+  const [missingOnly, setMissingOnly] = useState(false);
   const debouncedSearch = useDebounced(search, 300);
   const [createCatOpen, setCreateCatOpen] = useState(false);
   const [editCat, setEditCat] = useState<MaterialCategory | null>(null);
@@ -76,6 +77,15 @@ export function MaterialsPage() {
             aria-label='搜索分类或物料'
           />
         </div>
+        <Button
+          size='sm'
+          variant={missingOnly ? 'default' : 'outline'}
+          onClick={() => setMissingOnly(!missingOnly)}
+          className='h-8'
+        >
+          <Icons.circleX className='mr-1 h-3.5 w-3.5' />
+          {missingOnly ? '显示全部' : '只看缺失'}
+        </Button>
         <div className='flex-1' />
         {categories.length === 0 && <TemplateImportButton />}
         <Button size='sm' onClick={() => setCreateCatOpen(true)}>
@@ -90,6 +100,7 @@ export function MaterialsPage() {
           category={cat}
           forceExpand={allExpanded}
           search={debouncedSearch}
+          missingOnly={missingOnly}
           onEdit={() => setEditCat(cat)}
           onDeleteRequest={() => setDeleteCatId(cat.id)}
           onAddMaterial={() => setAddMatCatId(cat.id)}
