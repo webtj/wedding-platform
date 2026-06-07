@@ -6,15 +6,19 @@ import { PrismaService } from '../prisma/prisma.service';
 export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
 
-  record(input: {
-    tenantId: string;
-    userId: string;
-    action: string;
-    entity: string;
-    entityId: string;
-    metadata?: Record<string, unknown>;
-  }) {
-    return this.prisma.auditLog.create({
+  record(
+    input: {
+      tenantId: string;
+      userId: string;
+      action: string;
+      entity: string;
+      entityId: string;
+      metadata?: Record<string, unknown>;
+    },
+    client?: Prisma.TransactionClient
+  ) {
+    const db = client ?? this.prisma;
+    return db.auditLog.create({
       data: {
         tenantId: input.tenantId,
         userId: input.userId,

@@ -176,7 +176,7 @@ describe('ContractsService', () => {
     it('sign flips status to signed with signatureData and timestamp', async () => {
       const prisma = {
         contract: {
-          findUnique: vi.fn().mockResolvedValue({ id: 'c1', signTokenExpiresAt: null }),
+          findUnique: vi.fn().mockResolvedValue({ id: 'c1', status: 'pending_sign', signTokenExpiresAt: null }),
           update: vi.fn().mockResolvedValue({ id: 'c1', status: 'signed' })
         }
       };
@@ -189,10 +189,20 @@ describe('ContractsService', () => {
       });
     });
 
+    it('sign rejects when contract is not pending_sign', async () => {
+      const prisma = {
+        contract: {
+          findUnique: vi.fn().mockResolvedValue({ id: 'c1', status: 'signed', signTokenExpiresAt: null })
+        }
+      };
+      const service = new ContractsService(prisma as never, { record: vi.fn() } as never);
+      await expect(service.sign('tok', 'sig')).rejects.toThrow('无法签署');
+    });
+
     it('reject marks contract as voided with reason and timestamp', async () => {
       const prisma = {
         contract: {
-          findUnique: vi.fn().mockResolvedValue({ id: 'c1', signTokenExpiresAt: null }),
+          findUnique: vi.fn().mockResolvedValue({ id: 'c1', status: 'pending_sign', signTokenExpiresAt: null }),
           update: vi.fn().mockResolvedValue({ id: 'c1', status: 'voided' })
         }
       };
@@ -209,7 +219,7 @@ describe('ContractsService', () => {
     it('generates a new token with 7 day expiry and writes audit log', async () => {
       const prisma = {
         contract: {
-          findFirst: vi.fn().mockResolvedValue({ id: 'c1' }),
+          findFirst: vi.fn().mockResolvedValue({ id: 'c1', status: 'pending_sign' }),
           update: vi.fn().mockResolvedValue({ id: 'c1', signToken: 'newtok' })
         }
       };
@@ -225,13 +235,25 @@ describe('ContractsService', () => {
         expect.objectContaining({ action: 'contract.reissue_sign_token' })
       );
     });
+
+    it('refuses to reissue a signed contract', async () => {
+      const prisma = {
+        contract: {
+          findFirst: vi.fn().mockResolvedValue({ id: 'c1', status: 'signed' })
+        }
+      };
+      const service = new ContractsService(prisma as never, { record: vi.fn() } as never);
+      await expect(
+        service.reissueSignToken({ tenantId: 't1', userId: 'u1', contractId: 'c1' })
+      ).rejects.toThrow('无需重发');
+    });
   });
 
   describe('delete', () => {
     it('deletes the contract and returns a deleted marker', async () => {
       const prisma = {
         contract: {
-          findFirst: vi.fn().mockResolvedValue({ id: 'c1' }),
+          findFirst: vi.fn().mockResolvedValue({ id: 'c1', status: 'pending_sign' }),
           delete: vi.fn().mockResolvedValue({})
         }
       };
@@ -239,6 +261,18 @@ describe('ContractsService', () => {
       const result = await service.delete({ tenantId: 't1', contractId: 'c1' });
       expect(result).toEqual({ id: 'c1', deleted: true });
       expect(prisma.contract.delete).toHaveBeenCalledWith({ where: { id: 'c1', tenantId: 't1' } });
+    });
+
+    it('refuses to delete a signed contract', async () => {
+      const prisma = {
+        contract: {
+          findFirst: vi.fn().mockResolvedValue({ id: 'c1', status: 'signed' })
+        }
+      };
+      const service = new ContractsService(prisma as never, { record: vi.fn() } as never);
+      await expect(service.delete({ tenantId: 't1', contractId: 'c1' })).rejects.toThrow(
+        '已签署合同不能删除'
+      );
     });
   });
 
@@ -250,7 +284,7 @@ describe('ContractsService', () => {
       };
       const prisma = {
         contract: {
-          findFirst: vi.fn().mockResolvedValue({ id: 'c1', leadId: 'l1' })
+          findFirst: vi.fn().mockResolvedValue({ id: 'c1', leadId: 'l1', status: 'pending_sign' })
         },
         $transaction: vi.fn((cb: (tx: Record<string, unknown>) => unknown) => cb(tx))
       };
@@ -265,7 +299,8 @@ describe('ContractsService', () => {
       });
       expect(tx.contract.delete).toHaveBeenCalledWith({ where: { id: 'c1', tenantId: 't1' } });
       expect(audit.record).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'contract.void', entityId: 'c1' })
+        expect.objectContaining({ action: 'contract.void', entityId: 'c1' }),
+        tx
       );
     });
 
@@ -276,7 +311,7 @@ describe('ContractsService', () => {
       };
       const prisma = {
         contract: {
-          findFirst: vi.fn().mockResolvedValue({ id: 'c1', leadId: null })
+          findFirst: vi.fn().mockResolvedValue({ id: 'c1', leadId: null, status: 'pending_sign' })
         },
         $transaction: vi.fn((cb: (tx: Record<string, unknown>) => unknown) => cb(tx))
       };

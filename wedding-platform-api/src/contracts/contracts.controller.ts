@@ -119,4 +119,18 @@ export class ContractsController {
       contractId
     });
   }
+
+  @RequirePermissions(PERMISSIONS.CONTRACT_MANAGE)
+  @Post('contracts/:contractId/reissue-sign-token')
+  reissueSignToken(
+    @Req() request: { auth?: AuthContext },
+    @Param('contractId') contractId: string
+  ) {
+    const tenant = requireTenant(request.auth);
+    return this.contractsService.reissueSignToken({
+      tenantId: tenant.tenantId,
+      userId: tenant.userId,
+      contractId
+    });
+  }
 }
