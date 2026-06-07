@@ -25,15 +25,18 @@ import type { NavItem, NavGroup } from '@/types';
  * @returns Filtered items
  */
 export function useFilteredNavItems(items: NavItem[]) {
-  const { permissions, membership, orgId } = useAuthContext();
+  const { permissions, membership, orgId, isPlatformAdmin } = useAuthContext();
 
   const accessContext = useMemo(
     () => ({
       permissions,
       role: membership?.role,
-      hasOrg: !!orgId
+      // Platform admins live in /admin/* and have no orgId by design (privacy
+      // boundary). They have permissions=['*'] and should always satisfy
+      // `requireOrg`/`permission`/`role` checks regardless of orgId.
+      hasOrg: !!orgId || isPlatformAdmin
     }),
-    [permissions, membership?.role, orgId]
+    [permissions, membership?.role, orgId, isPlatformAdmin]
   );
 
   const filteredItems = useMemo(() => {
