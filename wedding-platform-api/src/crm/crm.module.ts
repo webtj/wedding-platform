@@ -7,11 +7,13 @@ import { LeadsStatsController } from './leads-stats.controller';
 import { LeadsOperationsService } from './leads-operations.service';
 import { LeadsService } from './leads.service';
 import { LeadsStatsService } from './leads-stats.service';
+import { NavBadgesController } from './nav-badges.controller';
+import { NavBadgesService } from './nav-badges.service';
 
 @Module({
   imports: [IdentityModule, AuditModule],
-  controllers: [LeadsController, LeadsOperationsController, LeadsStatsController],
-  providers: [LeadsService, LeadsOperationsService, LeadsStatsService],
-  exports: [LeadsService, LeadsOperationsService, LeadsStatsService]
+  controllers: [LeadsController, LeadsOperationsController, LeadsStatsController, NavBadgesController],
+  providers: [LeadsService, LeadsOperationsService, LeadsStatsService, NavBadgesService],
+  exports: [LeadsService, LeadsOperationsService, LeadsStatsService, NavBadgesService]
 })
 export class CrmModule {}

@@ -1,4 +1,5 @@
 import { Icons } from '@/components/icons';
+import type { NavBadgeSourceKey } from '@/config/nav-badges';
 
 export interface PermissionCheck {
   permission?: string;
@@ -20,6 +21,7 @@ export interface NavItem {
   isActive?: boolean;
   items?: NavItem[];
   access?: PermissionCheck;
+  badgeKey?: NavBadgeSourceKey;
 }
 
 export interface NavGroup {

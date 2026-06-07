@@ -26,9 +26,11 @@ import {
 } from '@/components/ui/sidebar';
 import { UserAvatarProfile } from '@/components/user-avatar-profile';
 import { useDynamicNavGroups, getProjectNavGroups } from '@/config/nav-config';
+import { badgeForUrl } from '@/config/nav-badges';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { useUser } from '@clerk/nextjs';
 import { useFilteredNavGroups } from '@/hooks/use-nav';
+import { useNavBadges } from '@/hooks/use-nav-badges';
 import { SignOutButton } from '@clerk/nextjs';
 import Link from 'next/link';
 import { useParams, usePathname, useRouter } from 'next/navigation';
@@ -47,10 +49,17 @@ export default function AppSidebar() {
     ? [...getProjectNavGroups(projectId), ...baseGroups]
     : baseGroups;
   const filteredGroups = useFilteredNavGroups(allGroups);
+  const { getCount } = useNavBadges();
 
   React.useEffect(() => {
     // Side effects based on sidebar state changes
   }, [isOpen]);
+
+  function badgeCount(url: string, explicitKey?: string): number {
+    const key = explicitKey ?? badgeForUrl(url);
+    if (!key) return 0;
+    return getCount(key as Parameters<typeof getCount>[0]);
+  }
 
   return (
     <Sidebar collapsible='icon'>
@@ -64,6 +73,7 @@ export default function AppSidebar() {
             <SidebarMenu>
               {group.items.map((item) => {
                 const Icon = item.icon ? Icons[item.icon] : Icons.logo;
+                const count = badgeCount(item.url, item.badgeKey);
                 return item?.items && item?.items?.length > 0 ? (
                   <Collapsible
                     key={item.title}
@@ -77,6 +87,7 @@ export default function AppSidebar() {
                           {item.icon && <Icon />}
                           <span>{item.title}</span>
                           <Icons.chevronRight className='ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90' />
+                          {count > 0 && <NavBadge count={count} />}
                         </SidebarMenuButton>
                       </CollapsibleTrigger>
                       <CollapsibleContent>
@@ -85,12 +96,14 @@ export default function AppSidebar() {
                             const SubIcon = subItem.icon
                               ? Icons[subItem.icon as keyof typeof Icons]
                               : null;
+                            const subCount = badgeCount(subItem.url, subItem.badgeKey);
                             return (
                               <SidebarMenuSubItem key={subItem.title}>
                                 <SidebarMenuSubButton asChild isActive={pathname === subItem.url}>
                                   <Link href={subItem.url}>
                                     {SubIcon && <SubIcon />}
                                     <span>{subItem.title}</span>
+                                    {subCount > 0 && <NavBadge count={subCount} />}
                                   </Link>
                                 </SidebarMenuSubButton>
                               </SidebarMenuSubItem>
@@ -110,6 +123,7 @@ export default function AppSidebar() {
                       <Link href={item.url}>
                         <Icon />
                         <span>{item.title}</span>
+                        {count > 0 && <NavBadge count={count} />}
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -167,5 +181,15 @@ export default function AppSidebar() {
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
+  );
+}
+
+function NavBadge({ count }: { count: number }) {
+  return (
+    <span
+      className='ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-medium tabular-nums text-destructive-foreground group-data-[collapsible=icon]:absolute group-data-[collapsible=icon]:-top-1 group-data-[collapsible=icon]:-right-1 group-data-[collapsible=icon]:ml-0'
+    >
+      {count > 99 ? '99+' : count}
+    </span>
   );
 }

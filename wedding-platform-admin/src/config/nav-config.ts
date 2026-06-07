@@ -115,7 +115,7 @@ export const navGroups: NavGroup[] = [
     label: '业务管理',
     items: [
       { title: '工作台', url: '/studio/overview', icon: 'dashboard', shortcut: ['d', 'd'], isActive: false, items: [] },
-      { title: '意向单', url: '/studio/leads', icon: 'forms', shortcut: ['l', 'l'], isActive: false, items: [] },
+      { title: '意向单', url: '/studio/leads', icon: 'forms', shortcut: ['l', 'l'], isActive: false, items: [], badgeKey: 'leads-needs-followup' },
       { title: '线索统计', url: '/studio/leads/stats', icon: 'trendingUp', shortcut: ['l', 's'], isActive: false, items: [] },
       { title: '婚礼日程', url: '/studio/timeline', icon: 'calendar', shortcut: ['t', 't'], isActive: false, items: [] },
       { title: '项目管理', url: '/studio/projects', icon: 'kanban', shortcut: ['p', 'p'], isActive: false, items: [] },

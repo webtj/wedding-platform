@@ -150,7 +150,7 @@ export function CreateContractDialog({
           <Button variant='outline' onClick={() => onOpenChange(false)}>
             取消
           </Button>
-          <Button onClick={() => create.mutate()} disabled={!canSubmit} isLoading={create.isPending}>
+          <Button onClick={() => create.mutate(undefined)} disabled={!canSubmit} isLoading={create.isPending}>
             创建合同
           </Button>
         </DialogFooter>
