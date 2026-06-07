@@ -83,6 +83,7 @@ import {
   IconSend,
   IconSettings,
   IconShare,
+  IconShield,
   IconSlash,
   IconSparkles,
   IconStack2,
@@ -241,6 +242,7 @@ export const Icons = {
   // Misc
   pizza: IconPizza,
   workspace: IconFolder,
+  shield: IconShield,
   forms: IconClipboardText,
   slash: IconSlash,
   calendar: IconCalendar,

@@ -24,14 +24,17 @@ export class AiMetricsService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async getSummary(tenantId: string, days: number = 30): Promise<MetricSummary> {
+  async getSummary(tenantId: string | null, days: number = 30): Promise<MetricSummary> {
     const since = new Date();
     since.setDate(since.getDate() - days);
 
-    // Get generations
+    // Get generations. `tenantId: null` is the platform-admin path: aggregate
+    // across all tenants. The caller is responsible for gating it
+    // (PlatformGuard on the controller + the isPlatformAdmin bypass in
+    // PermissionsGuard ensures non-admins can't reach this).
     const generations = await this.prisma.aiGeneration.findMany({
       where: {
-        tenantId,
+        ...(tenantId ? { tenantId } : {}),
         createdAt: { gte: since },
       },
       select: {
