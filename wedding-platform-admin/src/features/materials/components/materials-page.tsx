@@ -26,6 +26,7 @@ import { CategoryCard } from './category-card';
 import { CategoryDialog } from './category-dialog';
 import { MatDialog } from './mat-dialog';
 import { MaterialsStats } from './materials-stats';
+import { TemplateImportButton } from './template-import-button';
 
 function useDebounced<T>(value: T, ms = 300): T {
   const [debounced, setDebounced] = useState(value);
@@ -76,6 +77,7 @@ export function MaterialsPage() {
           />
         </div>
         <div className='flex-1' />
+        {categories.length === 0 && <TemplateImportButton />}
         <Button size='sm' onClick={() => setCreateCatOpen(true)}>
           <Icons.add className='mr-1.5 h-3.5 w-3.5' />
           添加分类
@@ -98,9 +100,15 @@ export function MaterialsPage() {
       {categories.length === 0 && (
         <div className='py-16 text-center border-2 border-dashed rounded-xl'>
           <p className='text-sm text-muted-foreground mb-2'>暂无物料分类</p>
-          <Button size='sm' onClick={() => setCreateCatOpen(true)}>
-            创建第一个分类
-          </Button>
+          <p className='text-xs text-muted-foreground mb-4 max-w-md mx-auto'>
+            可一键导入 10 个常用婚礼物料分类（共 90 件物料），后续按需增删改
+          </p>
+          <div className='flex items-center justify-center gap-2'>
+            <TemplateImportButton />
+            <Button size='sm' variant='ghost' onClick={() => setCreateCatOpen(true)}>
+              从空白开始
+            </Button>
+          </div>
         </div>
       )}
 
