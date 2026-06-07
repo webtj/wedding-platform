@@ -35,9 +35,9 @@ import { Icons } from '@/components/icons';
 import { toDateDisplay } from '@/lib/date-format';
 import { STATUS_OPTIONS, S_COLOR, S_LABEL, SOURCE_LABEL } from '../../constants';
 import { AddLeadDialog } from '../add-lead-dialog';
-import { EditLeadDialog } from '../edit-lead-dialog';
 import { DeleteLeadDialog } from '../delete-lead-dialog';
 import { CreateContractDialog } from '../create-contract-dialog';
+import { LeadDetailDrawer } from '../lead-detail-drawer';
 
 export function LeadsTable() {
   const [params, setParams] = useQueryStates({
@@ -47,6 +47,7 @@ export function LeadsTable() {
     status: parseAsString.withDefault('')
   });
   const [searchInput, setSearchInput] = useState(params.search);
+  const [detailLeadId, setDetailLeadId] = useState<string | null>(null);
   const debouncedSearch = useDebouncedCallback(
     (v: string) => setParams({ search: v, page: 1 }),
     400
@@ -59,6 +60,7 @@ export function LeadsTable() {
     ...(params.status && { status: params.status })
   };
   const { data, isLoading } = useQuery(leadsQueryOptions(filters));
+  const detailLead = detailLeadId ? data?.items.find((l) => l.id === detailLeadId) ?? null : null;
 
   if (isLoading || !data)
     return (
@@ -140,11 +142,19 @@ export function LeadsTable() {
                 </TableCell>
               </TableRow>
             ) : (
-              data.items.map((lead) => <LeadRow key={lead.id} lead={lead} />)
+              data.items.map((lead) => (
+                <LeadRow key={lead.id} lead={lead} onOpenDetail={setDetailLeadId} />
+              ))
             )}
           </TableBody>
         </Table>
       </div>
+
+      <LeadDetailDrawer
+        lead={detailLead}
+        open={!!detailLead}
+        onOpenChange={(o) => !o && setDetailLeadId(null)}
+      />
 
       <div className='flex items-center justify-between pt-4 mt-4 border-t'>
         <span className='text-sm text-muted-foreground'>共 {data.total} 条</span>
@@ -178,13 +188,12 @@ export function LeadsTable() {
   );
 }
 
-function LeadRow({ lead }: { lead: Lead }) {
+function LeadRow({ lead, onOpenDetail }: { lead: Lead; onOpenDetail: (id: string) => void }) {
   const update = useMutationToast({
     ...updateLeadMutation,
     successMsg: '状态已更新',
     errorMsg: '更新失败'
   });
-  const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
   const statusLocked = lead.status === 'won';
@@ -195,7 +204,13 @@ function LeadRow({ lead }: { lead: Lead }) {
         <code className='text-xs font-mono text-muted-foreground'>{lead.leadNo}</code>
       </TableCell>
       <TableCell className='py-2'>
-        <span className='font-medium text-sm'>{lead.name || lead.phone || '未知'}</span>
+        <button
+          type='button'
+          onClick={() => onOpenDetail(lead.id)}
+          className='font-medium text-sm text-left hover:text-primary hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded'
+        >
+          {lead.name || lead.phone || '未知'}
+        </button>
       </TableCell>
       <TableCell className='py-2 text-sm font-mono text-muted-foreground'>
         {lead.phone || '-'}
@@ -271,17 +286,6 @@ function LeadRow({ lead }: { lead: Lead }) {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          {!statusLocked && (
-            <Button
-              variant='ghost'
-              size='sm'
-              className='h-7 text-xs px-2 text-muted-foreground hover:text-foreground'
-              onClick={() => setEditOpen(true)}
-            >
-              <Icons.edit className='h-3.5 w-3.5 mr-1' />
-              编辑
-            </Button>
-          )}
           {lead.status === 'won' && !lead.contract && (
             <Button
               variant='default'
@@ -304,7 +308,6 @@ function LeadRow({ lead }: { lead: Lead }) {
             </Button>
           )}
         </div>
-        <EditLeadDialog open={editOpen} onOpenChange={setEditOpen} lead={lead} />
         <DeleteLeadDialog open={deleteOpen} onOpenChange={setDeleteOpen} lead={lead} />
         {lead.status === 'won' && !lead.contract && (
           <CreateContractDialog open={contractOpen} onOpenChange={setContractOpen} lead={lead} />
