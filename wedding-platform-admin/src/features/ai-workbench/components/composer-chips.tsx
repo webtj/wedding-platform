@@ -5,6 +5,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { Icons } from '@/components/icons';
+import { getMaterialTypeIcon } from '@/features/material-types/lib/icon-map';
 import { STYLES, COUNT_OPTIONS, STYLE_PREVIEWS, QUICK_PROMPTS } from '../constants';
 import type { AiTemplate, MaterialType } from '../api/types';
 
@@ -111,28 +112,31 @@ export function ComposerChips({
       <Chip label='素材' value={selectedType?.name ?? '选择'} active={!!selectedType}>
         <p className='text-muted-foreground mb-2 text-xs'>选择素材类型</p>
         <ScrollArea className='max-h-56'>
-          <div className='grid grid-cols-3 gap-1.5'>
-            {materialTypes.map((m) => (
-              <button
-                key={m.id}
-                type='button'
-                onClick={() => onSelectType(m)}
-                className={cn(
-                  'flex flex-col items-center gap-0.5 rounded-lg border p-2 text-center transition-colors',
-                  m.id === selectedTypeId
-                    ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border hover:border-primary/50 hover:bg-accent'
-                )}
-              >
-                <span className='text-lg leading-none'>{m.icon ?? '📄'}</span>
-                <span className='text-xs font-medium'>{m.name}</span>
-                {m.defaultSize && (
-                  <span className='text-muted-foreground font-mono text-[10px]'>
-                    {m.defaultSize.width}×{m.defaultSize.height}
-                  </span>
-                )}
-              </button>
-            ))}
+          <div className='grid grid-cols-4 gap-1.5'>
+            {materialTypes.map((m) => {
+              const IconComp = getMaterialTypeIcon(m.icon);
+              return (
+                <button
+                  key={m.id}
+                  type='button'
+                  onClick={() => onSelectType(m)}
+                  className={cn(
+                    'flex flex-col items-center gap-0.5 rounded-lg border p-2 text-center transition-colors',
+                    m.id === selectedTypeId
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border hover:border-primary/50 hover:bg-accent'
+                  )}
+                >
+                  <IconComp className='size-5 shrink-0' />
+                  <span className='line-clamp-1 w-full text-xs font-medium'>{m.name}</span>
+                  {m.defaultSize && (
+                    <span className='text-muted-foreground font-mono text-[10px]'>
+                      {m.defaultSize.width}×{m.defaultSize.height}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </ScrollArea>
       </Chip>
@@ -286,9 +290,9 @@ function CustomSizeInput({
           value={w}
           onChange={(e) => setW(e.target.value)}
           aria-label='自定义宽度 (mm)'
-          className='border-input bg-background h-7 w-full rounded-md border px-2 text-xs'
+          className='border-input bg-background h-7 min-w-0 flex-1 rounded-md border px-2 text-xs'
         />
-        <span className='text-muted-foreground text-xs'>×</span>
+        <span className='text-muted-foreground shrink-0 text-xs'>×</span>
         <input
           type='number'
           min={1}
@@ -296,14 +300,14 @@ function CustomSizeInput({
           value={h}
           onChange={(e) => setH(e.target.value)}
           aria-label='自定义高度 (mm)'
-          className='border-input bg-background h-7 w-full rounded-md border px-2 text-xs'
+          className='border-input bg-background h-7 min-w-0 flex-1 rounded-md border px-2 text-xs'
         />
         <button
           type='button'
           onClick={handleApply}
-          className='bg-primary text-primary-foreground hover:bg-primary/90 h-7 rounded-md px-2.5 text-xs font-medium'
+          className='bg-primary text-primary-foreground hover:bg-primary/90 h-7 shrink-0 rounded-md px-3 text-xs font-medium'
         >
-          应用
+          确定
         </button>
       </div>
       {error && <p className='text-destructive text-[11px]'>{error}</p>}

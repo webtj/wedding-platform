@@ -24,92 +24,15 @@ import {
 } from '@/components/ui/select';
 import { Icons } from '@/components/icons';
 import type { Icon as TablerIcon } from '@/components/icons';
-import {
-  IconRuler2,
-  IconPencilPlus,
-  IconCake,
-  IconHandStop,
-  IconTable,
-  IconWallpaper,
-  IconSticker,
-  IconDeviceProjector,
-  IconBook,
-  IconGift,
-  IconMail,
-  IconClipboardList,
-  IconFlower,
-  IconBalloon,
-  IconConfetti,
-  IconGlassChampagne,
-  IconCandle,
-  IconButterfly,
-  IconDiamond,
-  IconPennant,
-  IconAlbum,
-  IconCamera,
-  IconAward,
-  IconTicket,
-  IconTag,
-} from '@tabler/icons-react';
 import { cn } from '@/lib/utils';
 import { useDebouncedCallback } from '@/hooks/use-debounced-callback';
 import type { MaterialType, ManagerMode, SizeOption } from '../api/types';
 import { getMaterialTypes, createMaterialType, updateMaterialType, deleteMaterialType, getTenants } from '../api/service';
+import { ICON_OPTIONS, getMaterialTypeIcon } from '../lib/icon-map';
 
-// -- Icons --
-const ICON_OPTIONS: { icon: TablerIcon; label: string; value: string }[] = [
-  { icon: Icons.heart, label: '爱心', value: '💍' },
-  { icon: IconDiamond, label: '钻戒', value: '💎' },
-  { icon: Icons.pro, label: '皇冠', value: '👑' },
-  { icon: IconGlassChampagne, label: '香槟杯', value: '🥂' },
-  { icon: IconConfetti, label: '彩带', value: '🎊' },
-  { icon: IconBalloon, label: '气球', value: '🎈' },
-  { icon: Icons.notification, label: '铃铛', value: '🔔' },
-  { icon: IconCandle, label: '蜡烛', value: '🕯️' },
-  { icon: IconPennant, label: '旗帜', value: '🎏' },
-  { icon: IconFlower, label: '花朵', value: '🌸' },
-  { icon: Icons.leaf, label: '绿叶', value: '🍃' },
-  { icon: IconButterfly, label: '蝴蝶', value: '🦋' },
-  { icon: IconCake, label: '蛋糕', value: '🍽️' },
-  { icon: IconGift, label: '礼物', value: '🍬' },
-  { icon: IconMail, label: '信件', value: '💌' },
-  { icon: IconHandStop, label: '手卡', value: '🤚' },
-  { icon: IconSticker, label: '贴纸', value: '✨' },
-  { icon: IconTicket, label: '票券', value: '🎫' },
-  { icon: IconTag, label: '吊牌', value: '🏷️' },
-  { icon: Icons.bookmark, label: '书签', value: '🔖' },
-  { icon: IconAward, label: '奖章', value: '🏅' },
-  { icon: IconWallpaper, label: '背景墙', value: '🖼️' },
-  { icon: IconTable, label: '桌卡', value: '📋' },
-  { icon: IconAlbum, label: '相册', value: '📖' },
-  { icon: Icons.frame, label: '相框', value: '🪟' },
-  { icon: IconDeviceProjector, label: '投影', value: '📽️' },
-  { icon: IconClipboardList, label: '清单', value: '📝' },
-  { icon: Icons.media, label: '照片', value: '📷' },
-  { icon: IconCamera, label: '相机', value: '📸' },
-  { icon: Icons.music, label: '音乐', value: '🎵' },
-  { icon: IconBook, label: '书本', value: '📖' },
-  { icon: Icons.palette, label: '调色盘', value: '🎨' },
-  { icon: Icons.brush, label: '画笔', value: '🖌️' },
-  { icon: Icons.scissors, label: '剪刀', value: '✂️' },
-  { icon: Icons.ruler, label: '尺子', value: '📏' },
-  { icon: Icons.wand, label: '魔法棒', value: '🪄' },
-  { icon: Icons.sparkles, label: '星光', value: '✨' },
-  { icon: Icons.calendar, label: '日历', value: '📅' },
-  { icon: Icons.clock, label: '时钟', value: '🕐' },
-  { icon: Icons.map, label: '地图', value: '🗺️' },
-  { icon: Icons.home, label: '场地', value: '🏠' },
-  { icon: Icons.sun, label: '太阳', value: '☀️' },
-  { icon: Icons.star, label: '星星', value: '⭐' },
-  { icon: Icons.post, label: '文件', value: '📄' }
-];
-
-const ICON_MAP: Record<string, TablerIcon> = Object.fromEntries(
-  ICON_OPTIONS.map((opt) => [opt.value, opt.icon])
-);
-
+// Local alias for backward-compat with the existing call sites in this file.
 function getIcon(iconStr?: string): TablerIcon {
-  return (iconStr ? ICON_MAP[iconStr] : undefined) ?? Icons.post;
+  return getMaterialTypeIcon(iconStr);
 }
 
 const CODE_REGEX = /^[a-z][a-z0-9_]*$/;
@@ -158,7 +81,7 @@ function MaterialTypeCard({
         )}
         {defaultSz && (
           <div className='text-muted-foreground flex items-center gap-1 text-[10px]'>
-            <IconRuler2 className='size-3' />
+            <Icons.ruler2 className='size-3' />
             <span>{defaultSz.width}x{defaultSz.height}</span>
           </div>
         )}
@@ -387,7 +310,7 @@ export default function MaterialTypesManager({ mode }: { mode: ManagerMode }) {
         <Card className='gap-0 py-0'>
           <CardContent className='flex items-center gap-3 p-3'>
             <div className='bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 flex size-8 items-center justify-center rounded-md'>
-              <IconPencilPlus className='size-4' />
+              <Icons.pencilPlus className='size-4' />
             </div>
             <div>
               <p className='text-lg font-bold leading-tight'>{stats.custom}</p>
