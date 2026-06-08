@@ -1,13 +1,6 @@
 import { PrismaClient, AuthProvider, RoleScope } from '@prisma/client';
 import { ALL_PERMISSION_CODES, BUILT_IN_ROLE_LABELS, BUILT_IN_ROLE_PERMISSIONS, BUILT_IN_ROLES } from '@wedding/shared';
 import bcrypt from 'bcryptjs';
-import {
-  SEED_NATURE_PASSWORD,
-  SEED_ROOT_PASSWORD,
-  warnIfUsingDefaultSeedPasswords
-} from './seed-credentials';
-
-warnIfUsingDefaultSeedPasswords();
 
 const prisma = new PrismaClient();
 
@@ -93,26 +86,8 @@ async function main() {
     console.log(`    删除 ${staleUserIds.length} 个非 seed 用户`);
   }
 
-  // Drop any role that is not a built-in (planner) in any tenant
-  const builtInCodes = [BUILT_IN_ROLES.PLANNER];
-
-  // Clean up stale tenant memberships for platform admins (privacy boundary)
-  const platformAdminUserIds = await prisma.platformAdmin.findMany({
-    select: { userId: true }
-  });
-  if (platformAdminUserIds.length > 0) {
-    const paIds = platformAdminUserIds.map((pa) => pa.userId);
-    const orphanMembers = await prisma.tenantMember.findMany({
-      where: { userId: { in: paIds } },
-      select: { id: true }
-    });
-    if (orphanMembers.length > 0) {
-      await prisma.memberRole.deleteMany({ where: { memberId: { in: orphanMembers.map((m) => m.id) } } });
-      await prisma.tenantMember.deleteMany({ where: { id: { in: orphanMembers.map((m) => m.id) } } });
-      console.log(`    清理 ${orphanMembers.length} 个平台管理员的租户成员`);
-    }
-  }
-
+  // Drop any role that is not one of the two built-ins (super_admin / planner) in any tenant
+  const builtInCodes = ['super_admin', BUILT_IN_ROLES.PLANNER];
   const staleRoles = await prisma.role.findMany({
     where: {
       code: { notIn: builtInCodes }
@@ -122,23 +97,32 @@ async function main() {
   const staleRoleIds = staleRoles.map((r) => r.id);
 
   if (staleRoleIds.length > 0) {
+    await prisma.rolePermission.deleteMany({ where: { roleId: { in: staleRoleIds } } });
     await prisma.roleMenuItem.deleteMany({ where: { roleId: { in: staleRoleIds } } });
     await prisma.memberRole.deleteMany({ where: { roleId: { in: staleRoleIds } } });
     await prisma.role.deleteMany({ where: { id: { in: staleRoleIds } } });
     console.log(`    删除 ${staleRoleIds.length} 个非 seed 角色`);
   }
 
-  // Built-in roles in the seed tenant are refreshed via role.permissionCodes
-  // (the single source of truth). No intermediate role_permission table to clear.
+  // Reset stale role-permission rows for built-in roles in the seed tenant.
+  // (Step 5 below will repopulate them from BUILT_IN_ROLE_PERMISSIONS / ALL_PERMISSION_CODES.)
   const builtinRolesInSeedTenant = await prisma.role.findMany({
     where: {
       scope: RoleScope.tenant,
-      tenantId: 'zirangongsheng',
+      tenantId: 'demo-tenant-default',
       code: { in: builtInCodes }
     },
     select: { id: true }
   });
   const builtinRoleIds = builtinRolesInSeedTenant.map((r) => r.id);
+  if (builtinRoleIds.length > 0) {
+    const r = await prisma.rolePermission.deleteMany({
+      where: { roleId: { in: builtinRoleIds } }
+    });
+    if (r.count > 0) {
+      console.log(`    清理 ${r.count} 个 built-in 角色 stale 权限（待重新分配）`);
+    }
+  }
 
   // 1. Upsert all permissions from ALL_PERMISSION_CODES
   console.log('  📋 创建权限...');
@@ -160,17 +144,20 @@ async function main() {
   // 2. Create default tenant - 自然共生
   console.log('  🏢 创建默认租户...');
   const defaultTenantRows = await prisma.$queryRaw<any[]>`INSERT INTO tenants (id, name, description, status, "createdAt", "updatedAt")
-    VALUES ('zirangongsheng', '自然共生', '专注自然风格婚礼策划，提供全案定制服务。', 'active', NOW(), NOW())
+    VALUES ('demo-tenant-default', '自然共生', '专注自然风格婚礼策划，提供全案定制服务。', 'active', NOW(), NOW())
     ON CONFLICT (id) DO UPDATE SET name = '自然共生', description = '专注自然风格婚礼策划，提供全案定制服务。'
     RETURNING *`;
   const defaultTenant = defaultTenantRows[0];
 
-  // 3. Create tenant roles - planner (nature)
+  // 3. Create tenant roles - super_admin (root) + planner (nature)
   console.log('  👤 创建角色...');
-  const tenantRoleCodes = [BUILT_IN_ROLES.PLANNER] as const;
+  const tenantRoleCodes = ['super_admin', BUILT_IN_ROLES.PLANNER] as const;
   const tenantRoles = await Promise.all(
     tenantRoleCodes.map((roleCode) => {
-      const label = BUILT_IN_ROLE_LABELS[roleCode];
+      const label =
+        roleCode === 'super_admin'
+          ? '超级管理员'
+          : BUILT_IN_ROLE_LABELS[roleCode as keyof typeof BUILT_IN_ROLE_LABELS];
       return prisma.role.upsert({
         where: {
           scope_tenantId_code: {
@@ -194,25 +181,49 @@ async function main() {
     })
   );
 
-  // 5. Set role.permissionCodes as the single source of truth.
-  // Assign permissionCodes from BUILT_IN_ROLE_PERMISSIONS.
+  // 5. Assign permissions to roles based on BUILT_IN_ROLE_PERMISSIONS
   console.log('  🔑 分配权限...');
-  for (const role of tenantRoles) {
-    const permissionCodes = BUILT_IN_ROLE_PERMISSIONS[role.code] ?? [];
-    await prisma.role.update({
-      where: { id: role.id },
-      data: { permissionCodes }
-    });
+  const allRoles = [...tenantRoles];
+  const permissions = await prisma.permission.findMany();
+  const permissionByCode = new Map(permissions.map((permission) => [permission.code, permission]));
+
+  for (const role of allRoles) {
+    const permissionCodes =
+      role.code === 'super_admin'
+        ? [...ALL_PERMISSION_CODES]
+        : BUILT_IN_ROLE_PERMISSIONS[role.code] ?? [];
+    for (const code of permissionCodes) {
+      const permission = permissionByCode.get(code);
+      if (!permission) {
+        continue;
+      }
+      await prisma.rolePermission.upsert({
+        where: {
+          roleId_permissionId: {
+            roleId: role.id,
+            permissionId: permission.id
+          }
+        },
+        update: {},
+        create: {
+          roleId: role.id,
+          permissionId: permission.id
+        }
+      });
+    }
   }
 
   // 6. Create users - root (super admin) and nature (planner)
   console.log('  👥 创建用户...');
-  // Seed accounts (passwords read from env vars SEED_ROOT_PASSWORD / SEED_NATURE_PASSWORD):
-  //   root    → platform super admin (no tenant membership, privacy boundary)
-  //   nature  → tenant planner
+  // Hardcoded credentials — only two seed accounts:
+  //   root / xdd930328   → platform admin + tenant super_admin
+  //   nature / nature123456 → tenant planner
+  const rootPwd = 'xdd930328';
+  const naturePwd = 'nature123456';
+
   const rootUser = await upsertPasswordUser({
     identifier: 'root',
-    password: SEED_ROOT_PASSWORD,
+    password: rootPwd,
     displayName: '超级管理员'
   });
 
@@ -227,12 +238,45 @@ async function main() {
   });
   console.log('  ✅ 平台管理员已创建');
 
-  // root is platform-only (PlatformAdmin, level=super). No tenant membership —
-  // the privacy boundary prevents platform admins from accessing tenant data.
+  // Also give the platform admin a tenant membership so they can be scoped
+  // to a real tenant via the switch-tenant flow (e.g. for tenant-scoped QA).
+  const rootMember = await prisma.tenantMember.upsert({
+    where: {
+      tenantId_userId: {
+        tenantId: defaultTenant.id,
+        userId: rootUser.id
+      }
+    },
+    update: { status: 'active' },
+    create: {
+      tenantId: defaultTenant.id,
+      userId: rootUser.id,
+      displayName: '超级管理员'
+    }
+  });
+
+  // Grant super_admin role in the default tenant so the platform admin
+  // gets full permissions after switching context.
+  const superAdminRole = tenantRoles.find((role) => role.code === 'super_admin');
+  if (superAdminRole) {
+    await prisma.memberRole.upsert({
+      where: {
+        memberId_roleId: {
+          memberId: rootMember.id,
+          roleId: superAdminRole.id
+        }
+      },
+      update: {},
+      create: {
+        memberId: rootMember.id,
+        roleId: superAdminRole.id
+      }
+    });
+  }
 
   const natureUser = await upsertPasswordUser({
     identifier: 'nature',
-    password: SEED_NATURE_PASSWORD,
+    password: naturePwd,
     displayName: '自然共生策划'
   });
 
@@ -382,151 +426,30 @@ async function main() {
   console.log('  📦 创建素材管理...');
 
   const materialTypeData = [
-    {
-      name: '誓言卡',
-      code: 'vow_card',
-      icon: '💍',
-      defaultSize: { width: 120, height: 170 },
-      sizes: [
-        { width: 120, height: 170 },
-        { width: 100, height: 150 },
-        { width: 148, height: 210 }
-      ]
-    },
-    {
-      name: '餐卡',
-      code: 'table_card',
-      icon: '🍽️',
-      defaultSize: { width: 100, height: 150 },
-      sizes: [
-        { width: 100, height: 150 },
-        { width: 120, height: 170 },
-        { width: 90, height: 120 }
-      ]
-    },
-    {
-      name: '手卡',
-      code: 'hand_card',
-      icon: '🤚',
-      defaultSize: { width: 90, height: 140 },
-      sizes: [
-        { width: 90, height: 140 },
-        { width: 100, height: 150 },
-        { width: 80, height: 120 }
-      ]
-    },
-    {
-      name: '桌卡',
-      code: 'place_card',
-      icon: '🏷️',
-      defaultSize: { width: 100, height: 150 },
-      sizes: [
-        { width: 100, height: 150 },
-        { width: 120, height: 170 },
-        { width: 80, height: 120 }
-      ]
-    },
-    {
-      name: '照片墙',
-      code: 'photo_wall',
-      icon: '🖼️',
-      defaultSize: { width: 600, height: 900 },
-      sizes: [
-        { width: 600, height: 900 },
-        { width: 800, height: 1200 },
-        { width: 500, height: 750 }
-      ]
-    },
-    {
-      name: '贴纸',
-      code: 'sticker',
-      icon: '✨',
-      defaultSize: { width: 50, height: 50 },
-      sizes: [
-        { width: 50, height: 50 },
-        { width: 80, height: 80 },
-        { width: 100, height: 100 }
-      ]
-    },
-    {
-      name: '桌布',
-      code: 'tablecloth',
-      icon: '🧵',
-      defaultSize: { width: 1800, height: 1800 },
-      sizes: [
-        { width: 1800, height: 1800 },
-        { width: 2400, height: 2400 },
-        { width: 1500, height: 1500 }
-      ]
-    },
-    {
-      name: '扇子封面',
-      code: 'fan_cover',
-      icon: '🪭',
-      defaultSize: { width: 200, height: 300 },
-      sizes: [
-        { width: 200, height: 300 },
-        { width: 250, height: 350 },
-        { width: 180, height: 250 }
-      ]
-    },
-    {
-      name: '签到本',
-      code: 'guestbook',
-      icon: '📖',
-      defaultSize: { width: 200, height: 200 },
-      sizes: [
-        { width: 200, height: 200 },
-        { width: 250, height: 300 },
-        { width: 210, height: 297 }
-      ]
-    },
-    {
-      name: '喜糖盒',
-      code: 'candy_box',
-      icon: '🍬',
-      defaultSize: { width: 80, height: 80 },
-      sizes: [
-        { width: 80, height: 80 },
-        { width: 100, height: 100 },
-        { width: 60, height: 60 }
-      ]
-    },
-    {
-      name: '请柬',
-      code: 'invitation',
-      icon: '💌',
-      defaultSize: { width: 180, height: 120 },
-      sizes: [
-        { width: 180, height: 120 },
-        { width: 148, height: 210 },
-        { width: 200, height: 280 }
-      ]
-    },
-    {
-      name: '桌号牌',
-      code: 'table_number',
-      icon: '🔢',
-      defaultSize: { width: 100, height: 150 },
-      sizes: [
-        { width: 100, height: 150 },
-        { width: 120, height: 170 },
-        { width: 80, height: 120 }
-      ]
-    }
+    { name: '誓言卡', code: 'vow_card', icon: '💍', defaultSize: { width: 120, height: 170 } },
+    { name: '餐卡', code: 'table_card', icon: '🍽️', defaultSize: { width: 100, height: 150 } },
+    { name: '手卡', code: 'hand_card', icon: '🤚', defaultSize: { width: 90, height: 140 } },
+    { name: '桌卡', code: 'place_card', icon: '🏷️', defaultSize: { width: 100, height: 150 } },
+    { name: '照片墙', code: 'photo_wall', icon: '🖼️', defaultSize: { width: 600, height: 900 } },
+    { name: '贴纸', code: 'sticker', icon: '✨', defaultSize: { width: 50, height: 50 } },
+    { name: '桌布', code: 'tablecloth', icon: '🧵', defaultSize: { width: 1800, height: 1800 } },
+    { name: '扇子封面', code: 'fan_cover', icon: '🪭', defaultSize: { width: 200, height: 300 } },
+    { name: '签到本', code: 'guestbook', icon: '📖', defaultSize: { width: 200, height: 200 } },
+    { name: '喜糖盒', code: 'candy_box', icon: '🍬', defaultSize: { width: 80, height: 80 } },
+    { name: '请柬', code: 'invitation', icon: '💌', defaultSize: { width: 180, height: 120 } },
+    { name: '桌号牌', code: 'table_number', icon: '🔢', defaultSize: { width: 100, height: 150 } }
   ];
 
   for (const mt of materialTypeData) {
     await prisma.materialType.upsert({
       where: { tenantId_code: { tenantId: defaultTenant.id, code: mt.code } },
-      update: { name: mt.name, icon: mt.icon, defaultSize: mt.defaultSize, sizes: mt.sizes, isSystem: true },
+      update: { name: mt.name, icon: mt.icon, defaultSize: mt.defaultSize, isSystem: true },
       create: {
         tenantId: defaultTenant.id,
         name: mt.name,
         code: mt.code,
         icon: mt.icon,
         defaultSize: mt.defaultSize,
-        sizes: mt.sizes,
         isSystem: true
       }
     });
@@ -553,7 +476,6 @@ async function main() {
       for (let i = 0; i < items.length; i++) {
         await prisma.material.create({
           data: {
-            tenantId: defaultTenant.id,
             categoryId: cat.id,
             name: items[i],
             status: i % 5 === 0 ? 'missing' : 'available',
@@ -565,218 +487,104 @@ async function main() {
     }
   }
 
-  // ── Platform Settings ──────────────────────────────────────────────
-  console.log('  ⚙️ 创建平台配置...');
+  // ── AI Templates ────────────────────────────────────────────────────
+  console.log('  🤖 创建 AI 模板...');
 
-  const platformSettings = [
-    { key: 'sms_provider', group: 'notification', label: '短信服务', value: JSON.stringify({ provider: 'disabled', signName: '婚礼平台' }) },
-    { key: 'storage_limits', group: 'storage', label: '存储配额', value: JSON.stringify({ maxFileSizeMb: 100, allowedTypes: ['image/jpeg', 'image/png', 'video/mp4', 'application/pdf'] }) },
-    { key: 'ai_config', group: 'ai', label: 'AI 服务配置', value: JSON.stringify({ provider: 'template', enabled: true }) }
+  const builtInAiTemplates = [
+    {
+      code: 'case_study_story',
+      name: '婚礼案例故事',
+      category: 'case_study' as const,
+      prompt: '根据婚礼风格、场地、素材和新人故事，生成一篇适合官网案例页的故事文案。'
+    },
+    {
+      code: 'planner_marketing_xhs',
+      name: '小红书案例文案',
+      category: 'planner_marketing' as const,
+      prompt: '根据项目亮点生成适合小红书发布的婚礼案例文案。'
+    },
+    {
+      code: 'thank_you_note',
+      name: '感谢文案',
+      category: 'planner_marketing' as const,
+      prompt: '为客户生成婚礼结束后的感谢亲友文案。'
+    },
+    {
+      code: 'image_window_white_roses',
+      name: '窗台白玫瑰',
+      category: 'image_design' as const,
+      prompt: '窗台上的白玫瑰，清晨自然光，柔和白纱，适合婚礼迎宾牌背景，画面干净高级。'
+    },
+    {
+      code: 'image_white_rose_welcome_sign',
+      name: '白玫瑰迎宾牌',
+      category: 'image_design' as const,
+      prompt: '白玫瑰婚礼迎宾牌，奶油白底，花艺围绕边角，中心留白，温柔高级的婚礼视觉。'
+    },
+    {
+      code: 'image_cream_table_card',
+      name: '奶油风桌卡',
+      category: 'image_design' as const,
+      prompt: '奶油风婚礼桌卡背景，柔和布纹纸张，浅香槟色花材，极简排版，保留文字留白。'
+    },
+    {
+      code: 'image_chinese_red_gold_invitation',
+      name: '新中式红金请柬',
+      category: 'image_design' as const,
+      prompt: '新中式红金婚礼请柬，宋式纹样，金色线描花卉，雅致留白，喜庆但不过度传统。'
+    },
+    {
+      code: 'image_garden_vow_card',
+      name: '花园誓言卡',
+      category: 'image_design' as const,
+      prompt: '户外花园婚礼誓言卡，浅绿色植物环绕，白色小花点缀，纸张质感，清新自然。'
+    }
   ];
 
-  for (const setting of platformSettings) {
-    const existing = await prisma.platformSetting.findUnique({ where: { key: setting.key } });
-    if (existing) {
-      await prisma.platformSetting.update({
-        where: { key: setting.key },
-        data: { group: setting.group, label: setting.label, value: JSON.parse(setting.value) }
+  for (const template of builtInAiTemplates) {
+    const existingTemplate = await prisma.aiTemplate.findFirst({
+      where: {
+        tenantId: null,
+        code: template.code
+      }
+    });
+
+    if (existingTemplate) {
+      await prisma.aiTemplate.update({
+        where: { id: existingTemplate.id },
+        data: {
+          name: template.name,
+          category: template.category,
+          prompt: template.prompt,
+          isBuiltIn: true
+        }
       });
     } else {
-      await prisma.platformSetting.create({
-        data: { key: setting.key, group: setting.group, label: setting.label, value: JSON.parse(setting.value) }
-      });
-    }
-  }
-
-  // ── Menu Items ────────────────────────────────────────────────────
-  console.log('  📋 创建菜单...');
-
-  // Platform-level menus (super admin)
-  // permissionCodes: the union of API permissions a role must hold to use this
-  // menu's pages. Empty array = no API access (parent label only).
-  const platformMenuData = [
-    { label: '平台', icon: 'lock', sortOrder: 0, children: [
-      { label: '租户管理', href: '/admin/tenants', icon: 'workspace', sortOrder: 0, permissionCodes: ['platform.setting.read', 'tenant.read'] },
-      { label: '账号管理', href: '/admin/accounts', icon: 'user', sortOrder: 1, permissionCodes: ['platform.setting.read'] },
-      { label: '角色管理', href: '/admin/roles', icon: 'badgeCheck', sortOrder: 2, permissionCodes: ['platform.setting.read'] },
-      { label: '菜单管理', href: '/admin/menus', icon: 'forms', sortOrder: 3, permissionCodes: ['platform.setting.read'] }
-    ]},
-    { label: '运营', icon: 'settings', sortOrder: 1, children: [
-      { label: '套餐计费', href: '/admin/billing', icon: 'billing', sortOrder: 0, permissionCodes: ['platform.setting.manage'] },
-      { label: '通用设置', href: '/admin/settings', icon: 'settings', sortOrder: 1, permissionCodes: ['platform.setting.manage'] },
-      { label: '素材管理', href: '/admin/material-types', icon: 'product', sortOrder: 2, permissionCodes: ['material_type.manage'] }
-    ]}
-  ];
-
-  const platformMenus: any[] = [];
-  for (const parentData of platformMenuData) {
-    const parent = await prisma.menuItem.upsert({
-      where: { id: `menu-platform-${parentData.label}` },
-      update: { label: parentData.label, icon: parentData.icon, sortOrder: parentData.sortOrder },
-      create: {
-        id: `menu-platform-${parentData.label}`,
-        scope: 'platform',
-        label: parentData.label,
-        icon: parentData.icon,
-        sortOrder: parentData.sortOrder
-      }
-    });
-    platformMenus.push(parent);
-
-    for (const childData of parentData.children) {
-      const child = await prisma.menuItem.upsert({
-        where: { id: `menu-platform-${childData.href}` },
-        update: {
-          label: childData.label,
-          href: childData.href,
-          icon: childData.icon,
-          sortOrder: childData.sortOrder,
-          permissionCodes: childData.permissionCodes
-        },
-        create: {
-          id: `menu-platform-${childData.href}`,
-          scope: 'platform',
-          parentId: parent.id,
-          label: childData.label,
-          href: childData.href,
-          icon: childData.icon,
-          sortOrder: childData.sortOrder,
-          permissionCodes: childData.permissionCodes
+      await prisma.aiTemplate.create({
+        data: {
+          tenantId: null,
+          code: template.code,
+          name: template.name,
+          category: template.category,
+          prompt: template.prompt,
+          isBuiltIn: true
         }
       });
-      platformMenus.push(child);
     }
-  }
-
-  // Tenant-level menus (planner).
-  // Note: /studio/projects also covers /studio/projects/:id/scenes (sub-page).
-  // The scenes controller requires SCENE_*; we pack those into the parent menu
-  // so a role with project access automatically gets scene access.
-  const tenantMenuData = [
-    { label: '工作台', icon: 'dashboard', sortOrder: 0, children: [
-      { label: '总览面板', href: '/studio/overview', icon: 'dashboard', sortOrder: 0, permissionCodes: ['project.read', 'task.read'] },
-      { label: '项目管理', href: '/studio/projects', icon: 'kanban', sortOrder: 1, permissionCodes: ['project.read', 'project.create', 'project.update', 'project.archive', 'scene.read', 'scene.create', 'scene.update', 'scene.delete'] }
-    ]},
-    { label: '商务', icon: 'billing', sortOrder: 1, children: [
-      { label: '意向单', href: '/studio/leads', icon: 'user', sortOrder: 0, permissionCodes: ['lead.read', 'lead.create', 'lead.update', 'lead.convert'] },
-      { label: '合同管理', href: '/studio/contracts', icon: 'post', sortOrder: 1, permissionCodes: ['contract.read', 'contract.manage'] },
-      { label: '物料管理', href: '/studio/materials', icon: 'product', sortOrder: 2, permissionCodes: ['material.read', 'material.manage'] }
-    ]},
-    { label: 'AI 工具', icon: 'sparkles', sortOrder: 2, children: [
-      { label: 'AI 工作台', href: '/studio/ai-workbench', icon: 'sparkles', sortOrder: 0, permissionCodes: ['ai.use', 'ai.generate', 'ai.generation.read', 'ai.generation.bookmark', 'ai.generation.series', 'ai.text.generate', 'ai.text.generation.read', 'ai.text.generation.bookmark'] },
-      { label: '素材管理', href: '/studio/material-types', icon: 'product', sortOrder: 1, permissionCodes: ['material_type.read', 'material_type.manage'] },
-      { label: '提示词管理', href: '/studio/ai-workbench/quick-prompts', icon: 'sparkles', sortOrder: 2, permissionCodes: ['material.read', 'material.manage', 'template.read', 'template.manage'] }
-    ]},
-    { label: '任务', icon: 'checks', sortOrder: 3, children: [
-      { label: '流程模板', href: '/studio/templates', icon: 'forms', sortOrder: 0, permissionCodes: ['task.read', 'task.create', 'task.assign', 'task.complete'] },
-      { label: '婚礼日程', href: '/studio/timeline', icon: 'calendar', sortOrder: 1, permissionCodes: ['timeline.read', 'timeline.manage'] }
-    ]},
-    { label: '团队管理', icon: 'user', sortOrder: 4, children: [
-      { label: '账号管理', href: '/studio/accounts', icon: 'user', sortOrder: 0, permissionCodes: ['member.read', 'member.manage'] },
-      { label: '角色管理', href: '/studio/roles', icon: 'badgeCheck', sortOrder: 1, permissionCodes: ['role.read', 'role.manage'] },
-      { label: '通知中心', href: '/studio/notifications', icon: 'bell', sortOrder: 2, permissionCodes: ['notification.read'] }
-    ]}
-  ];
-
-  const tenantMenus: any[] = [];
-  for (const parentData of tenantMenuData) {
-    const parent = await prisma.menuItem.upsert({
-      where: { id: `menu-tenant-${parentData.label}` },
-      update: { label: parentData.label, icon: parentData.icon, sortOrder: parentData.sortOrder },
-      create: {
-        id: `menu-tenant-${parentData.label}`,
-        scope: 'tenant',
-        tenantId: defaultTenant.id,
-        label: parentData.label,
-        icon: parentData.icon,
-        sortOrder: parentData.sortOrder
-      }
-    });
-    tenantMenus.push(parent);
-
-    for (const childData of parentData.children) {
-      const childScope = (childData as any).scope ?? 'tenant';
-      const isPlatformScoped = childScope === 'platform';
-      const child = await prisma.menuItem.upsert({
-        where: { id: `menu-tenant-${childData.href}` },
-        update: {
-          label: childData.label,
-          href: childData.href,
-          icon: childData.icon,
-          sortOrder: childData.sortOrder,
-          scope: childScope,
-          permissionCodes: childData.permissionCodes
-        },
-        create: {
-          id: `menu-tenant-${childData.href}`,
-          scope: childScope,
-          ...(isPlatformScoped ? {} : { tenantId: defaultTenant.id }),
-          parentId: parent.id,
-          label: childData.label,
-          href: childData.href,
-          icon: childData.icon,
-          sortOrder: childData.sortOrder,
-          permissionCodes: childData.permissionCodes
-        }
-      });
-      tenantMenus.push(child);
-    }
-  }
-
-  // Assign tenant menus to planner role
-  if (plannerRole) {
-    for (const menu of tenantMenus) {
-      await prisma.roleMenuItem.upsert({
-        where: { roleId_menuItemId: { roleId: plannerRole.id, menuItemId: menu.id } },
-        update: {},
-        create: { roleId: plannerRole.id, menuItemId: menu.id }
-      });
-    }
-    // Materialize role.permissionCodes as the union of its menus' permissionCodes.
-    // This is the single source of truth for what the role can do at the API
-    // level; identity.service.collectPermissions reads from here, not from the
-    // legacy role.permissions join table.
-    const plannerMenuIds = (
-      await prisma.roleMenuItem.findMany({
-        where: { roleId: plannerRole.id },
-        select: { menuItemId: true }
-      })
-    ).map((rm) => rm.menuItemId);
-    const selectedMenus = await prisma.menuItem.findMany({
-      where: { id: { in: plannerMenuIds } },
-      select: { permissionCodes: true }
-    });
-    const union = new Set<string>();
-    for (const m of selectedMenus) {
-      for (const code of m.permissionCodes) union.add(code);
-    }
-    await prisma.role.update({
-      where: { id: plannerRole.id },
-      data: { permissionCodes: Array.from(union) }
-    });
   }
 
   // ── Quick Prompt Categories & Prompts (built-in) ───────────────────────
   console.log('  💬 创建推荐词...');
 
   const quickPromptData = [
-    { text: '摄影镜头', type: 'image_design' as const, items: ['对称构图', '三分线构图', '斜线构图', '层次分明', '利用前景', '近景', '超广角', '俯拍', '背景虚化', '景深', '全景拍摄', '胶片相机'] },
-    { text: '光影', type: 'image_design' as const, items: ['硬光', '柔光', '侧光', '逆光', '漫射光', '摄影棚照明', '自然光', '聚光灯', '丁达尔效应'] },
-    { text: '色调', type: 'image_design' as const, items: ['暖色调', '冷色调', '高饱和色调', '低饱和色调', '单色调', '柔和色彩', '莫兰迪色调', '渐变色'] },
-    { text: '人像', type: 'image_design' as const, items: ['小女孩', '女生', '氧气感', '托腮', '干净文艺男', '都市白领', '金发卷发', '大波浪发型', '戴眼镜', '帅哥', '白上衣'] },
-    { text: '背景', type: 'image_design' as const, items: ['未来主义城市', '温馨卧室', '古城墙', '日式町屋街道', '韩剧小巷', '烛光摇曳的室内', '阳光透过窗帘房间', '迷雾森林'] },
-    { text: '生图灵感', type: 'image_design' as const, items: [
-      '窗台上的白玫瑰，清晨自然光，柔和白纱，适合婚礼迎宾牌背景，画面干净高级',
-      '白玫瑰婚礼迎宾牌，奶油白底，花艺围绕边角，中心留白，温柔高级的婚礼视觉',
-      '奶油风婚礼桌卡背景，柔和布纹纸张，浅香槟色花材，极简排版，保留文字留白',
-      '新中式红金婚礼请柬，宋式纹样，金色线描花卉，雅致留白，喜庆但不过度传统',
-      '户外花园婚礼誓言卡，浅绿色植物环绕，白色小花点缀，纸张质感，清新自然'
-    ]},
-    { text: '文案灵感', type: 'copywriting' as const, items: [
-      '根据婚礼风格、场地、素材和新人故事，生成一篇适合官网案例页的故事文案',
-      '根据项目亮点生成适合小红书发布的婚礼案例文案',
-      '为客户生成婚礼结束后的感谢亲友文案'
-    ]}
+    { text: '场景布置', type: 'image_design' as const, items: ['签到台布置', '迎宾区装饰', '仪式区背景', '宴会厅桌花', '甜品台布置', '舞台灯光', 'T台装饰', '椅背花艺', '天花板吊饰', '合影区布置'] },
+    { text: '花艺设计', type: 'image_design' as const, items: ['手捧花', '胸花', '腕花', '头花', '花门', '花亭', '路引花艺', '桌花', '花墙', '花艺拱门', '悬挂花艺', '花艺装置'] },
+    { text: '婚礼风格', type: 'image_design' as const, items: ['法式浪漫', '新中式', '极简现代', '森系自然', '复古怀旧', '韩式清新', '美式乡村', '地中海风', '波西米亚', '哥特暗黑', '童话梦幻', '日式侘寂'] },
+    { text: '色彩方案', type: 'image_design' as const, items: ['经典白绿', '香槟金', '玫瑰粉', '雾霾蓝', '酒红勃艮第', '莫兰迪色系', '撞色活力', '渐变色', '金属色点缀', '大地色系'] },
+    { text: '灯光氛围', type: 'image_design' as const, items: ['暖色烛光', '冷色追光', '星空顶', '霓虹灯牌', 'LED灯带', '水晶吊灯', '灯笼装饰', '烟花效果', '投影映射', '激光秀'] },
+    { text: '人物姿态', type: 'image_design' as const, items: ['新娘特写', '交换戒指', '亲吻瞬间', '抛花束', '切蛋糕', '第一支舞', '敬酒', '合影', '牵手散步', '回眸一笑'] },
+    { text: '文案风格', type: 'copywriting' as const, items: ['温馨感人', '浪漫唯美', '幽默风趣', '文艺清新', '大气正式', '简洁明了', '故事叙述', '对话体', '清单体', '问答体'] },
+    { text: '文案场景', type: 'copywriting' as const, items: ['婚礼邀请函', '婚礼誓词', '感谢信', '婚礼回顾', '社交媒体推广', '客户案例', '朋友圈文案', '小红书笔记', '抖音文案', '公众号推文'] }
   ];
 
   for (let ci = 0; ci < quickPromptData.length; ci++) {
@@ -810,11 +618,154 @@ async function main() {
   }
   console.log(`  ✅ ${quickPromptData.length} 个推荐词分类，${quickPromptData.reduce((s, c) => s + c.items.length, 0)} 条推荐词`);
 
+  // ── Platform Settings ──────────────────────────────────────────────
+  console.log('  ⚙️ 创建平台配置...');
+
+  const platformSettings = [
+    { key: 'sms_provider', group: 'notification', label: '短信服务', value: JSON.stringify({ provider: 'disabled', signName: '婚礼平台' }) },
+    { key: 'storage_limits', group: 'storage', label: '存储配额', value: JSON.stringify({ maxFileSizeMb: 100, allowedTypes: ['image/jpeg', 'image/png', 'video/mp4', 'application/pdf'] }) },
+    { key: 'ai_config', group: 'ai', label: 'AI 服务配置', value: JSON.stringify({ provider: 'template', enabled: true }) }
+  ];
+
+  for (const setting of platformSettings) {
+    const existing = await prisma.platformSetting.findUnique({ where: { key: setting.key } });
+    if (existing) {
+      await prisma.platformSetting.update({
+        where: { key: setting.key },
+        data: { group: setting.group, label: setting.label, value: JSON.parse(setting.value) }
+      });
+    } else {
+      await prisma.platformSetting.create({
+        data: { key: setting.key, group: setting.group, label: setting.label, value: JSON.parse(setting.value) }
+      });
+    }
+  }
+
+  // ── Menu Items ────────────────────────────────────────────────────
+  console.log('  📋 创建菜单...');
+
+  // Platform-level menus (super admin)
+  const platformMenuData = [
+    { label: '平台', icon: 'lock', sortOrder: 0, children: [
+      { label: '租户管理', href: '/admin/tenants', icon: 'workspace', sortOrder: 0 },
+      { label: '账号管理', href: '/admin/accounts', icon: 'user', sortOrder: 1 },
+      { label: '角色管理', href: '/admin/roles', icon: 'badgeCheck', sortOrder: 2 },
+      { label: '菜单管理', href: '/admin/menus', icon: 'forms', sortOrder: 3 }
+    ]},
+    { label: '运营', icon: 'settings', sortOrder: 1, children: [
+      { label: '套餐计费', href: '/admin/billing', icon: 'billing', sortOrder: 0 },
+      { label: '通用设置', href: '/admin/settings', icon: 'settings', sortOrder: 1 },
+      { label: '素材管理', href: '/admin/material-types', icon: 'product', sortOrder: 2 }
+    ]}
+  ];
+
+  const platformMenus: any[] = [];
+  for (const parentData of platformMenuData) {
+    const parent = await prisma.menuItem.upsert({
+      where: { id: `menu-platform-${parentData.label}` },
+      update: { label: parentData.label, icon: parentData.icon, sortOrder: parentData.sortOrder },
+      create: {
+        id: `menu-platform-${parentData.label}`,
+        scope: 'platform',
+        label: parentData.label,
+        icon: parentData.icon,
+        sortOrder: parentData.sortOrder
+      }
+    });
+    platformMenus.push(parent);
+
+    for (const childData of parentData.children) {
+      const child = await prisma.menuItem.upsert({
+        where: { id: `menu-platform-${childData.href}` },
+        update: { label: childData.label, href: childData.href, icon: childData.icon, sortOrder: childData.sortOrder },
+        create: {
+          id: `menu-platform-${childData.href}`,
+          scope: 'platform',
+          parentId: parent.id,
+          label: childData.label,
+          href: childData.href,
+          icon: childData.icon,
+          sortOrder: childData.sortOrder
+        }
+      });
+      platformMenus.push(child);
+    }
+  }
+
+  // Tenant-level menus (planner)
+  const tenantMenuData = [
+    { label: '工作台', icon: 'dashboard', sortOrder: 0, children: [
+      { label: '总览面板', href: '/studio/overview', icon: 'dashboard', sortOrder: 0 },
+      { label: '项目管理', href: '/studio/projects', icon: 'kanban', sortOrder: 1 }
+    ]},
+    { label: '商务', icon: 'billing', sortOrder: 1, children: [
+      { label: '意向单', href: '/studio/leads', icon: 'user', sortOrder: 0 },
+      { label: '合同管理', href: '/studio/contracts', icon: 'post', sortOrder: 1 },
+      { label: '物料管理', href: '/studio/materials', icon: 'product', sortOrder: 2 }
+    ]},
+    { label: 'AI 工具', icon: 'sparkles', sortOrder: 2, children: [
+      { label: 'AI 工作台', href: '/studio/ai-workbench', icon: 'sparkles', sortOrder: 0 },
+      { label: '素材管理', href: '/studio/material-types', icon: 'product', sortOrder: 1 }
+    ]},
+    { label: '任务', icon: 'checks', sortOrder: 3, children: [
+      { label: '流程模板', href: '/studio/templates', icon: 'forms', sortOrder: 0 },
+      { label: '婚礼日程', href: '/studio/timeline', icon: 'calendar', sortOrder: 1 }
+    ]}
+  ];
+
+  const tenantMenus: any[] = [];
+  for (const parentData of tenantMenuData) {
+    const parent = await prisma.menuItem.upsert({
+      where: { id: `menu-tenant-${parentData.label}` },
+      update: { label: parentData.label, icon: parentData.icon, sortOrder: parentData.sortOrder },
+      create: {
+        id: `menu-tenant-${parentData.label}`,
+        scope: 'tenant',
+        tenantId: defaultTenant.id,
+        label: parentData.label,
+        icon: parentData.icon,
+        sortOrder: parentData.sortOrder
+      }
+    });
+    tenantMenus.push(parent);
+
+    for (const childData of parentData.children) {
+      const childScope = (childData as any).scope ?? 'tenant';
+      const isPlatformScoped = childScope === 'platform';
+      const child = await prisma.menuItem.upsert({
+        where: { id: `menu-tenant-${childData.href}` },
+        update: { label: childData.label, href: childData.href, icon: childData.icon, sortOrder: childData.sortOrder, scope: childScope },
+        create: {
+          id: `menu-tenant-${childData.href}`,
+          scope: childScope,
+          ...(isPlatformScoped ? {} : { tenantId: defaultTenant.id }),
+          parentId: parent.id,
+          label: childData.label,
+          href: childData.href,
+          icon: childData.icon,
+          sortOrder: childData.sortOrder
+        }
+      });
+      tenantMenus.push(child);
+    }
+  }
+
+  // Assign tenant menus to planner role
+  if (plannerRole) {
+    for (const menu of tenantMenus) {
+      await prisma.roleMenuItem.upsert({
+        where: { roleId_menuItemId: { roleId: plannerRole.id, menuItemId: menu.id } },
+        update: {},
+        create: { roleId: plannerRole.id, menuItemId: menu.id }
+      });
+    }
+  }
+
   console.log('✅ 数据库初始化完成！');
   console.log('');
   console.log('📋 账号信息：');
-  console.log(`  超级管理员: root / ${SEED_ROOT_PASSWORD} (平台管理员)`);
-  console.log(`  策划师:     nature / ${SEED_NATURE_PASSWORD} (租户: 自然共生)`);
+  console.log(`  超级管理员: root / ${rootPwd} (平台管理员)`);
+  console.log(`  策划师:     nature / ${naturePwd} (租户: 自然共生)`);
   console.log('');
 }
 

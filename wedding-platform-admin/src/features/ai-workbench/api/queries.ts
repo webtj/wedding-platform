@@ -16,6 +16,8 @@ import type {
   GeneratePayload,
   GenerationEvent,
   GenerationJob,
+  QuickPrompt,
+  QuickPromptCategory,
   RefinePayload,
   SeriesGeneratePayload,
   MaterialTypeResponse,
@@ -316,4 +318,49 @@ export async function deleteTextGeneration(id: string): Promise<{ deleted: boole
   return apiClient<{ deleted: boolean }>(`/ai/text/generations/${id}`, {
     method: 'DELETE'
   });
+}
+
+// ── Quick Prompts ──────────────────────────────────────────────────────
+
+export async function fetchQuickPromptCategories(type?: string): Promise<QuickPromptCategory[]> {
+  const params = new URLSearchParams();
+  if (type) params.set('type', type);
+  const qs = params.toString();
+  return apiClient<QuickPromptCategory[]>(`/quick-prompts/categories${qs ? `?${qs}` : ''}`);
+}
+
+export async function createQuickPromptCategory(data: { name: string }): Promise<QuickPromptCategory> {
+  return apiClient<QuickPromptCategory>('/quick-prompts/categories', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  });
+}
+
+export async function updateQuickPromptCategory(id: string, data: { name: string }): Promise<QuickPromptCategory> {
+  return apiClient<QuickPromptCategory>(`/quick-prompts/categories/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data)
+  });
+}
+
+export async function deleteQuickPromptCategory(id: string): Promise<void> {
+  return apiClient(`/quick-prompts/categories/${id}`, { method: 'DELETE' });
+}
+
+export async function createQuickPrompt(data: { categoryId: string; name: string; prompt: string }): Promise<QuickPrompt> {
+  return apiClient<QuickPrompt>('/quick-prompts', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  });
+}
+
+export async function updateQuickPrompt(id: string, data: { name?: string; prompt?: string }): Promise<QuickPrompt> {
+  return apiClient<QuickPrompt>(`/quick-prompts/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data)
+  });
+}
+
+export async function deleteQuickPrompt(id: string): Promise<void> {
+  return apiClient(`/quick-prompts/${id}`, { method: 'DELETE' });
 }
