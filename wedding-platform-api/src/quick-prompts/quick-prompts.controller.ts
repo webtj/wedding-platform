@@ -23,8 +23,12 @@ export class QuickPromptsController {
   @RequirePermissions(PERMISSIONS.MATERIAL_READ)
   @Get('categories')
   listCategories(@Req() r: { auth?: AuthContext }, @Query('type') type?: string) {
-    const tenant = requireTenant(r.auth);
-    return this.service.listCategories(tenant.tenantId, type);
+    // Platform admins see all built-in prompts; tenant users see built-in + their own
+    const tenantId = r.auth?.isPlatformAdmin ? null : r.auth?.tenantId;
+    if (!r.auth?.isPlatformAdmin && !tenantId) {
+      throw new Error('TENANT_REQUIRED');
+    }
+    return this.service.listCategories(tenantId, type);
   }
 
   @RequirePermissions(PERMISSIONS.MATERIAL_MANAGE)

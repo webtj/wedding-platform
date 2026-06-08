@@ -15,10 +15,10 @@ export class QuickPromptsService {
 
   // ── Categories ──────────────────────────────────────────────────────────
 
-  async listCategories(tenantId: string, type?: string) {
+  async listCategories(tenantId: string | null, type?: string) {
     return this.prisma.quickPromptCategory.findMany({
       where: {
-        OR: [{ tenantId: null }, { tenantId }],
+        OR: [{ tenantId: null }, ...(tenantId ? [{ tenantId }] : [])],
         ...(type ? { type: type as PromptCategoryType } : {})
       },
       orderBy: { sortOrder: 'asc' },
