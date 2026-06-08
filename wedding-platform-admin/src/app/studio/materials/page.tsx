@@ -5,9 +5,9 @@ import { categoriesQueryOptions } from '@/features/materials/api/queries';
 import { MaterialsPage } from '@/features/materials/components/materials-page';
 import PageContainer from '@/components/layout/page-container';
 
-export default function Page() {
+export default async function Page() {
   const queryClient = getQueryClient();
-  void queryClient.prefetchQuery(categoriesQueryOptions());
+  await queryClient.prefetchQuery(categoriesQueryOptions());
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
       <PageContainer pageTitle='物料管理'>
