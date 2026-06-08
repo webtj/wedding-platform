@@ -28,11 +28,11 @@ export class QuickPromptsService {
       : { OR: [{ tenantId: null }, { tenantId: ctx.tenantId }] };
     return this.prisma.quickPromptCategory.findMany({
       where,
-      orderBy: { sortOrder: 'asc' },
+      orderBy: { createdAt: 'desc' },
       include: {
         prompts: {
           where: promptWhere,
-          orderBy: { sortOrder: 'asc' }
+          orderBy: { createdAt: 'desc' }
         }
       }
     });
