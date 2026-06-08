@@ -224,28 +224,6 @@ export interface GenerationEvent {
   timestamp: string;
 }
 
-// ── Quick Prompt Types ─────────────────────────────────────────────────
-
-export type PromptCategoryType = 'image_design' | 'copywriting' | 'general';
-
-export interface QuickPromptCategory {
-  id: string;
-  tenantId: string | null;
-  name: string;
-  type: PromptCategoryType;
-  sortOrder: number;
-  prompts: QuickPrompt[];
-}
-
-export interface QuickPrompt {
-  id: string;
-  tenantId: string | null;
-  categoryId: string;
-  name: string;
-  prompt: string;
-  sortOrder: number;
-}
-
 // ── Text Generation Types ─────────────────────────────────────────────
 
 export type TextGenerationType = 'vows' | 'speech' | 'social_copy' | 'invitation' | 'story';

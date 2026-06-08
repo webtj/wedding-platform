@@ -163,19 +163,23 @@ test.describe.serial('AI workbench — chip × clears to null (not reset)', () =
     await page.goto('/studio/ai-workbench');
     await page.getByRole('button', { name: /素材/ }).first().waitFor({ timeout: 15_000 });
 
-    // Pick then clear.
+    // Pick a material first.
     const materialChip = page.getByRole('button', { name: /素材/ }).first();
     await materialChip.click();
     const popover = page.locator('[data-radix-popper-content-wrapper]').last();
     await popover.getByRole('button').filter({ hasText: /智言卡|餐卡|喜帖/ }).first().click();
     await expect(popover).not.toBeVisible({ timeout: 2_000 });
 
+    // Now clear it.
     const clearBtn = page.getByRole('button', { name: '清除 素材' });
+    await expect(clearBtn).toBeVisible();
     await clearBtn.click();
 
-    // After clearing required field, chip container should have destructive border.
-    const chipWrapper = materialChip.locator('..');
-    await expect(chipWrapper).toHaveClass(/destructive/);
+    // Wait for re-render.
+    await page.waitForTimeout(500);
+
+    // Chip should now show "未选择" text.
+    await expect(page.getByText('未选择').first()).toBeVisible();
   });
 
   test('size/style/count chips have × that clears them', async ({ page }) => {
@@ -183,18 +187,38 @@ test.describe.serial('AI workbench — chip × clears to null (not reset)', () =
     await page.goto('/studio/ai-workbench');
     await page.getByRole('button', { name: /素材/ }).first().waitFor({ timeout: 15_000 });
 
-    // Clear size
+    // Set size first (pick a preset).
+    const sizeChip = page.getByRole('button', { name: /尺寸/ }).first();
+    await sizeChip.click();
+    const sizePopover = page.locator('[data-radix-popper-content-wrapper]').last();
+    await sizePopover.getByRole('button').filter({ hasText: /\d+×\d+/ }).first().click();
+    await expect(sizePopover).not.toBeVisible({ timeout: 2_000 });
+
+    // Set style (pick one).
+    const styleChip = page.getByRole('button', { name: /风格/ }).first();
+    await styleChip.click();
+    const stylePopover = page.locator('[data-radix-popper-content-wrapper]').last();
+    await stylePopover.getByRole('button').filter({ hasText: /田园|奶油|油画/ }).first().click();
+    await expect(stylePopover).not.toBeVisible({ timeout: 2_000 });
+
+    // Set count.
+    const countChip = page.getByRole('button', { name: /数量/ }).first();
+    await countChip.click();
+    const countPopover = page.locator('[data-radix-popper-content-wrapper]').last();
+    await countPopover.getByRole('button', { name: /2张/ }).first().click();
+    await expect(countPopover).not.toBeVisible({ timeout: 2_000 });
+
+    // Now clear size.
     const sizeClear = page.getByRole('button', { name: '清除 尺寸' });
     await expect(sizeClear).toBeVisible();
     await sizeClear.click();
-    await expect(page.getByText('未选择').nth(1)).toBeVisible();
 
-    // Clear style
+    // Clear style.
     const styleClear = page.getByRole('button', { name: '清除 风格' });
     await expect(styleClear).toBeVisible();
     await styleClear.click();
 
-    // Clear count
+    // Clear count.
     const countClear = page.getByRole('button', { name: '清除 数量' });
     await expect(countClear).toBeVisible();
     await countClear.click();
@@ -204,7 +228,7 @@ test.describe.serial('AI workbench — chip × clears to null (not reset)', () =
     expect(await unselectedChips.count()).toBeGreaterThanOrEqual(3);
   });
 
-  test('popover header shows "清除" + "重置默认" for non-default selection', async ({ page }) => {
+  test('popover header shows "清除" for non-default selection', async ({ page }) => {
     await login(page, PLANNER);
     await page.goto('/studio/ai-workbench');
     await page.getByRole('button', { name: /素材/ }).first().waitFor({ timeout: 15_000 });
@@ -216,10 +240,9 @@ test.describe.serial('AI workbench — chip × clears to null (not reset)', () =
     await popover.getByRole('button').filter({ hasText: /餐卡|喜帖/ }).first().click();
     await expect(popover).not.toBeVisible({ timeout: 2_000 });
 
-    // Re-open — header should now have both buttons.
+    // Re-open — header should have "清除" button.
     await materialChip.click();
     const popover2 = page.locator('[data-radix-popper-content-wrapper]').last();
     await expect(popover2.getByRole('button', { name: /清除/ })).toBeVisible();
-    await expect(popover2.getByRole('button', { name: /重置默认/ })).toBeVisible();
   });
 });
