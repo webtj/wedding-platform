@@ -97,32 +97,14 @@ async function main() {
   const staleRoleIds = staleRoles.map((r) => r.id);
 
   if (staleRoleIds.length > 0) {
-    await prisma.rolePermission.deleteMany({ where: { roleId: { in: staleRoleIds } } });
     await prisma.roleMenuItem.deleteMany({ where: { roleId: { in: staleRoleIds } } });
     await prisma.memberRole.deleteMany({ where: { roleId: { in: staleRoleIds } } });
     await prisma.role.deleteMany({ where: { id: { in: staleRoleIds } } });
     console.log(`    删除 ${staleRoleIds.length} 个非 seed 角色`);
   }
 
-  // Reset stale role-permission rows for built-in roles in the seed tenant.
-  // (Step 5 below will repopulate them from BUILT_IN_ROLE_PERMISSIONS / ALL_PERMISSION_CODES.)
-  const builtinRolesInSeedTenant = await prisma.role.findMany({
-    where: {
-      scope: RoleScope.tenant,
-      tenantId: 'demo-tenant-default',
-      code: { in: builtInCodes }
-    },
-    select: { id: true }
-  });
-  const builtinRoleIds = builtinRolesInSeedTenant.map((r) => r.id);
-  if (builtinRoleIds.length > 0) {
-    const r = await prisma.rolePermission.deleteMany({
-      where: { roleId: { in: builtinRoleIds } }
-    });
-    if (r.count > 0) {
-      console.log(`    清理 ${r.count} 个 built-in 角色 stale 权限（待重新分配）`);
-    }
-  }
+  // permissionCodes are now stored directly on the Role model (String[] field).
+  // No separate RolePermission table to clean up.
 
   // 1. Upsert all permissions from ALL_PERMISSION_CODES
   console.log('  📋 创建权限...');
@@ -144,7 +126,7 @@ async function main() {
   // 2. Create default tenant - 自然共生
   console.log('  🏢 创建默认租户...');
   const defaultTenantRows = await prisma.$queryRaw<any[]>`INSERT INTO tenants (id, name, description, status, "createdAt", "updatedAt")
-    VALUES ('demo-tenant-default', '自然共生', '专注自然风格婚礼策划，提供全案定制服务。', 'active', NOW(), NOW())
+    VALUES ('zirangongsheng', '自然共生', '专注自然风格婚礼策划，提供全案定制服务。', 'active', NOW(), NOW())
     ON CONFLICT (id) DO UPDATE SET name = '自然共生', description = '专注自然风格婚礼策划，提供全案定制服务。'
     RETURNING *`;
   const defaultTenant = defaultTenantRows[0];
@@ -181,36 +163,20 @@ async function main() {
     })
   );
 
-  // 5. Assign permissions to roles based on BUILT_IN_ROLE_PERMISSIONS
+  // 5. Assign permissions to roles via permissionCodes field
   console.log('  🔑 分配权限...');
   const allRoles = [...tenantRoles];
-  const permissions = await prisma.permission.findMany();
-  const permissionByCode = new Map(permissions.map((permission) => [permission.code, permission]));
 
   for (const role of allRoles) {
     const permissionCodes =
       role.code === 'super_admin'
         ? [...ALL_PERMISSION_CODES]
         : BUILT_IN_ROLE_PERMISSIONS[role.code] ?? [];
-    for (const code of permissionCodes) {
-      const permission = permissionByCode.get(code);
-      if (!permission) {
-        continue;
-      }
-      await prisma.rolePermission.upsert({
-        where: {
-          roleId_permissionId: {
-            roleId: role.id,
-            permissionId: permission.id
-          }
-        },
-        update: {},
-        create: {
-          roleId: role.id,
-          permissionId: permission.id
-        }
-      });
-    }
+
+    await prisma.role.update({
+      where: { id: role.id },
+      data: { permissionCodes }
+    });
   }
 
   // 6. Create users - root (super admin) and nature (planner)
@@ -484,92 +450,6 @@ async function main() {
           }
         });
       }
-    }
-  }
-
-  // ── AI Templates ────────────────────────────────────────────────────
-  console.log('  🤖 创建 AI 模板...');
-
-  const builtInAiTemplates = [
-    {
-      code: 'case_study_story',
-      name: '婚礼案例故事',
-      category: 'case_study' as const,
-      prompt: '根据婚礼风格、场地、素材和新人故事，生成一篇适合官网案例页的故事文案。'
-    },
-    {
-      code: 'planner_marketing_xhs',
-      name: '小红书案例文案',
-      category: 'planner_marketing' as const,
-      prompt: '根据项目亮点生成适合小红书发布的婚礼案例文案。'
-    },
-    {
-      code: 'thank_you_note',
-      name: '感谢文案',
-      category: 'planner_marketing' as const,
-      prompt: '为客户生成婚礼结束后的感谢亲友文案。'
-    },
-    {
-      code: 'image_window_white_roses',
-      name: '窗台白玫瑰',
-      category: 'image_design' as const,
-      prompt: '窗台上的白玫瑰，清晨自然光，柔和白纱，适合婚礼迎宾牌背景，画面干净高级。'
-    },
-    {
-      code: 'image_white_rose_welcome_sign',
-      name: '白玫瑰迎宾牌',
-      category: 'image_design' as const,
-      prompt: '白玫瑰婚礼迎宾牌，奶油白底，花艺围绕边角，中心留白，温柔高级的婚礼视觉。'
-    },
-    {
-      code: 'image_cream_table_card',
-      name: '奶油风桌卡',
-      category: 'image_design' as const,
-      prompt: '奶油风婚礼桌卡背景，柔和布纹纸张，浅香槟色花材，极简排版，保留文字留白。'
-    },
-    {
-      code: 'image_chinese_red_gold_invitation',
-      name: '新中式红金请柬',
-      category: 'image_design' as const,
-      prompt: '新中式红金婚礼请柬，宋式纹样，金色线描花卉，雅致留白，喜庆但不过度传统。'
-    },
-    {
-      code: 'image_garden_vow_card',
-      name: '花园誓言卡',
-      category: 'image_design' as const,
-      prompt: '户外花园婚礼誓言卡，浅绿色植物环绕，白色小花点缀，纸张质感，清新自然。'
-    }
-  ];
-
-  for (const template of builtInAiTemplates) {
-    const existingTemplate = await prisma.aiTemplate.findFirst({
-      where: {
-        tenantId: null,
-        code: template.code
-      }
-    });
-
-    if (existingTemplate) {
-      await prisma.aiTemplate.update({
-        where: { id: existingTemplate.id },
-        data: {
-          name: template.name,
-          category: template.category,
-          prompt: template.prompt,
-          isBuiltIn: true
-        }
-      });
-    } else {
-      await prisma.aiTemplate.create({
-        data: {
-          tenantId: null,
-          code: template.code,
-          name: template.name,
-          category: template.category,
-          prompt: template.prompt,
-          isBuiltIn: true
-        }
-      });
     }
   }
 
