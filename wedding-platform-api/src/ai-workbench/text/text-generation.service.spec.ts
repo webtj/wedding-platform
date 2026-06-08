@@ -62,6 +62,14 @@ describe('TextGenerationService', () => {
         service.generate('t1', 'u1', { type: 'wedding_vow', prompt: 'p' } as never)
       ).rejects.toBeInstanceOf(BusinessException);
     });
+
+    it('propagates quota error when quota check fails', async () => {
+      const quota = { checkQuota: vi.fn().mockRejectedValue(new Error('QUOTA_EXCEEDED')), recordUsage: vi.fn() };
+      const service = new TextGenerationService({} as never, buildLlm() as never, quota as never);
+      await expect(
+        service.generate('t1', 'u1', { type: 'vows', prompt: 'p' } as never)
+      ).rejects.toThrow('QUOTA_EXCEEDED');
+    });
   });
 
   describe('refine', () => {
@@ -101,17 +109,34 @@ describe('TextGenerationService', () => {
       ).rejects.toBeInstanceOf(BusinessException);
     });
 
-    it('throws AI_GENERATION_FAILED when LLM call fails during refinement', async () => {
-      const prisma = {
-        aiTextGeneration: {
-          findFirst: vi.fn().mockResolvedValue({ id: 'orig1', tenantId: 't1', type: 'vows', prompt: 'p', result: 'r', style: null, language: 'zh' })
-        }
-      };
-      const llm = { chat: vi.fn().mockRejectedValue(new Error('fail')) };
-      const service = new TextGenerationService(prisma as never, llm as never, buildQuota() as never);
+    it('propagates quota error when quota check fails', async () => {
+      const quota = { checkQuota: vi.fn().mockRejectedValue(new Error('QUOTA_EXCEEDED')), recordUsage: vi.fn() };
+      const service = new TextGenerationService({} as never, buildLlm() as never, quota as never);
       await expect(
         service.refine('t1', 'u1', 'orig1', { feedback: 'f' } as never)
-      ).rejects.toBeInstanceOf(BusinessException);
+      ).rejects.toThrow('QUOTA_EXCEEDED');
+    });
+
+    it('appends style to system prompt when provided', async () => {
+      const original = {
+        id: 'orig1', tenantId: 't1', type: 'vows',
+        prompt: '原始需求', result: '原始结果', style: null, language: 'zh'
+      };
+      const prisma = {
+        aiTextGeneration: {
+          findFirst: vi.fn().mockResolvedValue(original),
+          create: vi.fn().mockResolvedValue({ id: 'refined1' })
+        }
+      };
+      const llm = buildLlm();
+      const service = new TextGenerationService(prisma as never, llm as never, buildQuota() as never);
+
+      await service.refine('t1', 'u1', 'orig1', {
+        feedback: '请更浪漫一点', style: '典雅'
+      } as never);
+
+      const systemPrompt = llm.chat.mock.calls[0]![1] as string;
+      expect(systemPrompt).toContain('典雅');
     });
   });
 

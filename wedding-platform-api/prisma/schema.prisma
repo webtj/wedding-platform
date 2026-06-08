@@ -1337,3 +1337,83 @@ model Subtask {
   @@index([tenantId, taskId, sortOrder])
   @@map("subtasks")
 }
+
+// ── Logging ─────────────────────────────────────────────────────────────────
+
+model LogRequest {
+  id         String   @id @default(cuid())
+  traceId    String
+  method     String
+  path       String
+  statusCode Int
+  duration   Int      // milliseconds
+  userId     String?
+  tenantId   String?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([traceId])
+  @@index([createdAt])
+  @@index([tenantId, createdAt])
+  @@index([userId, createdAt])
+  @@index([statusCode])
+  @@index([path, createdAt])
+  @@map("log_requests")
+}
+
+model LogError {
+  id        String   @id @default(cuid())
+  traceId   String
+  message   String
+  stack     String?
+  path      String?
+  userId    String?
+  tenantId  String?
+  requestBody Json?
+  createdAt DateTime @default(now())
+
+  @@index([traceId])
+  @@index([createdAt])
+  @@index([tenantId, createdAt])
+  @@index([userId, createdAt])
+  @@map("log_errors")
+}
+
+model LogAudit {
+  id        String   @id @default(cuid())
+  action    String
+  entity    String
+  entityId  String
+  userId    String?
+  tenantId  String?
+  changes   Json?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, entity, entityId])
+  @@index([tenantId, action, createdAt])
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([entity, entityId])
+  @@map("log_audits")
+}
+
+model LogEvent {
+  id        String   @id @default(cuid())
+  eventType String
+  eventName String
+  userId    String?
+  tenantId  String?
+  page      String?
+  properties Json?
+  sessionId String?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, eventType, createdAt])
+  @@index([tenantId, eventName, createdAt])
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([sessionId])
+  @@map("log_events")
+}

@@ -33,6 +33,7 @@ export const PERMISSIONS = {
   PLATFORM_SETTING_READ: 'platform.setting.read',
   PLATFORM_SETTING_MANAGE: 'platform.setting.manage',
   PLATFORM_MANAGE: 'platform.manage',
+  PLATFORM_LOG_READ: 'platform.log.read',
   TEMPLATE_READ: 'template.read',
   TEMPLATE_MANAGE: 'template.manage',
   MATERIAL_READ: 'material.read',
@@ -120,6 +121,7 @@ export const PERMISSION_METADATA: Record<
     scope: 'platform'
   },
   'platform.manage': { group: 'platform', description: '平台总控', scope: 'platform' },
+  'platform.log.read': { group: 'platform', description: '查看系统日志', scope: 'platform' },
   'template.read': { group: 'template', description: '查看生图模板', scope: 'tenant' },
   'template.manage': { group: 'template', description: '管理生图模板', scope: 'tenant' },
   'material.read': { group: 'material', description: '查看物料', scope: 'tenant' },

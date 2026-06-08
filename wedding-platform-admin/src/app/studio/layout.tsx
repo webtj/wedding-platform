@@ -7,6 +7,7 @@ import { InfoSidebar } from '@/components/layout/info-sidebar';
 import { RouteStaleProvider } from '@/components/layout/route-stale-provider';
 import { InfobarProvider } from '@/components/ui/infobar';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
+import { AutoTracker } from '@/lib/analytics/auto-tracker';
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 
@@ -23,6 +24,7 @@ export default async function StudioLayout({ children }: { children: React.React
     <AuthGuard>
       <StudioModeGuard>
         <KBar>
+          <AutoTracker />
           <SidebarProvider defaultOpen={defaultOpen}>
             <AppSidebar />
             <SidebarInset>

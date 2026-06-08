@@ -1,6 +1,7 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { AiModule } from './ai/ai.module';
 import { AiWorkbenchModule } from './ai-workbench/ai-workbench.module';
 import { AppController } from './app.controller';
@@ -30,6 +31,10 @@ import { TasksModule } from './tasks/tasks.module';
 import { TeamModule } from './team/team.module';
 import { TenantsModule } from './tenants/tenants.module';
 import { TimelinesModule } from './timelines/timelines.module';
+import { LogModule } from './log/log.module';
+import { RequestLoggerMiddleware } from './log/middleware/request-logger.middleware';
+import { AllExceptionsFilter } from './log/filters/all-exceptions.filter';
+import { AuditInterceptor } from './log/interceptors/audit.interceptor';
 
 @Module({
   imports: [
@@ -38,6 +43,7 @@ import { TimelinesModule } from './timelines/timelines.module';
       validate: validateEnv
     }),
     PrismaModule,
+    LogModule,
     IdentityModule,
     TenantsModule,
     AuditModule,
@@ -68,6 +74,22 @@ import { TimelinesModule } from './timelines/timelines.module';
     }])
   ],
   controllers: [AppController, HealthController],
-  providers: [HealthService]
+  providers: [
+    HealthService,
+    {
+      provide: APP_FILTER,
+      useClass: AllExceptionsFilter,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AuditInterceptor,
+    },
+  ]
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(RequestLoggerMiddleware)
+      .forRoutes('*');
+  }
+}

@@ -45,6 +45,7 @@ export const PERMISSION_METADATA: Record<PermissionCode, PermissionMetadata> = {
   'platform.setting.read': { group: 'platform', description: '查看平台设置', scope: 'platform' },
   'platform.setting.manage': { group: 'platform', description: '管理平台设置', scope: 'platform' },
   'platform.manage': { group: 'platform', description: '平台总控', scope: 'platform' },
+  'platform.log.read': { group: 'platform', description: '查看系统日志', scope: 'platform' },
   'template.read': { group: 'template', description: '查看生图模板', scope: 'tenant' },
   'template.manage': { group: 'template', description: '管理生图模板', scope: 'tenant' },
   'material.read': { group: 'material', description: '查看物料', scope: 'tenant' },

@@ -485,7 +485,6 @@ export function SummaryChips({
         label='素材'
         value={selectedType?.name ?? '未选择'}
         isEmpty={selectedTypeId === null}
-        isRequired
         onClear={selectedTypeId === null ? undefined : () => onSelectType(null)}
       >
         {(close) => (

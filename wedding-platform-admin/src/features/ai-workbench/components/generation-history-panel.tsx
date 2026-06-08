@@ -62,6 +62,7 @@ export function GenerationHistoryPanel({
   onLoadConversation,
   activeConversationId
 }: GenerationHistoryPanelProps) {
+  const [collapsed, setCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState<'conversations' | 'generations'>('conversations');
   const [deleteTarget, setDeleteTarget] = useState<AiConversation | null>(null);
   const handleDelete = useCallback(
@@ -72,12 +73,35 @@ export function GenerationHistoryPanel({
   );
 
   return (
-    <aside className='hidden min-h-0 w-80 shrink-0 border-l bg-background xl:flex xl:flex-col'>
-      <div className='flex shrink-0 items-center justify-between border-b px-4 py-3'>
-        <div>
-          <h2 className='text-sm font-semibold'>AI 工作台</h2>
-          <p className='text-muted-foreground text-xs'>对话与生成历史</p>
-        </div>
+    <>
+      {collapsed ? (
+        <aside className='hidden min-h-0 w-9 shrink-0 border-l bg-background xl:flex xl:flex-col items-center pt-3'>
+          <button
+            type='button'
+            onClick={() => setCollapsed(false)}
+            className='flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground'
+            title='展开面板'
+          >
+            <Icons.chevronLeft className='size-4 rotate-180' />
+          </button>
+        </aside>
+      ) : (
+        <aside className='hidden min-h-0 w-80 shrink-0 border-l bg-background xl:flex xl:flex-col'>
+          <div className='flex shrink-0 items-center justify-between border-b px-4 py-3'>
+            <div className='flex items-center gap-2'>
+              <button
+                type='button'
+                onClick={() => setCollapsed(true)}
+                className='flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground'
+                title='折叠面板'
+              >
+                <Icons.chevronLeft className='size-3.5' />
+              </button>
+              <div>
+                <h2 className='text-sm font-semibold'>AI 工作台</h2>
+                <p className='text-muted-foreground text-xs'>对话与生成历史</p>
+              </div>
+            </div>
         <div className='flex items-center gap-1.5'>
           <Button
             variant='ghost'
@@ -327,7 +351,9 @@ export function GenerationHistoryPanel({
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
-    </aside>
+        </AlertDialog>
+        </aside>
+      )}
+    </>
   );
 }

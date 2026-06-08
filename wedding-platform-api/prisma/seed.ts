@@ -407,17 +407,25 @@ async function main() {
   ];
 
   for (const mt of materialTypeData) {
-    await prisma.materialType.upsert({
-      where: { tenantId_code: { tenantId: null, code: mt.code } },
-      update: { name: mt.name, icon: mt.icon, defaultSize: mt.defaultSize },
-      create: {
-        tenantId: null,
-        name: mt.name,
-        code: mt.code,
-        icon: mt.icon,
-        defaultSize: mt.defaultSize
-      }
+    const existing = await prisma.materialType.findFirst({
+      where: { tenantId: null, code: mt.code }
     });
+    if (existing) {
+      await prisma.materialType.update({
+        where: { id: existing.id },
+        data: { name: mt.name, icon: mt.icon, defaultSize: mt.defaultSize }
+      });
+    } else {
+      await prisma.materialType.create({
+        data: {
+          tenantId: null,
+          name: mt.name,
+          code: mt.code,
+          icon: mt.icon,
+          defaultSize: mt.defaultSize
+        }
+      });
+    }
   }
 
   // ── Material Categories & Materials ───────────────────────────────
@@ -624,7 +632,8 @@ async function main() {
       { label: '租户管理', href: '/admin/tenants', icon: 'workspace', sortOrder: 0 },
       { label: '账号管理', href: '/admin/accounts', icon: 'user', sortOrder: 1 },
       { label: '角色管理', href: '/admin/roles', icon: 'badgeCheck', sortOrder: 2 },
-      { label: '菜单管理', href: '/admin/menus', icon: 'forms', sortOrder: 3 }
+      { label: '菜单管理', href: '/admin/menus', icon: 'forms', sortOrder: 3 },
+      { label: '系统日志', href: '/admin/logs', icon: 'clipboardList', sortOrder: 4 }
     ]},
     { label: '运营', icon: 'settings', sortOrder: 1, children: [
       { label: '套餐计费', href: '/admin/billing', icon: 'billing', sortOrder: 0 },
@@ -680,7 +689,8 @@ async function main() {
     ]},
     { label: 'AI 工具', icon: 'sparkles', sortOrder: 2, children: [
       { label: 'AI 工作台', href: '/studio/ai-workbench', icon: 'sparkles', sortOrder: 0 },
-      { label: '素材管理', href: '/studio/material-types', icon: 'product', sortOrder: 1 }
+      { label: 'AI 文案生成', href: '/studio/ai-workbench/text', icon: 'post', sortOrder: 1 },
+      { label: '素材管理', href: '/studio/material-types', icon: 'product', sortOrder: 2 }
     ]},
     { label: '任务', icon: 'checks', sortOrder: 3, children: [
       { label: '流程模板', href: '/studio/templates', icon: 'forms', sortOrder: 0 },

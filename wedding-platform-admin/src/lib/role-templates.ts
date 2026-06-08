@@ -55,6 +55,7 @@ export const ROLE_TEMPLATES: Record<RoleTemplateCode, RoleTemplate> = {
       'task.read', 'task.create', 'task.assign',
       'timeline.read',
       'ai.use', 'ai.generate', 'ai.generation.read', 'ai.generation.bookmark',
+      'ai.text.generate', 'ai.text.generation.read', 'ai.text.generation.bookmark',
       'notification.read',
       'material_type.read', 'material.read'
     ]
@@ -94,6 +95,7 @@ export const ROLE_TEMPLATES: Record<RoleTemplateCode, RoleTemplate> = {
       'asset.read', 'asset.upload',
       'timeline.read', 'timeline.manage',
       'ai.use', 'ai.generation.read',
+      'ai.text.generation.read',
       'notification.read',
       'material.read', 'material.manage',
       'material_type.read'

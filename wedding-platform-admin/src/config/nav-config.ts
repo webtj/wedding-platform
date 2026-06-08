@@ -76,6 +76,13 @@ export function useDynamicNavGroups(): NavGroup[] {
             icon: 'sparkles',
             isActive: false,
             items: []
+          },
+          {
+            title: '系统日志',
+            url: '/admin/logs',
+            icon: 'eye',
+            isActive: false,
+            items: []
           }
         ]
       }
@@ -141,7 +148,8 @@ export const navGroups: NavGroup[] = [
       { title: '菜单管理', url: '/admin/menus', icon: 'panelLeft', shortcut: ['m', 'm'], isActive: false, items: [] },
       { title: '通用设置', url: '/admin/settings', icon: 'settings', shortcut: ['s', 's'], isActive: false, items: [] },
       { title: '素材管理', url: '/admin/material-types', icon: 'product', shortcut: ['m', 't'], isActive: false, items: [] },
-      { title: 'AI 用量分析', url: '/admin/ai-usage', icon: 'sparkles', shortcut: ['a', 'u'], isActive: false, items: [] }
+      { title: 'AI 用量分析', url: '/admin/ai-usage', icon: 'sparkles', shortcut: ['a', 'u'], isActive: false, items: [] },
+      { title: '系统日志', url: '/admin/logs', icon: 'eye', shortcut: ['l', 'g'], isActive: false, items: [] }
     ]
   }
 ];

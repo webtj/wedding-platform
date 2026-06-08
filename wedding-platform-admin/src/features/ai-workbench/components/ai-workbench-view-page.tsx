@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Image from 'next/image';
 import { toast } from 'sonner';
@@ -80,14 +80,6 @@ export default function AiWorkbenchViewPage({ projectId }: AiWorkbenchViewPagePr
 
   const materialTypes = materialData?.items ?? [];
 
-  useEffect(() => {
-    if (selectedTypeId || materialTypes.length === 0) return;
-    const first = materialTypes[0];
-    setSelectedTypeId(first.id);
-    if (first.defaultSize) setSize(first.defaultSize);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [materialData, selectedTypeId]);
-
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => {
       const el = scrollRef.current;
@@ -162,16 +154,14 @@ export default function AiWorkbenchViewPage({ projectId }: AiWorkbenchViewPagePr
     async (overrideText?: string) => {
       const text = (overrideText ?? input).trim();
       if (!text || isGenerating) return;
-      if (!selectedType) {
-        toast.error('请先选择物料类型');
-        return;
-      }
       if (!activeMode.available) {
         return;
       }
 
       setInput('');
       lastRequestRef.current = { prompt: text };
+
+      const effectiveType = selectedType ?? materialTypes[0];
 
       // Create conversation if none exists
       let conversationId = currentConversationId;
@@ -192,12 +182,12 @@ export default function AiWorkbenchViewPage({ projectId }: AiWorkbenchViewPagePr
         : undefined;
       const generationType = refMode === 'subject' || refMode === 'pet' ? 'img2img' : 'text2img';
 
-      const finalSize = size ?? selectedType.defaultSize ?? { width: 600, height: 900 };
+      const finalSize = size ?? effectiveType?.defaultSize ?? { width: 600, height: 900 };
       const finalStyle = style ?? STYLES[0].id;
       const finalCount = count ?? 1;
 
       const payload: GeneratePayload = {
-        materialTypeId: selectedType.id,
+        materialTypeId: effectiveType?.id ?? materialTypes[0]?.id,
         projectId: projectId ?? undefined,
         conversationId: conversationId ?? undefined,
         type: generationType,
@@ -210,9 +200,9 @@ export default function AiWorkbenchViewPage({ projectId }: AiWorkbenchViewPagePr
           referenceMode: refMode,
         }),
       };
-      void runGeneration(text, () => generateImages(payload), selectedType.name);
+      void runGeneration(text, () => generateImages(payload), effectiveType?.name ?? '生成');
     },
-    [input, isGenerating, selectedType, currentConversationId, activeMode, style, size, count, generateImages, runGeneration, projectId, queryClient, referenceAssets],
+    [input, isGenerating, selectedType, currentConversationId, activeMode, style, size, count, generateImages, runGeneration, projectId, queryClient, referenceAssets, materialTypes],
   );
 
   const _handleRefine = useCallback(

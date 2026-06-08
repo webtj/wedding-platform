@@ -6,6 +6,7 @@ import Header from '@/components/layout/header';
 import { InfoSidebar } from '@/components/layout/info-sidebar';
 import { InfobarProvider } from '@/components/ui/infobar';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
+import { AutoTracker } from '@/lib/analytics/auto-tracker';
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 
@@ -26,6 +27,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <AuthGuard>
       <AdminModeGuard>
         <KBar>
+          <AutoTracker />
           <SidebarProvider defaultOpen={defaultOpen}>
             <AppSidebar />
             <SidebarInset>
