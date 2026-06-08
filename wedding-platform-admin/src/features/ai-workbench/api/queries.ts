@@ -16,16 +16,15 @@ import type {
   GeneratePayload,
   GenerationEvent,
   GenerationJob,
-  QuickPrompt,
-  QuickPromptCategory,
-  RefinePayload,
-  SeriesGeneratePayload,
-  MaterialTypeResponse,
-  QuotaStats,
-  QuickPromptCategory,
-  TextGeneratePayload,
-  TextRefinePayload
-} from './types';
+   QuickPrompt,
+   QuickPromptCategory,
+   RefinePayload,
+   SeriesGeneratePayload,
+   MaterialTypeResponse,
+   QuotaStats,
+   TextGeneratePayload,
+   TextRefinePayload
+ } from './types';
 
 export async function getMaterialTypes(): Promise<MaterialTypeResponse> {
   return apiClient<MaterialTypeResponse>('/material-types?pageSize=100');
