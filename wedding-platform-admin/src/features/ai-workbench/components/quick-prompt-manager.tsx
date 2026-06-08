@@ -20,6 +20,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Icons } from '@/components/icons';
 import { cn } from '@/lib/utils';
+import { useAuthContext } from '@/lib/auth/auth-context';
 import {
   fetchQuickPromptCategories,
   createQuickPromptCategory,
@@ -62,6 +63,7 @@ function CategoryCard({
   category,
   forceExpand,
   search,
+  isPlatformAdmin,
   onEdit,
   onDeleteRequest,
   onAddPrompt,
@@ -71,6 +73,7 @@ function CategoryCard({
   category: QuickPromptCategory;
   forceExpand: boolean;
   search: string;
+  isPlatformAdmin: boolean;
   onEdit: () => void;
   onDeleteRequest: () => void;
   onAddPrompt: () => void;
@@ -139,7 +142,7 @@ function CategoryCard({
             </div>
           </div>
           <div className='flex items-center gap-0.5 flex-shrink-0'>
-            {!builtIn && (
+            {(!builtIn || isPlatformAdmin) && (
               <Button
                 variant='ghost'
                 size='sm'
@@ -153,7 +156,7 @@ function CategoryCard({
                 <Icons.add className='h-3 w-3' />
               </Button>
             )}
-            {!builtIn && (
+            {(!builtIn || isPlatformAdmin) && (
               <Button
                 variant='ghost'
                 size='sm'
@@ -167,7 +170,7 @@ function CategoryCard({
                 <Icons.edit className='h-3 w-3' />
               </Button>
             )}
-            {!builtIn && (
+            {(!builtIn || isPlatformAdmin) && (
               <Button
                 variant='ghost'
                 size='sm'
@@ -191,6 +194,7 @@ function CategoryCard({
               <PromptChip
                 key={p.id}
                 prompt={p}
+                isPlatformAdmin={isPlatformAdmin}
                 onEdit={() => onEditPrompt(p)}
                 onDelete={() => onDeletePrompt(p)}
               />
@@ -216,10 +220,12 @@ function CategoryCard({
 
 function PromptChip({
   prompt,
+  isPlatformAdmin,
   onEdit,
   onDelete
 }: {
   prompt: QuickPrompt;
+  isPlatformAdmin: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -242,7 +248,7 @@ function PromptChip({
           内置
         </Badge>
       )}
-      {!builtIn && (
+      {(!builtIn || isPlatformAdmin) && (
         <div className='flex items-center gap-0.5 flex-shrink-0'>
           <Button
             variant='ghost'
@@ -277,6 +283,7 @@ function PromptChip({
 // ── Main Component ───────────────────────────────────────────────────────
 
 export function QuickPromptManager() {
+  const { isPlatformAdmin } = useAuthContext();
   const queryClient = useQueryClient();
   const [activeType, setActiveType] = useState<string>('image_design');
   const [search, setSearch] = useState('');
@@ -475,6 +482,7 @@ export function QuickPromptManager() {
           category={cat}
           forceExpand={allExpanded}
           search={debouncedSearch}
+          isPlatformAdmin={isPlatformAdmin}
           onEdit={() => {
             setCatName(cat.name);
             setEditCat(cat);
