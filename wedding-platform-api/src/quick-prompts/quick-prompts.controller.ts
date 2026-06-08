@@ -4,7 +4,7 @@ import { JwtAuthGuard } from '../common/auth/jwt-auth.guard';
 import { RequirePermissions } from '../common/auth/permissions.decorator';
 import { PermissionsGuard } from '../common/auth/permissions.guard';
 import type { AuthContext } from '../common/auth/auth-context';
-import { requireTenant, getTenantContext } from '../common/tenant-context';
+import { getTenantContext } from '../common/tenant-context';
 import { QuickPromptsService } from './quick-prompts.service';
 import {
   createQuickPromptCategorySchema,
@@ -30,22 +30,22 @@ export class QuickPromptsController {
   @RequirePermissions(PERMISSIONS.MATERIAL_MANAGE)
   @Post('categories')
   createCategory(@Req() r: { auth?: AuthContext }, @Body() body: unknown) {
-    const tenant = requireTenant(r.auth);
-    return this.service.createCategory(tenant.tenantId, createQuickPromptCategorySchema.parse(body));
+    const ctx = getTenantContext(r.auth);
+    return this.service.createCategory(ctx.tenantId, createQuickPromptCategorySchema.parse(body));
   }
 
   @RequirePermissions(PERMISSIONS.MATERIAL_MANAGE)
   @Patch('categories/:id')
   updateCategory(@Req() r: { auth?: AuthContext }, @Param('id') id: string, @Body() body: unknown) {
-    const tenant = requireTenant(r.auth);
-    return this.service.updateCategory(tenant.tenantId, id, updateQuickPromptCategorySchema.parse(body));
+    const ctx = getTenantContext(r.auth);
+    return this.service.updateCategory(ctx.tenantId, id, updateQuickPromptCategorySchema.parse(body));
   }
 
   @RequirePermissions(PERMISSIONS.MATERIAL_MANAGE)
   @Delete('categories/:id')
   deleteCategory(@Req() r: { auth?: AuthContext }, @Param('id') id: string) {
-    const tenant = requireTenant(r.auth);
-    return this.service.deleteCategory(tenant.tenantId, id);
+    const ctx = getTenantContext(r.auth);
+    return this.service.deleteCategory(ctx.tenantId, id);
   }
 
   // ── Prompts ─────────────────────────────────────────────────────────────
@@ -53,21 +53,21 @@ export class QuickPromptsController {
   @RequirePermissions(PERMISSIONS.MATERIAL_MANAGE)
   @Post()
   createPrompt(@Req() r: { auth?: AuthContext }, @Body() body: unknown) {
-    const tenant = requireTenant(r.auth);
-    return this.service.createPrompt(tenant.tenantId, createQuickPromptSchema.parse(body));
+    const ctx = getTenantContext(r.auth);
+    return this.service.createPrompt(ctx.tenantId, createQuickPromptSchema.parse(body));
   }
 
   @RequirePermissions(PERMISSIONS.MATERIAL_MANAGE)
   @Patch(':id')
   updatePrompt(@Req() r: { auth?: AuthContext }, @Param('id') id: string, @Body() body: unknown) {
-    const tenant = requireTenant(r.auth);
-    return this.service.updatePrompt(tenant.tenantId, id, updateQuickPromptSchema.parse(body));
+    const ctx = getTenantContext(r.auth);
+    return this.service.updatePrompt(ctx.tenantId, id, updateQuickPromptSchema.parse(body));
   }
 
   @RequirePermissions(PERMISSIONS.MATERIAL_MANAGE)
   @Delete(':id')
   deletePrompt(@Req() r: { auth?: AuthContext }, @Param('id') id: string) {
-    const tenant = requireTenant(r.auth);
-    return this.service.deletePrompt(tenant.tenantId, id);
+    const ctx = getTenantContext(r.auth);
+    return this.service.deletePrompt(ctx.tenantId, id);
   }
 }
