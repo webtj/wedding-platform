@@ -4,7 +4,7 @@ import { Icons } from '@/components/icons';
 import { cn } from '@/lib/utils';
 import { MODE_TABS, type WorkbenchMode } from '../constants';
 import { Composer } from './composer';
-import type { AiReferenceAsset, QuickPrompt, MaterialType } from '../api/types';
+import type { AiReferenceAsset, QuickPromptCategory, MaterialType } from '../api/types';
 
 interface EmptyWorkbenchProps {
   mode: WorkbenchMode;
@@ -16,7 +16,7 @@ interface EmptyWorkbenchProps {
   isGenerating: boolean;
   activePlaceholder: string;
   materialTypes: MaterialType[];
-  promptTemplates?: QuickPrompt[];
+  promptTemplates?: QuickPromptCategory[];
   selectedTypeId: string | null;
   size: { width: number; height: number } | null;
   style: string | null;

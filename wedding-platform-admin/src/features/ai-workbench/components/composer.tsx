@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { SummaryChips } from './summary-chips';
 import { QuickPrompts } from './quick-prompts';
 import { uploadReferenceAsset } from '../api/queries';
-import type { QuickPrompt, MaterialType, AiReferenceAsset } from '../api/types';
+import type { QuickPromptCategory, MaterialType, AiReferenceAsset } from '../api/types';
 
 type ReferenceMode = 'style' | 'subject' | 'pet';
 
@@ -29,7 +29,7 @@ interface ComposerProps {
   placeholder: string;
   showChips?: boolean;
   materialTypes: MaterialType[];
-  promptTemplates?: QuickPrompt[];
+  promptTemplates?: QuickPromptCategory[];
   selectedTypeId: string | null;
   size: { width: number; height: number } | null;
   style: string | null;
@@ -234,7 +234,7 @@ export function Composer({
 
           {/* Quick prompts */}
           <QuickPrompts
-            promptTemplates={promptTemplates}
+            categories={promptTemplates}
             onSelect={onChange}
           />
         </div>

@@ -245,7 +245,7 @@ export function QuickPromptManager() {
   async function handleAddCategory() {
     if (!catName.trim()) return;
     try {
-      await createQuickPromptCategory({ name: catName.trim() });
+      await createQuickPromptCategory({ name: catName.trim(), type: activeType || undefined });
       toast.success('分类已创建');
       setAddCatOpen(false);
       setCatName('');
@@ -408,10 +408,10 @@ export function QuickPromptManager() {
         {/* Right: Prompts Grid */}
         <div className='flex-1'>
           <div className='rounded-lg border bg-card h-full'>
-            <div className='p-3 border-b space-y-2'>
-              <div className='flex items-center justify-between'>
-                <div className='flex items-center gap-2'>
-                  <h3 className='text-sm font-medium'>
+            <div className='p-3 border-b'>
+              <div className='flex items-center justify-between gap-3'>
+                <div className='flex items-center gap-2 min-w-0'>
+                  <h3 className='text-sm font-medium whitespace-nowrap'>
                     {selectedCategory ? selectedCategory.name : '选择一个分类'}
                   </h3>
                   {selectedCategory && isBuiltIn(selectedCategory) && (
@@ -420,10 +420,20 @@ export function QuickPromptManager() {
                     </Badge>
                   )}
                   {selectedCategory && (
-                    <span className='text-xs text-muted-foreground'>
+                    <span className='text-xs text-muted-foreground whitespace-nowrap'>
                       {filteredPrompts.length} 条推荐词
                     </span>
                   )}
+                  <div className='relative w-48'>
+                    <Icons.search className='absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground' />
+                    <Input
+                      placeholder='搜索...'
+                      className='pl-8 h-7 text-xs'
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      aria-label='搜索分类或推荐词'
+                    />
+                  </div>
                 </div>
                 {selectedCategory && (isPlatformAdmin || !isBuiltIn(selectedCategory)) && (
                   <Button
@@ -438,16 +448,6 @@ export function QuickPromptManager() {
                     添加推荐词
                   </Button>
                 )}
-              </div>
-              <div className='relative'>
-                <Icons.search className='absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
-                <Input
-                  placeholder='搜索分类或推荐词...'
-                  className='pl-9 h-8'
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  aria-label='搜索分类或推荐词'
-                />
               </div>
             </div>
             <div className='h-[420px] overflow-y-auto'>

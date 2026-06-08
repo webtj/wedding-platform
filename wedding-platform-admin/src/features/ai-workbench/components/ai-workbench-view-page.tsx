@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Image from 'next/image';
 import { toast } from 'sonner';
@@ -72,11 +72,6 @@ export default function AiWorkbenchViewPage({ projectId }: AiWorkbenchViewPagePr
     queryKey: ['quick-prompts', 'image_design'],
     queryFn: () => getQuickPromptCategories('image_design')
   });
-
-  const imageTemplates = useMemo(() =>
-    promptCategories?.flatMap(c => c.prompts) ?? [],
-    [promptCategories]
-  );
 
   const { data: conversationsData, isLoading: isConversationsLoading } = useQuery({
     queryKey: ['ai-workbench-conversations', projectId],
@@ -539,7 +534,7 @@ export default function AiWorkbenchViewPage({ projectId }: AiWorkbenchViewPagePr
                 disabled={isGenerating}
                 placeholder='继续描述或微调...'
                 materialTypes={materialTypes}
-                promptTemplates={imageTemplates}
+                promptTemplates={promptCategories}
                 selectedTypeId={selectedTypeId}
                 size={size}
                 style={style}
@@ -566,7 +561,7 @@ export default function AiWorkbenchViewPage({ projectId }: AiWorkbenchViewPagePr
           isGenerating={isGenerating}
           activePlaceholder={activeMode.placeholder}
           materialTypes={materialTypes}
-          promptTemplates={imageTemplates}
+          promptTemplates={promptCategories}
           selectedTypeId={selectedTypeId}
           size={size}
           style={style}

@@ -332,7 +332,7 @@ export async function fetchQuickPromptCategories(type?: string): Promise<QuickPr
   return apiClient<QuickPromptCategory[]>(`/quick-prompts/categories${qs ? `?${qs}` : ''}`);
 }
 
-export async function createQuickPromptCategory(data: { name: string }): Promise<QuickPromptCategory> {
+export async function createQuickPromptCategory(data: { name: string; type?: string }): Promise<QuickPromptCategory> {
   return apiClient<QuickPromptCategory>('/quick-prompts/categories', {
     method: 'POST',
     body: JSON.stringify(data)
