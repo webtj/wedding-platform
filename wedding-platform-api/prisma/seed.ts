@@ -573,6 +573,51 @@ async function main() {
     }
   }
 
+  // ── Quick Prompt Categories & Prompts (built-in) ───────────────────────
+  console.log('  💬 创建推荐词...');
+
+  const quickPromptData = [
+    { text: '场景布置', type: 'image_design' as const, items: ['签到台布置', '迎宾区装饰', '仪式区背景', '宴会厅桌花', '甜品台布置', '舞台灯光', 'T台装饰', '椅背花艺', '天花板吊饰', '合影区布置'] },
+    { text: '花艺设计', type: 'image_design' as const, items: ['手捧花', '胸花', '腕花', '头花', '花门', '花亭', '路引花艺', '桌花', '花墙', '花艺拱门', '悬挂花艺', '花艺装置'] },
+    { text: '婚礼风格', type: 'image_design' as const, items: ['法式浪漫', '新中式', '极简现代', '森系自然', '复古怀旧', '韩式清新', '美式乡村', '地中海风', '波西米亚', '哥特暗黑', '童话梦幻', '日式侘寂'] },
+    { text: '色彩方案', type: 'image_design' as const, items: ['经典白绿', '香槟金', '玫瑰粉', '雾霾蓝', '酒红勃艮第', '莫兰迪色系', '撞色活力', '渐变色', '金属色点缀', '大地色系'] },
+    { text: '灯光氛围', type: 'image_design' as const, items: ['暖色烛光', '冷色追光', '星空顶', '霓虹灯牌', 'LED灯带', '水晶吊灯', '灯笼装饰', '烟花效果', '投影映射', '激光秀'] },
+    { text: '人物姿态', type: 'image_design' as const, items: ['新娘特写', '交换戒指', '亲吻瞬间', '抛花束', '切蛋糕', '第一支舞', '敬酒', '合影', '牵手散步', '回眸一笑'] },
+    { text: '文案风格', type: 'copywriting' as const, items: ['温馨感人', '浪漫唯美', '幽默风趣', '文艺清新', '大气正式', '简洁明了', '故事叙述', '对话体', '清单体', '问答体'] },
+    { text: '文案场景', type: 'copywriting' as const, items: ['婚礼邀请函', '婚礼誓词', '感谢信', '婚礼回顾', '社交媒体推广', '客户案例', '朋友圈文案', '小红书笔记', '抖音文案', '公众号推文'] }
+  ];
+
+  for (let ci = 0; ci < quickPromptData.length; ci++) {
+    const catData = quickPromptData[ci];
+    const cat = await prisma.quickPromptCategory.upsert({
+      where: { id: `qpc-${ci}` },
+      update: { name: catData.text, sortOrder: ci, type: catData.type },
+      create: {
+        id: `qpc-${ci}`,
+        tenantId: null,  // built-in
+        name: catData.text,
+        type: catData.type,
+        sortOrder: ci
+      }
+    });
+
+    for (let pi = 0; pi < catData.items.length; pi++) {
+      await prisma.quickPrompt.upsert({
+        where: { id: `qp-${ci}-${pi}` },
+        update: { name: catData.items[pi], prompt: catData.items[pi], sortOrder: pi },
+        create: {
+          id: `qp-${ci}-${pi}`,
+          tenantId: null,  // built-in
+          categoryId: cat.id,
+          name: catData.items[pi],
+          prompt: catData.items[pi],
+          sortOrder: pi
+        }
+      });
+    }
+  }
+  console.log(`  ✅ ${quickPromptData.length} 个推荐词分类，${quickPromptData.reduce((s, c) => s + c.items.length, 0)} 条推荐词`);
+
   // ── Platform Settings ──────────────────────────────────────────────
   console.log('  ⚙️ 创建平台配置...');
 
@@ -660,8 +705,7 @@ async function main() {
     ]},
     { label: 'AI 工具', icon: 'sparkles', sortOrder: 2, children: [
       { label: 'AI 工作台', href: '/studio/ai-workbench', icon: 'sparkles', sortOrder: 0 },
-      { label: '生图模板', href: '/studio/ai-workbench/templates', icon: 'palette', sortOrder: 1 },
-      { label: '素材管理', href: '/studio/material-types', icon: 'product', sortOrder: 2 }
+      { label: '素材管理', href: '/studio/material-types', icon: 'product', sortOrder: 1 }
     ]},
     { label: '任务', icon: 'checks', sortOrder: 3, children: [
       { label: '流程模板', href: '/studio/templates', icon: 'forms', sortOrder: 0 },
