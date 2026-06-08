@@ -17,6 +17,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Icons } from '@/components/icons';
 import { cn } from '@/lib/utils';
 import {
@@ -226,7 +227,16 @@ function PromptChip({
 
   return (
     <div className='group flex items-center gap-2 px-3 py-2 rounded-lg border bg-card text-sm transition-all hover:shadow-sm hover:border-primary/40'>
-      <span className='flex-1 truncate text-xs'>{prompt.name}</span>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className='flex-1 truncate text-xs cursor-default'>{prompt.name}</span>
+          </TooltipTrigger>
+          <TooltipContent side='top' className='max-w-xs'>
+            <p className='text-xs'>{prompt.prompt}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       {builtIn && (
         <Badge variant='secondary' className='text-[9px] px-1 py-0 flex-shrink-0'>
           内置
