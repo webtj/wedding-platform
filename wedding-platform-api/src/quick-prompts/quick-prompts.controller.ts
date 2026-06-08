@@ -4,7 +4,7 @@ import { JwtAuthGuard } from '../common/auth/jwt-auth.guard';
 import { RequirePermissions } from '../common/auth/permissions.decorator';
 import { PermissionsGuard } from '../common/auth/permissions.guard';
 import type { AuthContext } from '../common/auth/auth-context';
-import { requireTenant } from '../common/tenant-context';
+import { requireTenant, getTenantContext } from '../common/tenant-context';
 import { QuickPromptsService } from './quick-prompts.service';
 import {
   createQuickPromptCategorySchema,
@@ -23,12 +23,8 @@ export class QuickPromptsController {
   @RequirePermissions(PERMISSIONS.MATERIAL_READ)
   @Get('categories')
   listCategories(@Req() r: { auth?: AuthContext }, @Query('type') type?: string) {
-    // Platform admins see all built-in prompts; tenant users see built-in + their own
-    const tenantId = r.auth?.isPlatformAdmin ? null : r.auth?.tenantId;
-    if (!r.auth?.isPlatformAdmin && !tenantId) {
-      throw new Error('TENANT_REQUIRED');
-    }
-    return this.service.listCategories(tenantId, type);
+    const ctx = getTenantContext(r.auth);
+    return this.service.listCategories(ctx.tenantId, type);
   }
 
   @RequirePermissions(PERMISSIONS.MATERIAL_MANAGE)

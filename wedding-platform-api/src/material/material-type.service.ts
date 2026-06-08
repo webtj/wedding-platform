@@ -8,12 +8,14 @@ export class MaterialTypeService {
 
   /**
    * 租户列表：系统内置 + 本租户自定义
+   * 平台管理员：只看系统内置
    */
-  async list(tenantId: string, search?: string, page = 1, pageSize = 20) {
+  async list(tenantId: string | null, search?: string, page = 1, pageSize = 20) {
+    const tenantFilter = tenantId ? [{ tenantId }] : [];
     const where = {
       OR: [
         { isSystem: true, tenantId: null },
-        { tenantId }
+        ...tenantFilter
       ],
       ...(search
         ? { name: { contains: search, mode: 'insensitive' as const } }

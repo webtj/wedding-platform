@@ -12,13 +12,14 @@ export class MaterialsService {
     private readonly audit: AuditService
   ) {}
 
-  async listCategories(input: { tenantId: string }) {
+  async listCategories(input: { tenantId: string | null }) {
     // Return built-in (tenantId=null) + tenant's own categories
+    const tenantFilter = input.tenantId ? [{ tenantId: input.tenantId }] : [];
     return this.prisma.materialCategory.findMany({
       where: {
         OR: [
           { tenantId: null },      // built-in
-          { tenantId: input.tenantId }  // tenant's own
+          ...tenantFilter           // tenant's own (only if tenantId is provided)
         ]
       },
       orderBy: { sortOrder: 'asc' },
@@ -27,7 +28,7 @@ export class MaterialsService {
           where: {
             OR: [
               { tenantId: null },
-              { tenantId: input.tenantId }
+              ...tenantFilter
             ]
           },
           orderBy: { sortOrder: 'asc' }
@@ -107,19 +108,20 @@ export class MaterialsService {
     return { deleted: true };
   }
 
-  async listMaterials(input: { tenantId: string; categoryId?: string; page?: number; pageSize?: number }) {
+  async listMaterials(input: { tenantId: string | null; categoryId?: string; page?: number; pageSize?: number }) {
     const page = input.page ?? 1;
     const pageSize = input.pageSize ?? 50;
     const where: Prisma.MaterialWhereInput = {};
     if (input.categoryId) {
       const cat = await this.prisma.materialCategory.findFirst({
-        where: { id: input.categoryId, tenantId: input.tenantId }
+        where: { id: input.categoryId, tenantId: input.tenantId ?? undefined }
       });
       if (!cat) throw new NotFoundException('Category not found');
       where.categoryId = input.categoryId;
     } else {
+      const tenantFilter = input.tenantId ? [{ tenantId: input.tenantId }] : [];
       const cats = await this.prisma.materialCategory.findMany({
-        where: { tenantId: input.tenantId },
+        where: { OR: [{ tenantId: null }, ...tenantFilter] },
         select: { id: true }
       });
       where.categoryId = { in: cats.map((c) => c.id) };

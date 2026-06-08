@@ -4,7 +4,7 @@ import { JwtAuthGuard } from '../common/auth/jwt-auth.guard';
 import { RequirePermissions } from '../common/auth/permissions.decorator';
 import { PermissionsGuard } from '../common/auth/permissions.guard';
 import type { AuthContext } from '../common/auth/auth-context';
-import { requireTenant } from '../common/tenant-context';
+import { requireTenant, getTenantContext } from '../common/tenant-context';
 import { createMaterialCategorySchema, updateMaterialCategorySchema, createMaterialSchema, updateMaterialSchema, linkTaskMaterialSchema, confirmTaskMaterialSchema } from './dto';
 import { MaterialsService } from './materials.service';
 
@@ -16,8 +16,8 @@ export class MaterialsController {
   @RequirePermissions(PERMISSIONS.MATERIAL_READ)
   @Get('material-categories')
   listCategories(@Req() r: { auth?: AuthContext }) {
-    const tenant = requireTenant(r.auth);
-    return this.service.listCategories({ tenantId: tenant.tenantId });
+    const ctx = getTenantContext(r.auth);
+    return this.service.listCategories({ tenantId: ctx.tenantId });
   }
 
   @RequirePermissions(PERMISSIONS.MATERIAL_MANAGE)
@@ -57,9 +57,9 @@ export class MaterialsController {
   @RequirePermissions(PERMISSIONS.MATERIAL_READ)
   @Get('materials')
   listMaterials(@Req() r: { auth?: AuthContext }, @Query('categoryId') cid?: string, @Query('page') p?: string, @Query('pageSize') ps?: string) {
-    const tenant = requireTenant(r.auth);
+    const ctx = getTenantContext(r.auth);
     return this.service.listMaterials({
-      tenantId: tenant.tenantId,
+      tenantId: ctx.tenantId,
       categoryId: cid,
       page: p ? +p : undefined,
       pageSize: ps ? +ps : undefined

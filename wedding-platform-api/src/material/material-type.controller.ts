@@ -4,7 +4,7 @@ import { PermissionsGuard } from '../common/auth/permissions.guard';
 import { RequirePermissions } from '../common/auth/permissions.decorator';
 import { PERMISSIONS } from '@wedding/shared';
 import type { AuthContext } from '../common/auth/auth-context';
-import { requireTenant } from '../common/tenant-context';
+import { requireTenant, getTenantContext } from '../common/tenant-context';
 import { createMaterialTypeSchema, updateMaterialTypeSchema } from './dto';
 import { MaterialTypeService } from './material-type.service';
 
@@ -21,9 +21,9 @@ export class MaterialTypeController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string
   ) {
-    const tenant = requireTenant(request.auth);
+    const ctx = getTenantContext(request.auth);
     return this.materialTypeService.list(
-      tenant.tenantId,
+      ctx.tenantId,
       search,
       page ? parseInt(page, 10) : 1,
       pageSize ? parseInt(pageSize, 10) : 20
