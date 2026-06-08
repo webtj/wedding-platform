@@ -90,19 +90,8 @@ export function MaterialsPage() {
 
   if (isLoading || !categories) {
     return (
-      <div className='space-y-3'>
-        <div className='flex items-center gap-3'>
-          <div className='h-8 w-20 animate-pulse rounded bg-muted' />
-          <div className='h-8 flex-1 max-w-xs animate-pulse rounded bg-muted' />
-          <div className='h-8 w-24 animate-pulse rounded bg-muted' />
-          <div className='flex-1' />
-          <div className='h-8 w-24 animate-pulse rounded bg-muted' />
-        </div>
-        <div className='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2'>
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className='h-24 animate-pulse rounded-lg border bg-muted/50' />
-          ))}
-        </div>
+      <div className='flex items-center justify-center py-12 text-muted-foreground'>
+        <Icons.spinner className='h-5 w-5 animate-spin' />
       </div>
     );
   }
