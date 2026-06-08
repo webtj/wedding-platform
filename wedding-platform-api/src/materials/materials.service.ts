@@ -114,7 +114,10 @@ export class MaterialsService {
     const where: Prisma.MaterialWhereInput = {};
     if (input.categoryId) {
       const cat = await this.prisma.materialCategory.findFirst({
-        where: { id: input.categoryId, tenantId: input.tenantId ?? undefined }
+        where: {
+          id: input.categoryId,
+          ...(input.tenantId ? { tenantId: input.tenantId } : { tenantId: null })
+        }
       });
       if (!cat) throw new NotFoundException('Category not found');
       where.categoryId = input.categoryId;

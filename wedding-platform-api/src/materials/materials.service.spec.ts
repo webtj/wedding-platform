@@ -169,7 +169,7 @@ describe('MaterialsService', () => {
         materialCategory: {
           findFirst: vi
             .fn()
-            .mockResolvedValueOnce({ id: 'c1', name: 'Old' })
+            .mockResolvedValueOnce({ id: 'c1', name: 'Old', tenantId: 't1' })
             .mockResolvedValueOnce(null),
           update: vi.fn().mockResolvedValue({ id: 'c1', name: 'Updated' })
         }
@@ -207,7 +207,7 @@ describe('MaterialsService', () => {
         materialCategory: {
           findFirst: vi
             .fn()
-            .mockResolvedValueOnce({ id: 'c1', name: 'Old' })
+            .mockResolvedValueOnce({ id: 'c1', name: 'Old', tenantId: 't1' })
             .mockResolvedValueOnce({ id: 'c2', name: 'New' })
         }
       });
@@ -228,7 +228,7 @@ describe('MaterialsService', () => {
     it('returns { deleted: true } on success and audits with cascaded count', async () => {
       const prisma = makePrisma({
         materialCategory: {
-          findFirst: vi.fn().mockResolvedValue({ id: 'c1', name: 'Floral' }),
+          findFirst: vi.fn().mockResolvedValue({ id: 'c1', name: 'Floral', tenantId: 't1' }),
           delete: vi.fn().mockResolvedValue({})
         },
         material: { count: vi.fn().mockResolvedValue(3) }

@@ -443,6 +443,7 @@ async function main() {
         await prisma.material.create({
           data: {
             categoryId: cat.id,
+            tenantId: defaultTenant.id,
             name: items[i],
             status: i % 5 === 0 ? 'missing' : 'available',
             quantity: Math.floor(Math.random() * 20) + 1,
