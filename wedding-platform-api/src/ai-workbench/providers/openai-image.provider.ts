@@ -34,8 +34,7 @@ export class OpenAIImageProvider implements Text2ImageProvider {
       model: this.config.model,
       prompt: input.prompt,
       n,
-      size: `${input.size.width}x${input.size.height}` as `${number}x${number}`,
-      response_format: 'url'
+      size: `${input.size.width}x${input.size.height}` as `${number}x${number}`
     });
     return {
       images: (response.data ?? []).map((item) => {
@@ -74,8 +73,7 @@ export class OpenAIImageProvider implements Text2ImageProvider {
       image: file,
       prompt: input.prompt,
       n,
-      size: `${input.size.width}x${input.size.height}` as `${number}x${number}`,
-      response_format: 'url'
+      size: `${input.size.width}x${input.size.height}` as `${number}x${number}`
     });
     return {
       images: (response.data ?? []).map((item) => {
