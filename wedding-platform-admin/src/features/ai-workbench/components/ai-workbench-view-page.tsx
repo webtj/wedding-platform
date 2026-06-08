@@ -45,9 +45,9 @@ export default function AiWorkbenchViewPage({ projectId }: AiWorkbenchViewPagePr
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
 
   const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null);
-  const [size, setSize] = useState({ width: 600, height: 900 });
-  const [style, setStyle] = useState(STYLES[0].id);
-  const [count, setCount] = useState(1);
+  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+  const [style, setStyle] = useState<string | null>(null);
+  const [count, setCount] = useState<number | null>(null);
 
   const [referenceAssets, setReferenceAssets] = useState<AiReferenceAsset[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -103,7 +103,11 @@ export default function AiWorkbenchViewPage({ projectId }: AiWorkbenchViewPagePr
   const activeMode = MODE_TABS.find((t) => t.mode === mode)!;
   const isChat = messages.length > 0;
 
-  const handleSelectType = useCallback((m: MaterialType) => {
+  const handleSelectType = useCallback((m: MaterialType | null) => {
+    if (m === null) {
+      setSelectedTypeId(null);
+      return;
+    }
     setSelectedTypeId(m.id);
     if (m.defaultSize) setSize(m.defaultSize);
   }, []);
@@ -192,15 +196,19 @@ export default function AiWorkbenchViewPage({ projectId }: AiWorkbenchViewPagePr
         : undefined;
       const generationType = refMode === 'subject' || refMode === 'pet' ? 'img2img' : 'text2img';
 
+      const finalSize = size ?? selectedType.defaultSize ?? { width: 600, height: 900 };
+      const finalStyle = style ?? STYLES[0].id;
+      const finalCount = count ?? 1;
+
       const payload: GeneratePayload = {
         materialTypeId: selectedType.id,
         projectId: projectId ?? undefined,
         conversationId: conversationId ?? undefined,
         type: generationType,
         prompt: text,
-        style,
-        size,
-        count,
+        style: finalStyle,
+        size: finalSize,
+        count: finalCount,
         ...(referenceAssets.length > 0 && {
           referenceAssetIds: referenceAssets.map((a) => a.id),
           referenceMode: refMode,
@@ -218,7 +226,7 @@ export default function AiWorkbenchViewPage({ projectId }: AiWorkbenchViewPagePr
         handleSend(feedback);
         return;
       }
-      const payload: RefinePayload = { generationId: sourceGen.id, feedback, count };
+      const payload: RefinePayload = { generationId: sourceGen.id, feedback, count: count ?? undefined };
       void runGeneration(feedback, () => refineImages(payload), selectedType?.name ?? '微调');
     },
     [isGenerating, count, refineImages, runGeneration, selectedType, handleSend],
@@ -236,7 +244,7 @@ export default function AiWorkbenchViewPage({ projectId }: AiWorkbenchViewPagePr
         generationId: sourceGen.id,
         targetMaterialTypeId: selectedTypeId,
         instruction,
-        count,
+        count: count ?? undefined,
       };
       void runGeneration(
         instruction,

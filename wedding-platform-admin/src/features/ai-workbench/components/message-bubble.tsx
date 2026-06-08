@@ -15,8 +15,8 @@ export interface UserMessage {
   role: 'user';
   text: string;
   materialName: string;
-  size: { width: number; height: number };
-  style: string;
+  size: { width: number; height: number } | null;
+  style: string | null;
 }
 
 export interface AiMessage {
@@ -25,7 +25,7 @@ export interface AiMessage {
   status: 'thinking' | 'done';
   text?: string;
   generation?: AiGeneration;
-  count: number;
+  count: number | null;
 }
 
 export type ChatMessage = UserMessage | AiMessage;
@@ -42,10 +42,10 @@ export function UserBubble({ message }: { message: UserMessage }) {
             {message.materialName}
           </Badge>
           <Badge variant='secondary' className='h-4 px-1.5 text-[10px]'>
-            {message.size.width}×{message.size.height}
+            {message.size ? `${message.size.width}×${message.size.height}` : '默认尺寸'}
           </Badge>
           <Badge variant='secondary' className='h-4 px-1.5 text-[10px]'>
-            {message.style}
+            {message.style ?? '默认风格'}
           </Badge>
         </div>
       </div>

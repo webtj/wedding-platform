@@ -13,13 +13,13 @@ import type { MaterialType } from '../api/types';
 interface SummaryChipsProps {
   materialTypes: MaterialType[];
   selectedTypeId: string | null;
-  size: { width: number; height: number };
-  style: string;
-  count: number;
-  onSelectType: (m: MaterialType) => void;
-  onChangeSize: (size: { width: number; height: number }) => void;
-  onChangeStyle: (style: string) => void;
-  onChangeCount: (count: number) => void;
+  size: { width: number; height: number } | null;
+  style: string | null;
+  count: number | null;
+  onSelectType: (m: MaterialType | null) => void;
+  onChangeSize: (size: { width: number; height: number } | null) => void;
+  onChangeStyle: (style: string | null) => void;
+  onChangeCount: (count: number | null) => void;
 }
 
 // ── Default values ──────────────────────────────────────────────────────────
@@ -32,15 +32,25 @@ const FALLBACK_SIZES: { width: number; height: number }[] = [
   { width: 210, height: 297 }
 ];
 
+const DEFAULT_SIZE: { width: number; height: number } = { width: 600, height: 900 };
+const DEFAULT_STYLE = STYLES[0]?.id ?? 'realistic';
+const DEFAULT_COUNT = 1;
+
 // ── Summary Chip ────────────────────────────────────────────────────────────
 
 function SummaryChip({
   label,
   value,
+  isEmpty,
+  isRequired = false,
+  onClear,
   children
 }: {
   label: string;
   value: string;
+  isEmpty: boolean;
+  isRequired?: boolean;
+  onClear?: () => void;
   children: (close: () => void) => React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -48,19 +58,47 @@ function SummaryChip({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type='button'
-          className={cn(
-            'inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs transition-colors',
-            'border-border bg-muted/40 text-muted-foreground hover:border-primary hover:text-primary'
-          )}
-        >
-          <span className='font-medium text-muted-foreground/70'>{label}</span>
-          <span className='font-medium text-foreground'>{value}</span>
-          <Icons.chevronDown className='size-3 text-muted-foreground/50' />
-        </button>
-      </PopoverTrigger>
+      <div
+        className={cn(
+          'inline-flex h-7 items-center overflow-hidden rounded-full border text-xs transition-colors',
+          isEmpty
+            ? isRequired
+              ? 'border-destructive/60 bg-destructive/5 text-destructive hover:border-destructive'
+              : 'border-dashed border-muted-foreground/40 bg-muted/20 text-muted-foreground hover:border-muted-foreground/70 hover:text-foreground'
+            : 'border-border bg-muted/40 text-muted-foreground hover:border-primary hover:text-primary'
+        )}
+      >
+        <PopoverTrigger asChild>
+          <button
+            type='button'
+            className='inline-flex h-full items-center gap-1.5 pl-2.5 pr-1.5'
+          >
+            <span className='font-medium text-muted-foreground/70'>{label}</span>
+            <span
+              className={cn(
+                'font-medium',
+                isEmpty ? 'text-muted-foreground/80 italic' : 'text-foreground'
+              )}
+            >
+              {value}
+            </span>
+            <Icons.chevronDown className='text-muted-foreground/50 size-3' />
+          </button>
+        </PopoverTrigger>
+        {!isEmpty && onClear && (
+          <button
+            type='button'
+            onClick={(e) => {
+              e.stopPropagation();
+              onClear();
+            }}
+            aria-label={`清除 ${label}`}
+            className='hover:text-destructive text-muted-foreground/60 hover:bg-destructive/10 flex h-full w-6 items-center justify-center border-l border-border/60 transition-colors'
+          >
+            <Icons.close className='size-3' />
+          </button>
+        )}
+      </div>
       <PopoverContent align='start' side='top' className='w-80 p-3'>
         {children(close)}
       </PopoverContent>
@@ -68,31 +106,48 @@ function SummaryChip({
   );
 }
 
-// ── Picker Header (title + inline reset) ────────────────────────────────────
+// ── Picker Header (title + inline clear/reset) ──────────────────────────────
 
 function PickerHeader({
   title,
+  isEmpty,
   showReset,
+  onClear,
   onReset
 }: {
   title: string;
+  isEmpty: boolean;
   showReset?: boolean;
+  onClear?: () => void;
   onReset?: () => void;
 }) {
   return (
     <div className='mb-2 flex items-center justify-between gap-2'>
       <p className='text-muted-foreground text-xs'>{title}</p>
-      {showReset && onReset && (
-        <button
-          type='button'
-          onClick={onReset}
-          className='text-muted-foreground hover:text-destructive inline-flex items-center gap-0.5 text-xs transition-colors'
-          title='重置为默认'
-        >
-          <Icons.refresh className='size-3' />
-          重置默认
-        </button>
-      )}
+      <div className='flex items-center gap-2'>
+        {!isEmpty && onClear && (
+          <button
+            type='button'
+            onClick={onClear}
+            className='text-muted-foreground hover:text-destructive inline-flex items-center gap-0.5 text-xs transition-colors'
+            title='清除选择'
+          >
+            <Icons.close className='size-3' />
+            清除
+          </button>
+        )}
+        {showReset && onReset && (
+          <button
+            type='button'
+            onClick={onReset}
+            className='text-muted-foreground hover:text-primary inline-flex items-center gap-0.5 text-xs transition-colors'
+            title='重置为默认'
+          >
+            <Icons.refresh className='size-3' />
+            重置默认
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -103,20 +158,19 @@ function MaterialPicker({
   materialTypes,
   selectedTypeId,
   onSelect,
-  showReset,
-  onReset,
+  onClear,
   close
 }: {
   materialTypes: MaterialType[];
   selectedTypeId: string | null;
   onSelect: (m: MaterialType) => void;
-  showReset?: boolean;
-  onReset?: () => void;
+  onClear: () => void;
   close: () => void;
 }) {
+  const isEmpty = selectedTypeId === null;
   return (
     <div>
-      <PickerHeader title='选择素材类型' showReset={showReset} onReset={onReset} />
+      <PickerHeader title='选择素材类型' isEmpty={isEmpty} onClear={onClear} />
       <div className='max-h-56 overflow-y-auto'>
         <div className='grid grid-cols-4 gap-1.5'>
           {materialTypes.map((m) => {
@@ -153,17 +207,18 @@ function SizePicker({
   size,
   selectedType,
   onChange,
-  showReset,
+  onClear,
   onReset,
   close
 }: {
-  size: { width: number; height: number };
+  size: { width: number; height: number } | null;
   selectedType?: MaterialType | null;
-  onChange: (size: { width: number; height: number }) => void;
-  showReset?: boolean;
-  onReset?: () => void;
+  onChange: (size: { width: number; height: number } | null) => void;
+  onClear: () => void;
+  onReset: () => void;
   close: () => void;
 }) {
+  const isEmpty = size === null;
   const presetSizes =
     selectedType?.sizes && selectedType.sizes.length > 0
       ? selectedType.sizes
@@ -180,10 +235,16 @@ function SizePicker({
 
   return (
     <div>
-      <PickerHeader title={presetLabel} showReset={showReset} onReset={onReset} />
+      <PickerHeader
+        title={presetLabel}
+        isEmpty={isEmpty}
+        onClear={onClear}
+        showReset
+        onReset={onReset}
+      />
       <div className='grid grid-cols-3 gap-1.5'>
         {presetSizes.map((s, i) => {
-          const isActive = s.width === size.width && s.height === size.height;
+          const isActive = size !== null && s.width === size.width && s.height === size.height;
           return (
             <button
               key={`${s.width}x${s.height}-${i}`}
@@ -209,8 +270,8 @@ function SizePicker({
       <div className='mt-2 border-t pt-2'>
         <p className='text-muted-foreground mb-1.5 text-xs'>自定义尺寸 (mm)</p>
         <CustomSizeInput
-          width={size.width}
-          height={size.height}
+          width={size?.width ?? DEFAULT_SIZE.width}
+          height={size?.height ?? DEFAULT_SIZE.height}
           onApply={(newSize) => {
             onChange(newSize);
             close();
@@ -226,19 +287,26 @@ function SizePicker({
 function StylePicker({
   currentStyle,
   onChange,
-  showReset,
+  onClear,
   onReset,
   close
 }: {
-  currentStyle: string;
-  onChange: (style: string) => void;
-  showReset?: boolean;
-  onReset?: () => void;
+  currentStyle: string | null;
+  onChange: (style: string | null) => void;
+  onClear: () => void;
+  onReset: () => void;
   close: () => void;
 }) {
+  const isEmpty = currentStyle === null;
   return (
     <div>
-      <PickerHeader title='选择视觉风格' showReset={showReset} onReset={onReset} />
+      <PickerHeader
+        title='选择视觉风格'
+        isEmpty={isEmpty}
+        onClear={onClear}
+        showReset
+        onReset={onReset}
+      />
       <div className='grid grid-cols-4 gap-2'>
         {STYLES.map((s) => {
           const preview = STYLE_PREVIEWS[s.id];
@@ -278,15 +346,18 @@ function StylePicker({
 function CountPicker({
   currentCount,
   onChange,
+  onClear,
   close
 }: {
-  currentCount: number;
-  onChange: (count: number) => void;
+  currentCount: number | null;
+  onChange: (count: number | null) => void;
+  onClear: () => void;
   close: () => void;
 }) {
+  const isEmpty = currentCount === null;
   return (
     <div>
-      <PickerHeader title='生成数量' />
+      <PickerHeader title='生成数量' isEmpty={isEmpty} onClear={onClear} />
       <div className='grid grid-cols-4 gap-1.5'>
         {COUNT_OPTIONS.map((n) => (
           <button
@@ -398,60 +469,84 @@ export function SummaryChips({
     () => materialTypes.find((m) => m.id === selectedTypeId),
     [materialTypes, selectedTypeId]
   );
-  const styleOpt = useMemo(() => STYLES.find((s) => s.id === style), [style]);
+  const styleOpt = useMemo(
+    () => (style ? STYLES.find((s) => s.id === style) : undefined),
+    [style]
+  );
 
   const defaultType = materialTypes[0] ?? null;
-  const defaultSize = selectedType?.defaultSize ?? { width: 600, height: 900 };
-  const defaultStyle = STYLES[0]?.id ?? 'realistic';
-
-  const isTypeModified = !!selectedType && selectedType.id !== defaultType?.id;
-  const isSizeModified =
-    size.width !== defaultSize.width || size.height !== defaultSize.height;
-  const isStyleModified = style !== defaultStyle;
+  const defaultSize =
+    selectedType?.defaultSize ?? defaultType?.defaultSize ?? DEFAULT_SIZE;
+  const defaultStyle = DEFAULT_STYLE;
 
   return (
     <div className='flex flex-wrap items-center gap-1.5'>
-      <SummaryChip label='素材' value={selectedType?.name ?? '未选择'}>
+      <SummaryChip
+        label='素材'
+        value={selectedType?.name ?? '未选择'}
+        isEmpty={selectedTypeId === null}
+        isRequired
+        onClear={selectedTypeId === null ? undefined : () => onSelectType(null)}
+      >
         {(close) => (
           <MaterialPicker
             materialTypes={materialTypes}
             selectedTypeId={selectedTypeId}
             onSelect={onSelectType}
-            showReset={isTypeModified}
-            onReset={() => defaultType && onSelectType(defaultType)}
+            onClear={() => onSelectType(null)}
             close={close}
           />
         )}
       </SummaryChip>
 
-      <SummaryChip label='尺寸' value={`${size.width}×${size.height}`}>
+      <SummaryChip
+        label='尺寸'
+        value={size === null ? '未选择' : `${size.width}×${size.height}`}
+        isEmpty={size === null}
+        onClear={size === null ? undefined : () => onChangeSize(null)}
+      >
         {(close) => (
           <SizePicker
             size={size}
             selectedType={selectedType}
             onChange={onChangeSize}
-            showReset={isSizeModified}
+            onClear={() => onChangeSize(null)}
             onReset={() => onChangeSize(defaultSize)}
             close={close}
           />
         )}
       </SummaryChip>
 
-      <SummaryChip label='风格' value={styleOpt?.label ?? style}>
+      <SummaryChip
+        label='风格'
+        value={styleOpt?.label ?? (style ?? '未选择')}
+        isEmpty={style === null}
+        onClear={style === null ? undefined : () => onChangeStyle(null)}
+      >
         {(close) => (
           <StylePicker
             currentStyle={style}
             onChange={onChangeStyle}
-            showReset={isStyleModified}
+            onClear={() => onChangeStyle(null)}
             onReset={() => onChangeStyle(defaultStyle)}
             close={close}
           />
         )}
       </SummaryChip>
 
-      <SummaryChip label='数量' value={`${count} 张`}>
+      <SummaryChip
+        label='数量'
+        value={count === null ? '未选择' : `${count} 张`}
+        isEmpty={count === null}
+        onClear={count === null ? undefined : () => onChangeCount(null)}
+      >
         {(close) => (
-          <CountPicker currentCount={count} onChange={onChangeCount} close={close} />
+          <CountPicker
+            currentCount={count}
+            onChange={onChangeCount}
+            onClear={() => onChangeCount(null)}
+            close={close}
+          />
         )}
       </SummaryChip>
     </div>
