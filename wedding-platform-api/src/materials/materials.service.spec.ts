@@ -53,10 +53,21 @@ describe('MaterialsService', () => {
 
       expect(result).toEqual([{ id: 'c1', name: 'Floral' }]);
       expect(prisma.materialCategory.findMany).toHaveBeenCalledWith({
-        where: { tenantId: 't1' },
+        where: {
+          OR: [
+            { tenantId: null },
+            { tenantId: 't1' }
+          ]
+        },
         orderBy: { sortOrder: 'asc' },
         include: {
           materials: {
+            where: {
+              OR: [
+                { tenantId: null },
+                { tenantId: 't1' }
+              ]
+            },
             orderBy: { sortOrder: 'asc' }
           }
         }
@@ -377,7 +388,7 @@ describe('MaterialsService', () => {
     it('throws NotFound when material category tenant mismatches', async () => {
       const prisma = makePrisma({
         material: {
-          findFirst: vi.fn().mockResolvedValue({ id: 'm1', category: { tenantId: 'other' } })
+          findFirst: vi.fn().mockResolvedValue({ id: 'm1', tenantId: 'other', category: { tenantId: 'other' } })
         }
       });
       const service = new MaterialsService(prisma as never, makeAudit() as never);
@@ -395,7 +406,7 @@ describe('MaterialsService', () => {
     it('updates and audits when ownership matches', async () => {
       const prisma = makePrisma({
         material: {
-          findFirst: vi.fn().mockResolvedValue({ id: 'm1', category: { tenantId: 't1' }, name: 'Rose' }),
+          findFirst: vi.fn().mockResolvedValue({ id: 'm1', tenantId: 't1', category: { tenantId: 't1' }, name: 'Rose' }),
           update: vi.fn().mockResolvedValue({ id: 'm1', name: 'Updated' })
         }
       });
@@ -420,7 +431,7 @@ describe('MaterialsService', () => {
         material: {
           findFirst: vi
             .fn()
-            .mockResolvedValue({ id: 'm1', name: 'Rose', categoryId: 'c1', category: { tenantId: 't1' } }),
+            .mockResolvedValue({ id: 'm1', tenantId: 't1', name: 'Rose', categoryId: 'c1', category: { tenantId: 't1' } }),
           delete: vi.fn().mockResolvedValue({})
         }
       });

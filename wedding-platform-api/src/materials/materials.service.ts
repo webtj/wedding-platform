@@ -211,7 +211,8 @@ export class MaterialsService {
       where: { id: input.materialId },
       include: { category: true }
     });
-    if (!mat || mat.category.tenantId !== input.tenantId) {
+    // Allow built-in materials (tenantId=null) or tenant's own materials
+    if (!mat || (mat.category.tenantId !== null && mat.category.tenantId !== input.tenantId)) {
       throw new NotFoundException('Material not found');
     }
     return this.prisma.taskMaterial.create({

@@ -16,16 +16,17 @@ export class QuickPromptsService {
   // ── Categories ──────────────────────────────────────────────────────────
 
   async listCategories(tenantId: string | null, type?: string) {
+    const tenantFilter = tenantId ? [{ tenantId }] : [];
     return this.prisma.quickPromptCategory.findMany({
       where: {
-        OR: [{ tenantId: null }, ...(tenantId ? [{ tenantId }] : [])],
+        OR: [{ tenantId: null }, ...tenantFilter],
         ...(type ? { type: type as PromptCategoryType } : {})
       },
       orderBy: { sortOrder: 'asc' },
       include: {
         prompts: {
           where: {
-            OR: [{ tenantId: null }, { tenantId }]
+            OR: [{ tenantId: null }, ...tenantFilter]
           },
           orderBy: { sortOrder: 'asc' }
         }

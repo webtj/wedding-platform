@@ -408,10 +408,10 @@ async function main() {
 
   for (const mt of materialTypeData) {
     await prisma.materialType.upsert({
-      where: { tenantId_code: { tenantId: defaultTenant.id, code: mt.code } },
+      where: { tenantId_code: { tenantId: null, code: mt.code } },
       update: { name: mt.name, icon: mt.icon, defaultSize: mt.defaultSize, isSystem: true },
       create: {
-        tenantId: defaultTenant.id,
+        tenantId: null,
         name: mt.name,
         code: mt.code,
         icon: mt.icon,
