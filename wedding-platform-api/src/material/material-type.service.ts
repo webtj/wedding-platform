@@ -1,31 +1,30 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import type { TenantContext } from '../common/tenant-context';
 import type { CreateMaterialTypeDto, UpdateMaterialTypeDto } from './dto';
 
 @Injectable()
 export class MaterialTypeService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * 租户列表：系统内置 + 本租户自定义
-   * 平台管理员：只看系统内置
-   */
-  async list(tenantId: string | null, search?: string, page = 1, pageSize = 20) {
-    const tenantFilter = tenantId ? [{ tenantId }] : [];
-    const where = {
-      OR: [
-        { isSystem: true, tenantId: null },
-        ...tenantFilter
-      ],
-      ...(search
-        ? { name: { contains: search, mode: 'insensitive' as const } }
-        : {})
-    };
+  async list(ctx: TenantContext, search?: string, page = 1, pageSize = 20) {
+    const where: Record<string, unknown> = {};
+
+    if (!ctx.isPlatformAdmin) {
+      where.OR = [
+        { tenantId: null },
+        { tenantId: ctx.tenantId }
+      ];
+    }
+
+    if (search) {
+      where.name = { contains: search, mode: 'insensitive' as const };
+    }
 
     const [items, total] = await Promise.all([
       this.prisma.materialType.findMany({
         where,
-        orderBy: [{ isSystem: 'desc' }, { createdAt: 'asc' }],
+        orderBy: [{ createdAt: 'asc' }],
         skip: (page - 1) * pageSize,
         take: pageSize
       }),
@@ -41,10 +40,7 @@ export class MaterialTypeService {
     return materialType;
   }
 
-  /**
-   * 租户创建：isSystem=false, tenantId=当前租户
-   */
-  create(tenantId: string, data: CreateMaterialTypeDto) {
+  create(ctx: TenantContext, data: CreateMaterialTypeDto) {
     return this.prisma.materialType.create({
       data: {
         name: data.name,
@@ -52,20 +48,19 @@ export class MaterialTypeService {
         icon: data.icon,
         defaultSize: data.defaultSize ?? undefined,
         sizes: data.sizes ?? undefined,
-        isSystem: false,
-        tenantId
+        tenantId: ctx.tenantId
       }
     });
   }
 
-  /**
-   * 租户更新：只能更新自己租户的（isSystem=false, tenantId=当前租户）
-   */
-  async update(id: string, tenantId: string, data: UpdateMaterialTypeDto) {
+  async update(id: string, ctx: TenantContext, data: UpdateMaterialTypeDto) {
     const existing = await this.prisma.materialType.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('素材类型不存在');
-    if (existing.isSystem) throw new BadRequestException('不能编辑系统内置素材类型');
-    if (existing.tenantId !== tenantId) throw new BadRequestException('不能编辑其他租户的素材类型');
+
+    if (!ctx.isPlatformAdmin) {
+      if (existing.tenantId === null) throw new BadRequestException('不能编辑系统内置素材类型');
+      if (existing.tenantId !== ctx.tenantId) throw new BadRequestException('不能编辑其他租户的素材类型');
+    }
 
     return this.prisma.materialType.update({
       where: { id },
@@ -79,14 +74,14 @@ export class MaterialTypeService {
     });
   }
 
-  /**
-   * 租户删除：只能删除自己租户的（isSystem=false, tenantId=当前租户）
-   */
-  async delete(id: string, tenantId: string) {
+  async delete(id: string, ctx: TenantContext) {
     const existing = await this.prisma.materialType.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('素材类型不存在');
-    if (existing.isSystem) throw new BadRequestException('不能删除系统内置素材类型');
-    if (existing.tenantId !== tenantId) throw new BadRequestException('不能删除其他租户的素材类型');
+
+    if (!ctx.isPlatformAdmin) {
+      if (existing.tenantId === null) throw new BadRequestException('不能删除系统内置素材类型');
+      if (existing.tenantId !== ctx.tenantId) throw new BadRequestException('不能删除其他租户的素材类型');
+    }
 
     return this.prisma.materialType.delete({ where: { id } });
   }

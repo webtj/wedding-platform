@@ -5,6 +5,7 @@ export interface TenantContext {
   userId: string;
   tenantId: string | null;
   memberId: string | null;
+  isPlatformAdmin: boolean;
 }
 
 /**
@@ -19,6 +20,7 @@ export function requireTenant(auth: AuthContext | undefined): TenantContext & { 
     userId: auth.userId,
     tenantId: auth.tenantId,
     memberId: auth.memberId,
+    isPlatformAdmin: auth.isPlatformAdmin,
   };
 }
 
@@ -32,10 +34,10 @@ export function getTenantContext(auth: AuthContext | undefined): TenantContext {
     throw new BusinessException('AUTH_TOKEN_INVALID', '请先登录', 401);
   }
   if (auth.isPlatformAdmin) {
-    return { userId: auth.userId, tenantId: null, memberId: null };
+    return { userId: auth.userId, tenantId: null, memberId: null, isPlatformAdmin: true };
   }
   if (!auth.tenantId || !auth.memberId) {
     throw new BusinessException('TENANT_REQUIRED', '请先选择工作空间', 403);
   }
-  return { userId: auth.userId, tenantId: auth.tenantId, memberId: auth.memberId };
+  return { userId: auth.userId, tenantId: auth.tenantId, memberId: auth.memberId, isPlatformAdmin: false };
 }

@@ -1,7 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
 import { NotFoundException } from '@nestjs/common';
 import { AppError } from '../common/errors/app-error';
+import type { TenantContext } from '../common/tenant-context';
 import { MaterialsService } from './materials.service';
+
+function ctx(tenantId: string | null, overrides: Partial<TenantContext> = {}): TenantContext {
+  return {
+    userId: overrides.userId ?? 'u1',
+    tenantId,
+    memberId: tenantId ? 'm1' : null,
+    isPlatformAdmin: overrides.isPlatformAdmin ?? false,
+    ...overrides
+  };
+}
 
 function makePrisma(overrides: Record<string, unknown> = {}) {
   return {
@@ -41,7 +52,7 @@ function makeAudit() {
 
 describe('MaterialsService', () => {
   describe('listCategories', () => {
-    it('returns categories ordered by sortOrder', async () => {
+    it('returns categories ordered by sortOrder for tenant', async () => {
       const prisma = makePrisma({
         materialCategory: {
           findMany: vi.fn().mockResolvedValue([{ id: 'c1', name: 'Floral' }])
@@ -49,7 +60,7 @@ describe('MaterialsService', () => {
       });
       const service = new MaterialsService(prisma as never, makeAudit() as never);
 
-      const result = await service.listCategories({ tenantId: 't1' });
+      const result = await service.listCategories(ctx('t1'));
 
       expect(result).toEqual([{ id: 'c1', name: 'Floral' }]);
       expect(prisma.materialCategory.findMany).toHaveBeenCalledWith({
@@ -73,6 +84,22 @@ describe('MaterialsService', () => {
         }
       });
     });
+
+    it('returns ALL categories when platform admin', async () => {
+      const prisma = makePrisma({
+        materialCategory: {
+          findMany: vi.fn().mockResolvedValue([{ id: 'c1' }, { id: 'c2' }])
+        }
+      });
+      const service = new MaterialsService(prisma as never, makeAudit() as never);
+
+      const result = await service.listCategories(ctx(null, { isPlatformAdmin: true }));
+
+      expect(result).toHaveLength(2);
+      expect(prisma.materialCategory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: {} })
+      );
+    });
   });
 
   describe('createCategory', () => {
@@ -87,11 +114,7 @@ describe('MaterialsService', () => {
       const audit = makeAudit();
       const service = new MaterialsService(prisma as never, audit as never);
 
-      const result = await service.createCategory({
-        tenantId: 't1',
-        userId: 'u1',
-        data: { name: 'Floral', sortOrder: 1 } as never
-      });
+      const result = await service.createCategory(ctx('t1'), { name: 'Floral', sortOrder: 1 } as never);
 
       expect(result).toEqual(created);
       expect(prisma.materialCategory.create).toHaveBeenCalledWith({
@@ -106,11 +129,7 @@ describe('MaterialsService', () => {
       const service = new MaterialsService(prisma as never, makeAudit() as never);
 
       try {
-        await service.createCategory({
-          tenantId: 't1',
-          userId: 'u1',
-          data: { name: 'Floral', sortOrder: 1 } as never
-        });
+        await service.createCategory(ctx('t1'), { name: 'Floral', sortOrder: 1 } as never);
         expect.fail('should have thrown');
       } catch (e) {
         expect(e).toBeInstanceOf(AppError);
@@ -129,11 +148,7 @@ describe('MaterialsService', () => {
       const audit = makeAudit();
       const service = new MaterialsService(prisma as never, audit as never);
 
-      await service.createCategory({
-        tenantId: 't1',
-        userId: 'u1',
-        data: { name: 'Floral', sortOrder: 1 } as never
-      });
+      await service.createCategory(ctx('t1'), { name: 'Floral', sortOrder: 1 } as never);
 
       expect(audit.record).toHaveBeenCalledWith({
         tenantId: 't1',
@@ -153,13 +168,28 @@ describe('MaterialsService', () => {
       const service = new MaterialsService(prisma as never, audit as never);
 
       await expect(
-        service.createCategory({
-          tenantId: 't1',
-          userId: 'u1',
-          data: { name: 'Floral', sortOrder: 1 } as never
-        })
+        service.createCategory(ctx('t1'), { name: 'Floral', sortOrder: 1 } as never)
       ).rejects.toBeInstanceOf(AppError);
       expect(audit.record).not.toHaveBeenCalled();
+    });
+
+    it('allows platform admin to create built-in category', async () => {
+      const created = { id: 'c1', name: 'BuiltIn' };
+      const prisma = makePrisma({
+        materialCategory: {
+          findFirst: vi.fn().mockResolvedValue(null),
+          create: vi.fn().mockResolvedValue(created)
+        }
+      });
+      const audit = makeAudit();
+      const service = new MaterialsService(prisma as never, audit as never);
+
+      const result = await service.createCategory(ctx(null, { isPlatformAdmin: true }), { name: 'BuiltIn' } as never);
+
+      expect(result).toEqual(created);
+      expect(prisma.materialCategory.create).toHaveBeenCalledWith({
+        data: { tenantId: null, name: 'BuiltIn' }
+      });
     });
   });
 
@@ -177,12 +207,7 @@ describe('MaterialsService', () => {
       const audit = makeAudit();
       const service = new MaterialsService(prisma as never, audit as never);
 
-      const result = await service.updateCategory({
-        tenantId: 't1',
-        userId: 'u1',
-        categoryId: 'c1',
-        data: { name: 'Updated' } as never
-      });
+      const result = await service.updateCategory(ctx('t1'), 'c1', { name: 'Updated' } as never);
 
       expect(result).toEqual({ id: 'c1', name: 'Updated' });
       expect(audit.record).toHaveBeenCalled();
@@ -193,12 +218,7 @@ describe('MaterialsService', () => {
       const service = new MaterialsService(prisma as never, makeAudit() as never);
 
       await expect(
-        service.updateCategory({
-          tenantId: 't1',
-          userId: 'u1',
-          categoryId: 'c1',
-          data: {} as never
-        })
+        service.updateCategory(ctx('t1'), 'c1', {} as never)
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -214,13 +234,27 @@ describe('MaterialsService', () => {
       const service = new MaterialsService(prisma as never, makeAudit() as never);
 
       await expect(
-        service.updateCategory({
-          tenantId: 't1',
-          userId: 'u1',
-          categoryId: 'c1',
-          data: { name: 'New' } as never
-        })
+        service.updateCategory(ctx('t1'), 'c1', { name: 'New' } as never)
       ).rejects.toBeInstanceOf(AppError);
+    });
+
+    it('allows platform admin to edit built-in category', async () => {
+      const prisma = makePrisma({
+        materialCategory: {
+          findFirst: vi
+            .fn()
+            .mockResolvedValueOnce({ id: 'c1', name: 'Old', tenantId: null })
+            .mockResolvedValueOnce(null),
+          update: vi.fn().mockResolvedValue({ id: 'c1', name: 'Updated' })
+        }
+      });
+      const audit = makeAudit();
+      const service = new MaterialsService(prisma as never, audit as never);
+
+      const result = await service.updateCategory(ctx(null, { isPlatformAdmin: true }), 'c1', { name: 'Updated' } as never);
+
+      expect(result).toEqual({ id: 'c1', name: 'Updated' });
+      expect(audit.record).toHaveBeenCalled();
     });
   });
 
@@ -236,11 +270,7 @@ describe('MaterialsService', () => {
       const audit = makeAudit();
       const service = new MaterialsService(prisma as never, audit as never);
 
-      const result = await service.deleteCategory({
-        tenantId: 't1',
-        userId: 'u1',
-        categoryId: 'c1'
-      });
+      const result = await service.deleteCategory(ctx('t1'), 'c1');
 
       expect(result).toEqual({ deleted: true });
       expect(prisma.materialCategory.delete).toHaveBeenCalledWith({ where: { id: 'c1' } });
@@ -257,8 +287,22 @@ describe('MaterialsService', () => {
       const service = new MaterialsService(prisma as never, makeAudit() as never);
 
       await expect(
-        service.deleteCategory({ tenantId: 't1', userId: 'u1', categoryId: 'c1' })
+        service.deleteCategory(ctx('t1'), 'c1')
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('allows platform admin to delete built-in category', async () => {
+      const prisma = makePrisma({
+        materialCategory: {
+          findFirst: vi.fn().mockResolvedValue({ id: 'c1', name: 'BuiltIn', tenantId: null }),
+          delete: vi.fn().mockResolvedValue({})
+        },
+        material: { count: vi.fn().mockResolvedValue(0) }
+      });
+      const service = new MaterialsService(prisma as never, makeAudit() as never);
+
+      const result = await service.deleteCategory(ctx(null, { isPlatformAdmin: true }), 'c1');
+      expect(result).toEqual({ deleted: true });
     });
   });
 
@@ -275,12 +319,7 @@ describe('MaterialsService', () => {
       });
       const service = new MaterialsService(prisma as never, makeAudit() as never);
 
-      const result = await service.listMaterials({
-        tenantId: 't1',
-        categoryId: 'c1',
-        page: 1,
-        pageSize: 10
-      });
+      const result = await service.listMaterials(ctx('t1'), 'c1', 1, 10);
 
       expect(result).toEqual({
         items: [{ id: 'm1' }],
@@ -302,7 +341,7 @@ describe('MaterialsService', () => {
       const service = new MaterialsService(prisma as never, makeAudit() as never);
 
       await expect(
-        service.listMaterials({ tenantId: 't1', categoryId: 'missing' })
+        service.listMaterials(ctx('t1'), 'missing')
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -318,7 +357,7 @@ describe('MaterialsService', () => {
       });
       const service = new MaterialsService(prisma as never, makeAudit() as never);
 
-      await service.listMaterials({ tenantId: 't1' });
+      await service.listMaterials(ctx('t1'));
 
       expect(prisma.material.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { categoryId: { in: ['c1', 'c2'] } } })
@@ -332,11 +371,7 @@ describe('MaterialsService', () => {
       const service = new MaterialsService(prisma as never, makeAudit() as never);
 
       await expect(
-        service.createMaterial({
-          tenantId: 't1',
-          userId: 'u1',
-          data: { categoryId: 'c1' } as never
-        })
+        service.createMaterial(ctx('t1'), { categoryId: 'c1' } as never)
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -349,11 +384,7 @@ describe('MaterialsService', () => {
       const audit = makeAudit();
       const service = new MaterialsService(prisma as never, audit as never);
 
-      const result = await service.createMaterial({
-        tenantId: 't1',
-        userId: 'u1',
-        data: { categoryId: 'c1', name: 'Rose' } as never
-      });
+      const result = await service.createMaterial(ctx('t1'), { categoryId: 'c1', name: 'Rose' } as never);
 
       expect(result).toEqual(created);
       expect(prisma.material.create).toHaveBeenCalledWith({
@@ -368,6 +399,23 @@ describe('MaterialsService', () => {
         metadata: { name: 'Rose', categoryId: 'c1' }
       });
     });
+
+    it('allows platform admin to create material in built-in category', async () => {
+      const created = { id: 'm1', name: 'BuiltInMat' };
+      const prisma = makePrisma({
+        materialCategory: { findFirst: vi.fn().mockResolvedValue({ id: 'c1', tenantId: null }) },
+        material: { create: vi.fn().mockResolvedValue(created) }
+      });
+      const audit = makeAudit();
+      const service = new MaterialsService(prisma as never, audit as never);
+
+      const result = await service.createMaterial(ctx(null, { isPlatformAdmin: true }), { categoryId: 'c1', name: 'BuiltInMat' } as never);
+
+      expect(result).toEqual(created);
+      expect(prisma.material.create).toHaveBeenCalledWith({
+        data: { categoryId: 'c1', name: 'BuiltInMat', tenantId: null }
+      });
+    });
   });
 
   describe('updateMaterial', () => {
@@ -376,12 +424,7 @@ describe('MaterialsService', () => {
       const service = new MaterialsService(prisma as never, makeAudit() as never);
 
       await expect(
-        service.updateMaterial({
-          tenantId: 't1',
-          userId: 'u1',
-          materialId: 'm1',
-          data: {} as never
-        })
+        service.updateMaterial(ctx('t1'), 'm1', {} as never)
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -394,12 +437,7 @@ describe('MaterialsService', () => {
       const service = new MaterialsService(prisma as never, makeAudit() as never);
 
       await expect(
-        service.updateMaterial({
-          tenantId: 't1',
-          userId: 'u1',
-          materialId: 'm1',
-          data: {} as never
-        })
+        service.updateMaterial(ctx('t1'), 'm1', {} as never)
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -413,13 +451,23 @@ describe('MaterialsService', () => {
       const audit = makeAudit();
       const service = new MaterialsService(prisma as never, audit as never);
 
-      const result = await service.updateMaterial({
-        tenantId: 't1',
-        userId: 'u1',
-        materialId: 'm1',
-        data: { name: 'Updated' } as never
-      });
+      const result = await service.updateMaterial(ctx('t1'), 'm1', { name: 'Updated' } as never);
 
+      expect(result).toEqual({ id: 'm1', name: 'Updated' });
+      expect(audit.record).toHaveBeenCalled();
+    });
+
+    it('allows platform admin to update built-in material', async () => {
+      const prisma = makePrisma({
+        material: {
+          findFirst: vi.fn().mockResolvedValue({ id: 'm1', tenantId: null, category: { tenantId: null }, name: 'Old' }),
+          update: vi.fn().mockResolvedValue({ id: 'm1', name: 'Updated' })
+        }
+      });
+      const audit = makeAudit();
+      const service = new MaterialsService(prisma as never, audit as never);
+
+      const result = await service.updateMaterial(ctx(null, { isPlatformAdmin: true }), 'm1', { name: 'Updated' } as never);
       expect(result).toEqual({ id: 'm1', name: 'Updated' });
       expect(audit.record).toHaveBeenCalled();
     });
@@ -438,11 +486,7 @@ describe('MaterialsService', () => {
       const audit = makeAudit();
       const service = new MaterialsService(prisma as never, audit as never);
 
-      const result = await service.deleteMaterial({
-        tenantId: 't1',
-        userId: 'u1',
-        materialId: 'm1'
-      });
+      const result = await service.deleteMaterial(ctx('t1'), 'm1');
       expect(result).toEqual({ deleted: true });
       expect(audit.record).toHaveBeenCalledWith({
         tenantId: 't1',
@@ -461,10 +505,25 @@ describe('MaterialsService', () => {
       const service = new MaterialsService(prisma as never, makeAudit() as never);
 
       await expect(
-        service.deleteMaterial({ tenantId: 't1', userId: 'u1', materialId: 'm1' })
+        service.deleteMaterial(ctx('t1'), 'm1')
       ).rejects.toBeInstanceOf(NotFoundException);
     });
+
+    it('allows platform admin to delete built-in material', async () => {
+      const prisma = makePrisma({
+        material: {
+          findFirst: vi.fn().mockResolvedValue({ id: 'm1', tenantId: null, category: { tenantId: null }, name: 'Old' }),
+          delete: vi.fn().mockResolvedValue({})
+        }
+      });
+      const service = new MaterialsService(prisma as never, makeAudit() as never);
+
+      const result = await service.deleteMaterial(ctx(null, { isPlatformAdmin: true }), 'm1');
+      expect(result).toEqual({ deleted: true });
+    });
   });
+
+  // Task-material bridge methods keep old signatures — no changes below
 
   describe('addTaskMaterial', () => {
     it('throws NotFound when task is missing', async () => {

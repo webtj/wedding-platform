@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { AppError } from '../common/errors/app-error';
+import type { TenantContext } from '../common/tenant-context';
 import type { CreateMaterialCategoryDto, UpdateMaterialCategoryDto, CreateMaterialDto, UpdateMaterialDto } from './dto';
 
 @Injectable()
@@ -12,44 +13,38 @@ export class MaterialsService {
     private readonly audit: AuditService
   ) {}
 
-  async listCategories(input: { tenantId: string | null }) {
-    // Return built-in (tenantId=null) + tenant's own categories
-    const tenantFilter = input.tenantId ? [{ tenantId: input.tenantId }] : [];
+  async listCategories(ctx: TenantContext) {
+    const where = ctx.isPlatformAdmin
+      ? {}
+      : { OR: [{ tenantId: null }, { tenantId: ctx.tenantId }] };
+    const materialWhere = ctx.isPlatformAdmin
+      ? {}
+      : { OR: [{ tenantId: null }, { tenantId: ctx.tenantId }] };
     return this.prisma.materialCategory.findMany({
-      where: {
-        OR: [
-          { tenantId: null },      // built-in
-          ...tenantFilter           // tenant's own (only if tenantId is provided)
-        ]
-      },
+      where,
       orderBy: { sortOrder: 'asc' },
       include: {
         materials: {
-          where: {
-            OR: [
-              { tenantId: null },
-              ...tenantFilter
-            ]
-          },
+          where: materialWhere,
           orderBy: { sortOrder: 'asc' }
         }
       }
     });
   }
 
-  async createCategory(input: { tenantId: string; userId: string; data: CreateMaterialCategoryDto }) {
+  async createCategory(ctx: TenantContext, data: CreateMaterialCategoryDto) {
     const existing = await this.prisma.materialCategory.findFirst({
-      where: { tenantId: input.tenantId, name: input.data.name }
+      where: { tenantId: ctx.tenantId, name: data.name }
     });
     if (existing) {
-      throw AppError.conflict(`分类名称 "${input.data.name}" 已存在`);
+      throw AppError.conflict(`分类名称 "${data.name}" 已存在`);
     }
     const cat = await this.prisma.materialCategory.create({
-      data: { tenantId: input.tenantId, ...input.data }
+      data: { tenantId: ctx.tenantId, ...data }
     });
     await this.audit.record({
-      tenantId: input.tenantId,
-      userId: input.userId,
+      tenantId: ctx.tenantId as string,
+      userId: ctx.userId,
       action: 'material_category.create',
       entity: 'material_category',
       entityId: cat.id,
@@ -58,48 +53,66 @@ export class MaterialsService {
     return cat;
   }
 
-  async updateCategory(input: { tenantId: string; userId: string; categoryId: string; data: UpdateMaterialCategoryDto }) {
+  async updateCategory(ctx: TenantContext, categoryId: string, data: UpdateMaterialCategoryDto) {
     const cat = await this.prisma.materialCategory.findFirst({
-      where: { id: input.categoryId, tenantId: input.tenantId }
+      where: { id: categoryId }
     });
     if (!cat) throw new NotFoundException('Category not found');
-    if (!cat.tenantId) throw AppError.forbidden('内置分类不可编辑');
-    if (input.data.name && input.data.name !== cat.name) {
+
+    if (!ctx.isPlatformAdmin) {
+      if (cat.tenantId === null) {
+        throw AppError.forbidden('内置分类不可编辑');
+      }
+      if (cat.tenantId !== ctx.tenantId) {
+        throw AppError.forbidden('无权修改此分类');
+      }
+    }
+
+    if (data.name && data.name !== cat.name) {
       const dup = await this.prisma.materialCategory.findFirst({
-        where: { tenantId: input.tenantId, name: input.data.name, id: { not: cat.id } }
+        where: { tenantId: ctx.tenantId, name: data.name, id: { not: cat.id } }
       });
       if (dup) {
-        throw AppError.conflict(`分类名称 "${input.data.name}" 已存在`);
+        throw AppError.conflict(`分类名称 "${data.name}" 已存在`);
       }
     }
     const updated = await this.prisma.materialCategory.update({
-      where: { id: input.categoryId },
-      data: input.data
+      where: { id: categoryId },
+      data
     });
     await this.audit.record({
-      tenantId: input.tenantId,
-      userId: input.userId,
+      tenantId: ctx.tenantId as string,
+      userId: ctx.userId,
       action: 'material_category.update',
       entity: 'material_category',
       entityId: cat.id,
-      metadata: { name: cat.name, changes: input.data as Record<string, unknown> }
+      metadata: { name: cat.name, changes: data as Record<string, unknown> }
     });
     return updated;
   }
 
-  async deleteCategory(input: { tenantId: string; userId: string; categoryId: string }) {
+  async deleteCategory(ctx: TenantContext, categoryId: string) {
     const cat = await this.prisma.materialCategory.findFirst({
-      where: { id: input.categoryId, tenantId: input.tenantId }
+      where: { id: categoryId }
     });
     if (!cat) throw new NotFoundException('Category not found');
-    if (!cat.tenantId) throw AppError.forbidden('内置分类不可删除');
+
+    if (!ctx.isPlatformAdmin) {
+      if (cat.tenantId === null) {
+        throw AppError.forbidden('内置分类不可删除');
+      }
+      if (cat.tenantId !== ctx.tenantId) {
+        throw AppError.forbidden('无权删除此分类');
+      }
+    }
+
     const materialCount = await this.prisma.material.count({
-      where: { categoryId: input.categoryId }
+      where: { categoryId }
     });
-    await this.prisma.materialCategory.delete({ where: { id: input.categoryId } });
+    await this.prisma.materialCategory.delete({ where: { id: categoryId } });
     await this.audit.record({
-      tenantId: input.tenantId,
-      userId: input.userId,
+      tenantId: ctx.tenantId as string,
+      userId: ctx.userId,
       action: 'material_category.delete',
       entity: 'material_category',
       entityId: cat.id,
@@ -108,23 +121,25 @@ export class MaterialsService {
     return { deleted: true };
   }
 
-  async listMaterials(input: { tenantId: string | null; categoryId?: string; page?: number; pageSize?: number }) {
-    const page = input.page ?? 1;
-    const pageSize = input.pageSize ?? 50;
+  async listMaterials(ctx: TenantContext, categoryId?: string, page?: number, pageSize?: number) {
+    const p = page ?? 1;
+    const ps = pageSize ?? 50;
     const where: Prisma.MaterialWhereInput = {};
-    if (input.categoryId) {
+    if (categoryId) {
+      const categoryWhere: Prisma.MaterialCategoryWhereInput = ctx.isPlatformAdmin
+        ? { id: categoryId }
+        : { id: categoryId, OR: [{ tenantId: null }, { tenantId: ctx.tenantId }] };
       const cat = await this.prisma.materialCategory.findFirst({
-        where: {
-          id: input.categoryId,
-          ...(input.tenantId ? { tenantId: input.tenantId } : { tenantId: null })
-        }
+        where: categoryWhere
       });
       if (!cat) throw new NotFoundException('Category not found');
-      where.categoryId = input.categoryId;
+      where.categoryId = categoryId;
     } else {
-      const tenantFilter = input.tenantId ? [{ tenantId: input.tenantId }] : [];
+      const catWhere = ctx.isPlatformAdmin
+        ? {}
+        : { OR: [{ tenantId: null }, { tenantId: ctx.tenantId }] };
       const cats = await this.prisma.materialCategory.findMany({
-        where: { OR: [{ tenantId: null }, ...tenantFilter] },
+        where: catWhere,
         select: { id: true }
       });
       where.categoryId = { in: cats.map((c) => c.id) };
@@ -133,25 +148,28 @@ export class MaterialsService {
       this.prisma.material.findMany({
         where,
         orderBy: { sortOrder: 'asc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize
+        skip: (p - 1) * ps,
+        take: ps
       }),
       this.prisma.material.count({ where })
     ]);
-    return { items, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+    return { items, total, page: p, pageSize: ps, totalPages: Math.ceil(total / ps) };
   }
 
-  async createMaterial(input: { tenantId: string; userId: string; data: CreateMaterialDto }) {
+  async createMaterial(ctx: TenantContext, data: CreateMaterialDto) {
+    const catWhere = ctx.isPlatformAdmin
+      ? { id: data.categoryId }
+      : { id: data.categoryId, tenantId: ctx.tenantId };
     const cat = await this.prisma.materialCategory.findFirst({
-      where: { id: input.data.categoryId, tenantId: input.tenantId }
+      where: catWhere
     });
     if (!cat) throw new NotFoundException('Category not found');
     const mat = await this.prisma.material.create({
-      data: { ...input.data, tenantId: input.tenantId }
+      data: { ...data, tenantId: ctx.tenantId }
     });
     await this.audit.record({
-      tenantId: input.tenantId,
-      userId: input.userId,
+      tenantId: ctx.tenantId as string,
+      userId: ctx.userId,
       action: 'material.create',
       entity: 'material',
       entityId: mat.id,
@@ -160,43 +178,45 @@ export class MaterialsService {
     return mat;
   }
 
-  async updateMaterial(input: { tenantId: string; userId: string; materialId: string; data: UpdateMaterialDto }) {
+  async updateMaterial(ctx: TenantContext, materialId: string, data: UpdateMaterialDto) {
     const mat = await this.prisma.material.findFirst({
-      where: { id: input.materialId },
+      where: { id: materialId },
       include: { category: true }
     });
     if (!mat) throw new NotFoundException('Material not found');
-    // Built-in materials (tenantId=null) cannot be modified by tenants
-    if (!mat.tenantId) throw AppError.forbidden('内置物料不可编辑');
-    if (mat.tenantId !== input.tenantId) throw new NotFoundException('Material not found');
+    if (!ctx.isPlatformAdmin) {
+      if (!mat.tenantId) throw AppError.forbidden('内置物料不可编辑');
+      if (mat.tenantId !== ctx.tenantId) throw new NotFoundException('Material not found');
+    }
     const updated = await this.prisma.material.update({
-      where: { id: input.materialId },
-      data: input.data
+      where: { id: materialId },
+      data
     });
     await this.audit.record({
-      tenantId: input.tenantId,
-      userId: input.userId,
+      tenantId: ctx.tenantId as string,
+      userId: ctx.userId,
       action: 'material.update',
       entity: 'material',
       entityId: mat.id,
-      metadata: { name: mat.name, changes: input.data as Record<string, unknown> }
+      metadata: { name: mat.name, changes: data as Record<string, unknown> }
     });
     return updated;
   }
 
-  async deleteMaterial(input: { tenantId: string; userId: string; materialId: string }) {
+  async deleteMaterial(ctx: TenantContext, materialId: string) {
     const mat = await this.prisma.material.findFirst({
-      where: { id: input.materialId },
+      where: { id: materialId },
       include: { category: true }
     });
     if (!mat) throw new NotFoundException('Material not found');
-    // Built-in materials (tenantId=null) cannot be deleted by tenants
-    if (!mat.tenantId) throw AppError.forbidden('内置物料不可删除');
-    if (mat.tenantId !== input.tenantId) throw new NotFoundException('Material not found');
-    await this.prisma.material.delete({ where: { id: input.materialId } });
+    if (!ctx.isPlatformAdmin) {
+      if (!mat.tenantId) throw AppError.forbidden('内置物料不可删除');
+      if (mat.tenantId !== ctx.tenantId) throw new NotFoundException('Material not found');
+    }
+    await this.prisma.material.delete({ where: { id: materialId } });
     await this.audit.record({
-      tenantId: input.tenantId,
-      userId: input.userId,
+      tenantId: ctx.tenantId as string,
+      userId: ctx.userId,
       action: 'material.delete',
       entity: 'material',
       entityId: mat.id,

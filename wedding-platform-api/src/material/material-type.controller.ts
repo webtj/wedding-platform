@@ -4,7 +4,7 @@ import { PermissionsGuard } from '../common/auth/permissions.guard';
 import { RequirePermissions } from '../common/auth/permissions.decorator';
 import { PERMISSIONS } from '@wedding/shared';
 import type { AuthContext } from '../common/auth/auth-context';
-import { requireTenant, getTenantContext } from '../common/tenant-context';
+import { getTenantContext } from '../common/tenant-context';
 import { createMaterialTypeSchema, updateMaterialTypeSchema } from './dto';
 import { MaterialTypeService } from './material-type.service';
 
@@ -23,7 +23,7 @@ export class MaterialTypeController {
   ) {
     const ctx = getTenantContext(request.auth);
     return this.materialTypeService.list(
-      ctx.tenantId,
+      ctx,
       search,
       page ? parseInt(page, 10) : 1,
       pageSize ? parseInt(pageSize, 10) : 20
@@ -39,8 +39,8 @@ export class MaterialTypeController {
   @RequirePermissions(PERMISSIONS.MATERIAL_TYPE_MANAGE)
   @Post()
   create(@Req() request: { auth?: AuthContext }, @Body() body: unknown) {
-    const tenant = requireTenant(request.auth);
-    return this.materialTypeService.create(tenant.tenantId, createMaterialTypeSchema.parse(body));
+    const ctx = getTenantContext(request.auth);
+    return this.materialTypeService.create(ctx, createMaterialTypeSchema.parse(body));
   }
 
   @RequirePermissions(PERMISSIONS.MATERIAL_TYPE_MANAGE)
@@ -50,14 +50,14 @@ export class MaterialTypeController {
     @Param('id') id: string,
     @Body() body: unknown
   ) {
-    const tenant = requireTenant(request.auth);
-    return this.materialTypeService.update(id, tenant.tenantId, updateMaterialTypeSchema.parse(body));
+    const ctx = getTenantContext(request.auth);
+    return this.materialTypeService.update(id, ctx, updateMaterialTypeSchema.parse(body));
   }
 
   @RequirePermissions(PERMISSIONS.MATERIAL_TYPE_MANAGE)
   @Delete(':id')
   delete(@Req() request: { auth?: AuthContext }, @Param('id') id: string) {
-    const tenant = requireTenant(request.auth);
-    return this.materialTypeService.delete(id, tenant.tenantId);
+    const ctx = getTenantContext(request.auth);
+    return this.materialTypeService.delete(id, ctx);
   }
 }

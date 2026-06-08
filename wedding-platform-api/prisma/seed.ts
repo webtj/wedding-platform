@@ -409,14 +409,13 @@ async function main() {
   for (const mt of materialTypeData) {
     await prisma.materialType.upsert({
       where: { tenantId_code: { tenantId: null, code: mt.code } },
-      update: { name: mt.name, icon: mt.icon, defaultSize: mt.defaultSize, isSystem: true },
+      update: { name: mt.name, icon: mt.icon, defaultSize: mt.defaultSize },
       create: {
         tenantId: null,
         name: mt.name,
         code: mt.code,
         icon: mt.icon,
-        defaultSize: mt.defaultSize,
-        isSystem: true
+        defaultSize: mt.defaultSize
       }
     });
   }
@@ -434,16 +433,16 @@ async function main() {
   };
 
   for (const [catName, items] of Object.entries(demoMaterials)) {
-    const existing = await prisma.materialCategory.findFirst({ where: { tenantId: defaultTenant.id, name: catName } });
+    const existing = await prisma.materialCategory.findFirst({ where: { tenantId: null, name: catName } });
     if (!existing) {
       const cat = await prisma.materialCategory.create({
-        data: { tenantId: defaultTenant.id, name: catName, sortOrder: Object.keys(demoMaterials).indexOf(catName) }
+        data: { tenantId: null, name: catName, sortOrder: Object.keys(demoMaterials).indexOf(catName) }
       });
       for (let i = 0; i < items.length; i++) {
         await prisma.material.create({
           data: {
             categoryId: cat.id,
-            tenantId: defaultTenant.id,
+            tenantId: null,
             name: items[i],
             status: i % 5 === 0 ? 'missing' : 'available',
             quantity: Math.floor(Math.random() * 20) + 1,
