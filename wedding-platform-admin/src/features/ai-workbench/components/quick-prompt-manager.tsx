@@ -362,35 +362,18 @@ export function QuickPromptManager() {
         ))}
       </div>
 
-      {/* Toolbar */}
-      <div className='flex items-center gap-3'>
-        <div className='relative flex-1 max-w-xs'>
-          <Icons.search className='absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
-          <Input
-            placeholder='搜索分类或推荐词...'
-            className='pl-9 h-8'
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            aria-label='搜索分类或推荐词'
-          />
-        </div>
-        <div className='flex-1' />
-        <p className='text-muted-foreground text-sm'>
-          {filteredCategories.length} 个分类，{totalPrompts} 条推荐词
-        </p>
-        <Button size='sm' onClick={() => setAddCatOpen(true)}>
-          <Icons.add className='mr-1.5 h-3.5 w-3.5' />
-          添加分类
-        </Button>
-      </div>
-
       {/* Two Column Layout */}
       <div className='flex gap-4 min-h-[500px]'>
         {/* Left: Category List */}
         <div className='w-56 flex-shrink-0'>
           <div className='rounded-lg border bg-card'>
-            <div className='p-2 border-b'>
-              <h3 className='text-sm font-medium text-muted-foreground px-1'>分类列表</h3>
+            <div className='p-2 border-b flex items-center justify-between'>
+              <h3 className='text-sm font-medium text-muted-foreground px-1'>
+                分类列表({filteredCategories.length})
+              </h3>
+              <Button size='icon' variant='ghost' className='h-6 w-6' onClick={() => setAddCatOpen(true)}>
+                <Icons.add className='h-4 w-4' />
+              </Button>
             </div>
             <div className='h-[460px] overflow-y-auto'>
               <div className='p-2 space-y-1'>
@@ -425,35 +408,47 @@ export function QuickPromptManager() {
         {/* Right: Prompts Grid */}
         <div className='flex-1'>
           <div className='rounded-lg border bg-card h-full'>
-            <div className='p-3 border-b flex items-center justify-between'>
-              <div className='flex items-center gap-2'>
-                <h3 className='text-sm font-medium'>
-                  {selectedCategory ? selectedCategory.name : '选择一个分类'}
-                </h3>
-                {selectedCategory && isBuiltIn(selectedCategory) && (
-                  <Badge variant='secondary' className='text-[10px] px-1.5 py-0'>
-                    内置
-                  </Badge>
-                )}
-                {selectedCategory && (
-                  <span className='text-xs text-muted-foreground'>
-                    {filteredPrompts.length} 条推荐词
-                  </span>
+            <div className='p-3 border-b space-y-2'>
+              <div className='flex items-center justify-between'>
+                <div className='flex items-center gap-2'>
+                  <h3 className='text-sm font-medium'>
+                    {selectedCategory ? selectedCategory.name : '选择一个分类'}
+                  </h3>
+                  {selectedCategory && isBuiltIn(selectedCategory) && (
+                    <Badge variant='secondary' className='text-[10px] px-1.5 py-0'>
+                      内置
+                    </Badge>
+                  )}
+                  {selectedCategory && (
+                    <span className='text-xs text-muted-foreground'>
+                      {filteredPrompts.length} 条推荐词
+                    </span>
+                  )}
+                </div>
+                {selectedCategory && (isPlatformAdmin || !isBuiltIn(selectedCategory)) && (
+                  <Button
+                    size='sm'
+                    onClick={() => {
+                      setPromptName('');
+                      setPromptText('');
+                      setAddPromptOpen(true);
+                    }}
+                  >
+                    <Icons.add className='mr-1.5 h-3.5 w-3.5' />
+                    添加推荐词
+                  </Button>
                 )}
               </div>
-              {selectedCategory && (isPlatformAdmin || !isBuiltIn(selectedCategory)) && (
-                <Button
-                  size='sm'
-                  onClick={() => {
-                    setPromptName('');
-                    setPromptText('');
-                    setAddPromptOpen(true);
-                  }}
-                >
-                  <Icons.add className='mr-1.5 h-3.5 w-3.5' />
-                  添加推荐词
-                </Button>
-              )}
+              <div className='relative'>
+                <Icons.search className='absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
+                <Input
+                  placeholder='搜索分类或推荐词...'
+                  className='pl-9 h-8'
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  aria-label='搜索分类或推荐词'
+                />
+              </div>
             </div>
             <div className='h-[420px] overflow-y-auto'>
               <div className='p-3'>
