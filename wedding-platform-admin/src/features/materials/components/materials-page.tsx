@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Icons } from '@/components/icons';
@@ -11,7 +12,6 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog';
-import { useSuspenseQuery } from '@tanstack/react-query';
 import { useMutationToast } from '@/lib/use-mutation-toast';
 import { apiClient } from '@/lib/api-client';
 import { getQueryClient } from '@/lib/query-client';
@@ -42,7 +42,7 @@ function useDebounced<T>(value: T, ms = 300): T {
 }
 
 export function MaterialsPage() {
-  const { data: categories } = useSuspenseQuery(categoriesQueryOptions());
+  const { data: categories, isLoading } = useQuery(categoriesQueryOptions());
   const [allExpanded, setAllExpanded] = useLocalStorageState<boolean>('materials:allExpanded', false);
   const [search, setSearch] = useState('');
   const [missingOnly, setMissingOnly] = useState(false);
@@ -88,6 +88,25 @@ export function MaterialsPage() {
     }
   }
 
+  if (isLoading || !categories) {
+    return (
+      <div className='space-y-3'>
+        <div className='flex items-center gap-3'>
+          <div className='h-8 w-20 animate-pulse rounded bg-muted' />
+          <div className='h-8 flex-1 max-w-xs animate-pulse rounded bg-muted' />
+          <div className='h-8 w-24 animate-pulse rounded bg-muted' />
+          <div className='flex-1' />
+          <div className='h-8 w-24 animate-pulse rounded bg-muted' />
+        </div>
+        <div className='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2'>
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className='h-24 animate-pulse rounded-lg border bg-muted/50' />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className='space-y-3'>
       <div className='flex items-center gap-3'>
@@ -119,14 +138,14 @@ export function MaterialsPage() {
           {missingOnly ? '显示全部' : '只看缺失'}
         </Button>
         <div className='flex-1' />
-        {categories.length === 0 && <TemplateImportButton />}
+        {categories?.length === 0 && <TemplateImportButton />}
         <Button size='sm' onClick={() => setCreateCatOpen(true)}>
           <Icons.add className='mr-1.5 h-3.5 w-3.5' />
           添加分类
         </Button>
       </div>
 
-      {categories.map((cat) => (
+      {categories?.map((cat) => (
         <CategoryCard
           key={cat.id}
           category={cat}
@@ -140,7 +159,7 @@ export function MaterialsPage() {
         />
       ))}
 
-      {categories.length === 0 && (
+      {categories?.length === 0 && (
         <div className='py-16 text-center border-2 border-dashed rounded-xl'>
           <p className='text-sm text-muted-foreground mb-2'>暂无物料分类</p>
           <p className='text-xs text-muted-foreground mb-4 max-w-md mx-auto'>
