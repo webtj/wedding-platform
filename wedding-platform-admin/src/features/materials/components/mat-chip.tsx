@@ -14,10 +14,12 @@ import { isBuiltIn } from '../api/types';
 export function MatChip({
   material,
   categoryId,
+  isPlatformAdmin,
   onEdit
 }: {
   material: Material;
   categoryId: string;
+  isPlatformAdmin: boolean;
   onEdit: () => void;
 }) {
   const [popoverOpen, setPopoverOpen] = useState(false);
@@ -31,7 +33,7 @@ export function MatChip({
 
   function handleToggle(e: React.MouseEvent | React.KeyboardEvent) {
     e.stopPropagation();
-    if (isPending || builtIn) return;
+    if (isPending || (builtIn && !isPlatformAdmin)) return;
     toggle.mutate({ id: material.id, categoryId, nextStatus });
   }
 
@@ -101,7 +103,7 @@ export function MatChip({
             {material.quantity}
           </Badge>
         )}
-        {!builtIn && (
+        {(!builtIn || isPlatformAdmin) && (
           <div className='hidden group-hover:flex items-center gap-0.5 flex-shrink-0'>
             <Button
               variant='ghost'
@@ -161,7 +163,7 @@ export function MatChip({
             <p className='text-xs text-muted-foreground pt-1 border-t'>{material.note}</p>
           )}
         </div>
-        {!builtIn && (
+        {(!builtIn || isPlatformAdmin) && (
           <div className='flex gap-1 pt-1 border-t'>
             <Button
               variant='outline'
@@ -185,7 +187,7 @@ export function MatChip({
             </Button>
           </div>
         )}
-        {builtIn && (
+        {builtIn && !isPlatformAdmin && (
           <p className='text-xs text-muted-foreground pt-1 border-t'>
             内置物料，不可编辑
           </p>

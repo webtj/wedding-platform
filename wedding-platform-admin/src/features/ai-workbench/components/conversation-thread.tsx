@@ -7,12 +7,10 @@ interface ConversationThreadProps {
   messages: ChatMessage[];
   scrollRef: React.RefObject<HTMLDivElement | null>;
   onPreview: (url: string) => void;
-  onRefine: (generation: AiGeneration | undefined, feedback: string) => void;
   onRegenerate: () => void;
   onDownloadAll: (generation: AiGeneration) => void;
   onDownloadOne: (generation: AiGeneration, index: number) => void;
   onBookmark: (generation: AiGeneration) => void;
-  onGenerateSeries: (generation: AiGeneration, instruction: string) => void;
   onImageSelect?: (generationId: string, imageId: string) => void;
   onImageBookmark?: (generationId: string, imageId: string, isBookmarked: boolean) => void;
 }
@@ -21,12 +19,10 @@ export function ConversationThread({
   messages,
   scrollRef,
   onPreview,
-  onRefine,
   onRegenerate,
   onDownloadAll,
   onDownloadOne,
   onBookmark,
-  onGenerateSeries,
   onImageSelect,
   onImageBookmark
 }: ConversationThreadProps) {
@@ -42,12 +38,10 @@ export function ConversationThread({
               key={message.id}
               message={message}
               onPreview={onPreview}
-              onRefine={(feedback) => onRefine(message.generation, feedback)}
               onRegenerate={onRegenerate}
               onDownloadAll={onDownloadAll}
               onDownloadOne={onDownloadOne}
               onBookmark={onBookmark}
-              onGenerateSeries={onGenerateSeries}
               onImageSelect={onImageSelect}
               onImageBookmark={onImageBookmark}
             />

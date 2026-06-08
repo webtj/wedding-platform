@@ -73,10 +73,3 @@ export const STYLE_PREVIEWS: Record<string, { preview: string; hint: string }> =
 };
 
 export const COUNT_OPTIONS = [1, 2, 4, 6];
-
-export const REFINE_SUGGESTIONS = [
-  '更像高端婚礼样张',
-  '换成窗台白玫瑰',
-  '保留中心留白',
-  '生成同系列桌卡'
-];

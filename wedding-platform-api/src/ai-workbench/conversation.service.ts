@@ -70,6 +70,17 @@ export class ConversationService {
     });
   }
 
+  async delete(tenantId: string, id: string) {
+    await this.findById(tenantId, id);
+    await this.prisma.aiGeneration.deleteMany({
+      where: { conversationId: id, tenantId },
+    });
+    await this.prisma.aiConversation.delete({
+      where: { id },
+    });
+    return { success: true };
+  }
+
   async updateCurrentGeneration(conversationId: string, tenantId: string, generationId: string) {
     return this.prisma.aiConversation.update({
       where: { id: conversationId },

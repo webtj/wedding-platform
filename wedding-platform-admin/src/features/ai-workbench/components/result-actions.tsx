@@ -10,15 +10,13 @@ interface ResultActionsProps {
   onDownloadAll: (gen: AiGeneration) => void;
   onDownloadOne: (gen: AiGeneration, index: number) => void;
   onBookmark: (gen: AiGeneration) => void;
-  onGenerateSeries: (gen: AiGeneration, instruction: string) => void;
 }
 
 export function ResultActions({
   generation,
   onDownloadAll,
   onDownloadOne,
-  onBookmark,
-  onGenerateSeries
+  onBookmark
 }: ResultActionsProps) {
   const urls = generation.resultImageUrls ?? [];
   return (
@@ -64,16 +62,6 @@ export function ResultActions({
           评价
         </Button>
       </FeedbackDialog>
-      <button
-        type='button'
-        onClick={() =>
-          onGenerateSeries(generation, '生成同系列桌卡，保留当前风格、花材和留白')
-        }
-        className='bg-card hover:border-primary hover:text-primary inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors'
-      >
-        <Icons.check className='text-primary size-3' />
-        生成同系列桌卡
-      </button>
     </div>
   );
 }

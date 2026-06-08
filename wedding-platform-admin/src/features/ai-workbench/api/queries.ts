@@ -205,6 +205,10 @@ export async function addConversationMessage(
   });
 }
 
+export async function deleteConversation(id: string): Promise<void> {
+  await apiClient(`/ai/conversations/${id}`, { method: 'DELETE' });
+}
+
 export async function uploadReferenceAsset(data: FormData): Promise<AiReferenceAsset> {
   return apiClient<AiReferenceAsset>('/ai/reference-assets', {
     method: 'POST',

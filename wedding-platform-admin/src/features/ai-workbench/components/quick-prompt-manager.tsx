@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -17,7 +16,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Icons } from '@/components/icons';
 import { cn } from '@/lib/utils';
 import { useAuthContext } from '@/lib/auth/auth-context';
@@ -36,11 +34,10 @@ import type { QuickPromptCategory, QuickPrompt, PromptCategoryType } from '../ap
 
 const QUERY_KEY = ['quick-prompts'];
 
-const FILTER_TABS: { value: string; label: string }[] = [
-  { value: 'image_design', label: '生图灵感' },
-  { value: 'copywriting', label: '文案灵感' },
-  { value: '', label: '全部' }
-];
+const TYPE_LABELS: Record<string, string> = {
+  image_design: '生图灵感',
+  copywriting: '文案灵感'
+};
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -57,168 +54,75 @@ function useDebounced<T>(value: T, ms = 300): T {
   return debounced;
 }
 
-// ── Category Card ────────────────────────────────────────────────────────
+// ── Category List Item ───────────────────────────────────────────────────
 
-function CategoryCard({
+function CategoryItem({
   category,
-  forceExpand,
-  search,
+  isActive,
   isPlatformAdmin,
+  onSelect,
   onEdit,
-  onDeleteRequest,
-  onAddPrompt,
-  onEditPrompt,
-  onDeletePrompt
+  onDelete
 }: {
   category: QuickPromptCategory;
-  forceExpand: boolean;
-  search: string;
+  isActive: boolean;
   isPlatformAdmin: boolean;
-  onEdit: () => void;
-  onDeleteRequest: () => void;
-  onAddPrompt: () => void;
-  onEditPrompt: (p: QuickPrompt) => void;
-  onDeletePrompt: (p: QuickPrompt) => void;
+  onSelect: () => void;
+  onEdit: (e: React.MouseEvent) => void;
+  onDelete: (e: React.MouseEvent) => void;
 }) {
-  const [open, setOpen] = useState(true);
-  const prevForceRef = useRef(forceExpand);
-
-  useEffect(() => {
-    if (forceExpand !== prevForceRef.current) {
-      setOpen(forceExpand);
-      prevForceRef.current = forceExpand;
-    }
-  }, [forceExpand]);
-
-  const expanded = open;
   const builtIn = isBuiltIn(category);
-  const all = category.prompts ?? [];
-  const searchLower = search.toLowerCase();
-  const categoryMatches = search && category.name.toLowerCase().includes(searchLower);
-  let prompts = all;
-  if (search) {
-    prompts = categoryMatches
-      ? all
-      : all.filter((p) => p.name.toLowerCase().includes(searchLower) || p.prompt.toLowerCase().includes(searchLower));
-  }
-
-  if (search && !categoryMatches && prompts.length === 0) return null;
-
-  function handleHeaderKey(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      setOpen(!open);
-    }
-  }
+  const promptCount = category.prompts?.length ?? 0;
 
   return (
-    <Card className='py-3 gap-3'>
-      <CardHeader className='pb-0'>
-        <div
-          className='flex items-center gap-3 cursor-pointer select-none'
-          onClick={() => setOpen(!open)}
-          onKeyDown={handleHeaderKey}
-          role='button'
-          tabIndex={0}
-          aria-expanded={expanded}
-        >
-          <Icons.chevronRight
-            className={cn(
-              'h-4 w-4 text-muted-foreground transition-transform duration-200 flex-shrink-0',
-              expanded && 'rotate-90'
-            )}
-          />
-          <div className='flex-1 min-w-0'>
-            <div className='flex items-center gap-2 flex-wrap'>
-              <span className='font-semibold text-sm truncate'>{category.name}</span>
-              {builtIn && (
-                <Badge variant='secondary' className='text-[10px] px-1.5 py-0'>
-                  内置
-                </Badge>
-              )}
-              <span className='text-xs text-muted-foreground whitespace-nowrap'>
-                {prompts.length} 条
-              </span>
-            </div>
-          </div>
-          <div className='flex items-center gap-0.5 flex-shrink-0'>
-            {(!builtIn || isPlatformAdmin) && (
-              <Button
-                variant='ghost'
-                size='sm'
-                className='h-7 text-xs'
-                title='添加推荐词'
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAddPrompt();
-                }}
-              >
-                <Icons.add className='h-3 w-3' />
-              </Button>
-            )}
-            {(!builtIn || isPlatformAdmin) && (
-              <Button
-                variant='ghost'
-                size='sm'
-                className='h-7 text-xs'
-                title='编辑分类'
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEdit();
-                }}
-              >
-                <Icons.edit className='h-3 w-3' />
-              </Button>
-            )}
-            {(!builtIn || isPlatformAdmin) && (
-              <Button
-                variant='ghost'
-                size='sm'
-                className='h-7 text-xs text-destructive'
-                title='删除分类'
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDeleteRequest();
-                }}
-              >
-                <Icons.trash className='h-3 w-3' />
-              </Button>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-      {expanded && (
-        <CardContent>
-          <div className='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2'>
-            {prompts.map((p) => (
-              <PromptChip
-                key={p.id}
-                prompt={p}
-                isPlatformAdmin={isPlatformAdmin}
-                onEdit={() => onEditPrompt(p)}
-                onDelete={() => onDeletePrompt(p)}
-              />
-            ))}
-            {prompts.length === 0 && !search && (
-              <p className='text-xs text-muted-foreground py-8 text-center col-span-full'>
-                暂无推荐词
-              </p>
-            )}
-            {prompts.length === 0 && search && (
-              <p className='text-xs text-muted-foreground py-8 text-center col-span-full'>
-                未找到匹配的推荐词
-              </p>
-            )}
-          </div>
-        </CardContent>
+    <div
+      className={cn(
+        'group flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-all',
+        isActive
+          ? 'bg-primary/10 text-primary border border-primary/20'
+          : 'hover:bg-muted/50 border border-transparent'
       )}
-    </Card>
+      onClick={onSelect}
+    >
+      <Icons.workspace className={cn('h-4 w-4 flex-shrink-0', isActive ? 'text-primary' : 'text-muted-foreground')} />
+      <div className='flex-1 min-w-0'>
+        <div className='flex items-center gap-1.5'>
+          <span className='text-sm font-medium truncate'>{category.name}</span>
+          {builtIn && (
+            <Badge variant='secondary' className='text-[10px] px-1 py-0'>
+              内置
+            </Badge>
+          )}
+        </div>
+      </div>
+      <span className='text-xs text-muted-foreground'>{promptCount}</span>
+      {(!builtIn || isPlatformAdmin) && (
+        <div className='hidden group-hover:flex items-center gap-0.5'>
+          <Button
+            variant='ghost'
+            size='icon'
+            className='h-6 w-6'
+            onClick={onEdit}
+          >
+            <Icons.edit className='h-3 w-3' />
+          </Button>
+          <Button
+            variant='ghost'
+            size='icon'
+            className='h-6 w-6 text-destructive'
+            onClick={onDelete}
+          >
+            <Icons.trash className='h-3 w-3' />
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
 
-// ── Prompt Chip ──────────────────────────────────────────────────────────
+// ── Prompt Card ──────────────────────────────────────────────────────────
 
-function PromptChip({
+function PromptCard({
   prompt,
   isPlatformAdmin,
   onEdit,
@@ -232,50 +136,40 @@ function PromptChip({
   const builtIn = isBuiltIn(prompt);
 
   return (
-    <div className='group flex items-center gap-2 px-3 py-2 rounded-lg border bg-card text-sm transition-all hover:shadow-sm hover:border-primary/40'>
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className='flex-1 truncate text-xs cursor-default'>{prompt.name}</span>
-          </TooltipTrigger>
-          <TooltipContent side='top' className='max-w-xs'>
-            <p className='text-xs'>{prompt.prompt}</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-      {builtIn && (
-        <Badge variant='secondary' className='text-[9px] px-1 py-0 flex-shrink-0'>
-          内置
-        </Badge>
-      )}
-      {(!builtIn || isPlatformAdmin) && (
-        <div className='flex items-center gap-0.5 flex-shrink-0'>
-          <Button
-            variant='ghost'
-            size='icon'
-            className='size-6'
-            title='编辑'
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit();
-            }}
-          >
-            <Icons.edit className='size-3' />
-          </Button>
-          <Button
-            variant='ghost'
-            size='icon'
-            className='size-6 text-destructive'
-            title='删除'
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-          >
-            <Icons.trash className='size-3' />
-          </Button>
+    <div className='group relative flex flex-col p-4 rounded-lg border bg-card transition-all hover:shadow-sm hover:border-primary/30'>
+      <div className='flex items-start justify-between gap-2 mb-2'>
+        <div className='flex items-center gap-2 min-w-0'>
+          <h4 className='text-sm font-medium truncate'>{prompt.name}</h4>
+          {builtIn && (
+            <Badge variant='secondary' className='text-[10px] px-1.5 py-0 flex-shrink-0'>
+              内置
+            </Badge>
+          )}
         </div>
-      )}
+        {(!builtIn || isPlatformAdmin) && (
+          <div className='flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0'>
+            <Button
+              variant='ghost'
+              size='icon'
+              className='h-7 w-7'
+              onClick={onEdit}
+            >
+              <Icons.edit className='h-3.5 w-3.5' />
+            </Button>
+            <Button
+              variant='ghost'
+              size='icon'
+              className='h-7 w-7 text-destructive'
+              onClick={onDelete}
+            >
+              <Icons.trash className='h-3.5 w-3.5' />
+            </Button>
+          </div>
+        )}
+      </div>
+      <p className='text-sm text-muted-foreground leading-relaxed line-clamp-4'>
+        {prompt.prompt}
+      </p>
     </div>
   );
 }
@@ -287,8 +181,7 @@ export function QuickPromptManager() {
   const queryClient = useQueryClient();
   const [activeType, setActiveType] = useState<string>('image_design');
   const [search, setSearch] = useState('');
-  const [allExpanded, setAllExpanded] = useState(false);
-  const debouncedSearch = useDebounced(search, 300);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
 
   const { data: categories, isLoading } = useQuery({
     queryKey: [...QUERY_KEY, activeType],
@@ -298,7 +191,7 @@ export function QuickPromptManager() {
   const [addCatOpen, setAddCatOpen] = useState(false);
   const [editCat, setEditCat] = useState<QuickPromptCategory | null>(null);
   const [deleteCatId, setDeleteCatId] = useState<string | null>(null);
-  const [addPromptCatId, setAddPromptCatId] = useState<string | null>(null);
+  const [addPromptOpen, setAddPromptOpen] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<QuickPrompt | null>(null);
   const [deletingPrompt, setDeletingPrompt] = useState<QuickPrompt | null>(null);
 
@@ -308,22 +201,40 @@ export function QuickPromptManager() {
 
   const filteredCategories = useMemo(() => {
     if (!categories) return [];
-    const keyword = debouncedSearch.trim().toLowerCase();
+    const keyword = search.trim().toLowerCase();
     if (!keyword) return categories;
-    return categories
-      .map((cat) => ({
-        ...cat,
-        prompts: cat.prompts.filter(
+    return categories.filter(
+      (cat) =>
+        cat.name.toLowerCase().includes(keyword) ||
+        cat.prompts.some(
           (p) =>
             p.name.toLowerCase().includes(keyword) ||
             p.prompt.toLowerCase().includes(keyword)
         )
-      }))
-      .filter((cat) => cat.name.toLowerCase().includes(keyword) || cat.prompts.length > 0);
-  }, [categories, debouncedSearch]);
+    );
+  }, [categories, search]);
+
+  const selectedCategory = useMemo(() => {
+    if (!filteredCategories.length) return null;
+    if (selectedCategoryId) {
+      return filteredCategories.find((c) => c.id === selectedCategoryId) ?? null;
+    }
+    return filteredCategories[0] ?? null;
+  }, [filteredCategories, selectedCategoryId]);
+
+  const filteredPrompts = useMemo(() => {
+    if (!selectedCategory) return [];
+    const keyword = search.trim().toLowerCase();
+    if (!keyword) return selectedCategory.prompts ?? [];
+    return (selectedCategory.prompts ?? []).filter(
+      (p) =>
+        p.name.toLowerCase().includes(keyword) ||
+        p.prompt.toLowerCase().includes(keyword)
+    );
+  }, [selectedCategory, search]);
 
   const totalPrompts = useMemo(
-    () => filteredCategories.reduce((sum, c) => sum + c.prompts.length, 0),
+    () => filteredCategories.reduce((sum, c) => sum + (c.prompts?.length ?? 0), 0),
     [filteredCategories]
   );
 
@@ -362,6 +273,9 @@ export function QuickPromptManager() {
     try {
       await deleteQuickPromptCategory(deleteCatId);
       toast.success('分类已删除');
+      if (selectedCategoryId === deleteCatId) {
+        setSelectedCategoryId(null);
+      }
       setDeleteCatId(null);
       refresh();
     } catch (e: any) {
@@ -370,15 +284,15 @@ export function QuickPromptManager() {
   }
 
   async function handleAddPrompt() {
-    if (!addPromptCatId || !promptName.trim()) return;
+    if (!selectedCategory || !promptName.trim()) return;
     try {
       await createQuickPrompt({
-        categoryId: addPromptCatId,
+        categoryId: selectedCategory.id,
         name: promptName.trim(),
         prompt: promptText.trim() || promptName.trim()
       });
       toast.success('推荐词已添加');
-      setAddPromptCatId(null);
+      setAddPromptOpen(false);
       setPromptName('');
       setPromptText('');
       refresh();
@@ -428,33 +342,28 @@ export function QuickPromptManager() {
     <div className='space-y-3'>
       {/* Type Filter Tabs */}
       <div className='flex flex-wrap items-center gap-2'>
-        {FILTER_TABS.map((tab) => (
+        {Object.entries(TYPE_LABELS).map(([value, label]) => (
           <button
-            key={tab.value}
+            key={value}
             type='button'
-            onClick={() => setActiveType(tab.value)}
+            onClick={() => {
+              setActiveType(value);
+              setSelectedCategoryId(null);
+            }}
             className={cn(
               'inline-flex h-8 items-center rounded-full px-3 text-sm transition-colors',
-              activeType === tab.value
+              activeType === value
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground hover:text-foreground'
             )}
           >
-            {tab.label}
+            {label}
           </button>
         ))}
       </div>
 
       {/* Toolbar */}
       <div className='flex items-center gap-3'>
-        <Button size='sm' variant='outline' onClick={() => setAllExpanded(!allExpanded)}>
-          {allExpanded ? (
-            <Icons.chevronsUp className='mr-1 h-3.5 w-3.5' />
-          ) : (
-            <Icons.chevronsDown className='mr-1 h-3.5 w-3.5' />
-          )}
-          {allExpanded ? '全部折叠' : '全部展开'}
-        </Button>
         <div className='relative flex-1 max-w-xs'>
           <Icons.search className='absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground' />
           <Input
@@ -475,43 +384,114 @@ export function QuickPromptManager() {
         </Button>
       </div>
 
-      {/* Category Cards */}
-      {filteredCategories.map((cat) => (
-        <CategoryCard
-          key={cat.id}
-          category={cat}
-          forceExpand={allExpanded}
-          search={debouncedSearch}
-          isPlatformAdmin={isPlatformAdmin}
-          onEdit={() => {
-            setCatName(cat.name);
-            setEditCat(cat);
-          }}
-          onDeleteRequest={() => setDeleteCatId(cat.id)}
-          onAddPrompt={() => {
-            setPromptName('');
-            setPromptText('');
-            setAddPromptCatId(cat.id);
-          }}
-          onEditPrompt={(p) => {
-            setPromptName(p.name);
-            setPromptText(p.prompt);
-            setEditingPrompt(p);
-          }}
-          onDeletePrompt={setDeletingPrompt}
-        />
-      ))}
-
-      {filteredCategories.length === 0 && (
-        <div className='py-16 text-center border-2 border-dashed rounded-xl'>
-          <p className='text-sm text-muted-foreground mb-2'>
-            {search.trim() ? '没有找到匹配的推荐词' : '暂无推荐词分类'}
-          </p>
-          <p className='text-xs text-muted-foreground mb-4'>
-            {search.trim() ? '尝试其他关键词' : '点击上方"添加分类"开始创建'}
-          </p>
+      {/* Two Column Layout */}
+      <div className='flex gap-4 min-h-[500px]'>
+        {/* Left: Category List */}
+        <div className='w-56 flex-shrink-0'>
+          <div className='rounded-lg border bg-card'>
+            <div className='p-2 border-b'>
+              <h3 className='text-sm font-medium text-muted-foreground px-1'>分类列表</h3>
+            </div>
+            <div className='h-[460px] overflow-y-auto'>
+              <div className='p-2 space-y-1'>
+                {filteredCategories.map((cat) => (
+                  <CategoryItem
+                    key={cat.id}
+                    category={cat}
+                    isActive={selectedCategory?.id === cat.id}
+                    isPlatformAdmin={isPlatformAdmin}
+                    onSelect={() => setSelectedCategoryId(cat.id)}
+                    onEdit={(e) => {
+                      e.stopPropagation();
+                      setCatName(cat.name);
+                      setEditCat(cat);
+                    }}
+                    onDelete={(e) => {
+                      e.stopPropagation();
+                      setDeleteCatId(cat.id);
+                    }}
+                  />
+                ))}
+                {filteredCategories.length === 0 && (
+                  <p className='text-xs text-muted-foreground text-center py-8'>
+                    {search ? '无匹配分类' : '暂无分类'}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
-      )}
+
+        {/* Right: Prompts Grid */}
+        <div className='flex-1'>
+          <div className='rounded-lg border bg-card h-full'>
+            <div className='p-3 border-b flex items-center justify-between'>
+              <div className='flex items-center gap-2'>
+                <h3 className='text-sm font-medium'>
+                  {selectedCategory ? selectedCategory.name : '选择一个分类'}
+                </h3>
+                {selectedCategory && isBuiltIn(selectedCategory) && (
+                  <Badge variant='secondary' className='text-[10px] px-1.5 py-0'>
+                    内置
+                  </Badge>
+                )}
+                {selectedCategory && (
+                  <span className='text-xs text-muted-foreground'>
+                    {filteredPrompts.length} 条推荐词
+                  </span>
+                )}
+              </div>
+              {selectedCategory && (isPlatformAdmin || !isBuiltIn(selectedCategory)) && (
+                <Button
+                  size='sm'
+                  onClick={() => {
+                    setPromptName('');
+                    setPromptText('');
+                    setAddPromptOpen(true);
+                  }}
+                >
+                  <Icons.add className='mr-1.5 h-3.5 w-3.5' />
+                  添加推荐词
+                </Button>
+              )}
+            </div>
+            <div className='h-[420px] overflow-y-auto'>
+              <div className='p-3'>
+                {selectedCategory ? (
+                  filteredPrompts.length > 0 ? (
+                    <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
+                      {filteredPrompts.map((p) => (
+                        <PromptCard
+                          key={p.id}
+                          prompt={p}
+                          isPlatformAdmin={isPlatformAdmin}
+                          onEdit={() => {
+                            setPromptName(p.name);
+                            setPromptText(p.prompt);
+                            setEditingPrompt(p);
+                          }}
+                          onDelete={() => setDeletingPrompt(p)}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className='flex flex-col items-center justify-center py-16 text-muted-foreground'>
+                      <Icons.sparkles className='h-8 w-8 mb-2 opacity-50' />
+                      <p className='text-sm'>暂无推荐词</p>
+                      <p className='text-xs mt-1'>点击上方按钮添加</p>
+                    </div>
+                  )
+                ) : (
+                  <div className='flex flex-col items-center justify-center py-16 text-muted-foreground'>
+                    <Icons.sparkles className='h-8 w-8 mb-2 opacity-50' />
+                    <p className='text-sm'>请从左侧选择一个分类</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Add Category Dialog */}
       <Dialog open={addCatOpen} onOpenChange={setAddCatOpen}>
@@ -587,19 +567,11 @@ export function QuickPromptManager() {
         </DialogContent>
       </Dialog>
 
-      {/* Add/Edit Prompt Dialog */}
-      <Dialog
-        open={!!addPromptCatId || !!editingPrompt}
-        onOpenChange={(o) => {
-          if (!o) {
-            setAddPromptCatId(null);
-            setEditingPrompt(null);
-          }
-        }}
-      >
+      {/* Add Prompt Dialog */}
+      <Dialog open={addPromptOpen} onOpenChange={setAddPromptOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingPrompt ? '编辑推荐词' : '添加推荐词'}</DialogTitle>
+            <DialogTitle>添加推荐词</DialogTitle>
           </DialogHeader>
           <div className='space-y-3'>
             <div className='space-y-1.5'>
@@ -615,26 +587,53 @@ export function QuickPromptManager() {
               <Textarea
                 value={promptText}
                 onChange={(e) => setPromptText(e.target.value)}
-                rows={3}
+                rows={4}
                 placeholder='完整的推荐词/灵感文本'
               />
             </div>
           </div>
           <DialogFooter>
-            <Button
-              variant='outline'
-              onClick={() => {
-                setAddPromptCatId(null);
-                setEditingPrompt(null);
-              }}
-            >
+            <Button variant='outline' onClick={() => setAddPromptOpen(false)}>
               取消
             </Button>
-            <Button
-              onClick={editingPrompt ? handleEditPrompt : handleAddPrompt}
-              disabled={!promptName.trim()}
-            >
-              {editingPrompt ? '保存' : '添加'}
+            <Button onClick={handleAddPrompt} disabled={!promptName.trim()}>
+              添加
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Prompt Dialog */}
+      <Dialog open={!!editingPrompt} onOpenChange={(o) => { if (!o) setEditingPrompt(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>编辑推荐词</DialogTitle>
+          </DialogHeader>
+          <div className='space-y-3'>
+            <div className='space-y-1.5'>
+              <Label>名称</Label>
+              <Input
+                value={promptName}
+                onChange={(e) => setPromptName(e.target.value)}
+                placeholder='简短描述'
+              />
+            </div>
+            <div className='space-y-1.5'>
+              <Label>推荐词内容</Label>
+              <Textarea
+                value={promptText}
+                onChange={(e) => setPromptText(e.target.value)}
+                rows={4}
+                placeholder='完整的推荐词/灵感文本'
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant='outline' onClick={() => setEditingPrompt(null)}>
+              取消
+            </Button>
+            <Button onClick={handleEditPrompt} disabled={!promptName.trim()}>
+              保存
             </Button>
           </DialogFooter>
         </DialogContent>

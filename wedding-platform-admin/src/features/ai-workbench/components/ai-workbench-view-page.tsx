@@ -9,6 +9,7 @@ import {
   getMaterialTypes,
   downloadImage,
   deleteGeneration,
+  deleteConversation,
   listGenerations,
   getQuickPromptCategories,
   updateGenerationBookmark,
@@ -219,7 +220,7 @@ export default function AiWorkbenchViewPage({ projectId }: AiWorkbenchViewPagePr
     [input, isGenerating, selectedType, currentConversationId, activeMode, style, size, count, generateImages, runGeneration, projectId, queryClient, referenceAssets],
   );
 
-  const handleRefine = useCallback(
+  const _handleRefine = useCallback(
     (sourceGen: AiGeneration | undefined, feedback: string) => {
       if (isGenerating) return;
       if (!sourceGen) {
@@ -232,7 +233,7 @@ export default function AiWorkbenchViewPage({ projectId }: AiWorkbenchViewPagePr
     [isGenerating, count, refineImages, runGeneration, selectedType, handleSend],
   );
 
-  const handleGenerateSeries = useCallback(
+  const _handleGenerateSeries = useCallback(
     (sourceGen: AiGeneration, instruction: string) => {
       if (isGenerating) return;
       if (!selectedTypeId) {
@@ -315,6 +316,27 @@ export default function AiWorkbenchViewPage({ projectId }: AiWorkbenchViewPagePr
       }
     },
     [queryClient],
+  );
+
+  const handleDeleteConversation = useCallback(
+    async (id: string) => {
+      try {
+        await deleteConversation(id);
+        await queryClient.invalidateQueries({ queryKey: ['ai-workbench-conversations'] });
+        await queryClient.invalidateQueries({ queryKey: ['ai-workbench-generations'] });
+        if (currentConversationId === id) {
+          setMessages([]);
+          setInput('');
+          setCurrentConversationId(null);
+          lastRequestRef.current = null;
+          setReferenceAssets([]);
+        }
+        toast.success('对话已删除');
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : '删除失败');
+      }
+    },
+    [queryClient, currentConversationId],
   );
 
   const handleImageSelect = useCallback(
@@ -485,6 +507,7 @@ export default function AiWorkbenchViewPage({ projectId }: AiWorkbenchViewPagePr
           onLoad={loadGeneration}
           onDelete={handleDeleteGeneration}
           onNewConversation={newConversation}
+          onDeleteConversation={handleDeleteConversation}
           conversations={conversationsData ?? []}
           conversationsLoading={isConversationsLoading}
           onLoadConversation={loadConversation}
@@ -498,12 +521,10 @@ export default function AiWorkbenchViewPage({ projectId }: AiWorkbenchViewPagePr
             messages={messages}
             scrollRef={scrollRef}
             onPreview={setPreviewUrl}
-            onRefine={handleRefine}
             onRegenerate={handleRegenerate}
             onDownloadAll={handleDownloadAll}
             onDownloadOne={handleDownloadOne}
             onBookmark={handleBookmark}
-            onGenerateSeries={handleGenerateSeries}
             onImageSelect={handleImageSelect}
             onImageBookmark={handleImageBookmark}
           />

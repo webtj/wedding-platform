@@ -15,6 +15,7 @@ export function CategoryCard({
   forceExpand,
   search,
   missingOnly,
+  isPlatformAdmin,
   onEdit,
   onDeleteRequest,
   onAddMaterial,
@@ -24,6 +25,7 @@ export function CategoryCard({
   forceExpand: boolean;
   search: string;
   missingOnly: boolean;
+  isPlatformAdmin: boolean;
   onEdit: () => void;
   onDeleteRequest: () => void;
   onAddMaterial: () => void;
@@ -111,18 +113,18 @@ export function CategoryCard({
             </div>
           </div>
           <div className='flex items-center gap-0.5 flex-shrink-0'>
-            {!builtIn && <QuickAddMat catId={category.id} />}
-            {!builtIn && (
+            {(!builtIn || isPlatformAdmin) && <QuickAddMat catId={category.id} />}
+            {(!builtIn || isPlatformAdmin) && (
               <Button variant='ghost' size='sm' className='h-7 text-xs' onClick={onAddMaterial}>
                 <Icons.add className='h-3 w-3' />
               </Button>
             )}
-            {!builtIn && (
+            {(!builtIn || isPlatformAdmin) && (
               <Button variant='ghost' size='sm' className='h-7 text-xs' onClick={onEdit}>
                 <Icons.edit className='h-3 w-3' />
               </Button>
             )}
-            {!builtIn && (
+            {(!builtIn || isPlatformAdmin) && (
               <Button
                 variant='ghost'
                 size='sm'
@@ -143,6 +145,7 @@ export function CategoryCard({
                 key={m.id}
                 material={m}
                 categoryId={category.id}
+                isPlatformAdmin={isPlatformAdmin}
                 onEdit={() => onEditMaterial(m)}
               />
             ))}

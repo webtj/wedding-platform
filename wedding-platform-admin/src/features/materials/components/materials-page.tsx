@@ -30,6 +30,7 @@ import type { Material, MaterialCategory } from '../api/types';
 import { CategoryCard } from './category-card';
 import { CategoryDialog } from './category-dialog';
 import { MatDialog, type MatDialogSavePayload } from './mat-dialog';
+import { useAuthContext } from '@/lib/auth/auth-context';
 import { TemplateImportButton } from './template-import-button';
 
 function useDebounced<T>(value: T, ms = 300): T {
@@ -42,6 +43,7 @@ function useDebounced<T>(value: T, ms = 300): T {
 }
 
 export function MaterialsPage() {
+  const { isPlatformAdmin } = useAuthContext();
   const { data: categories, isLoading } = useQuery(categoriesQueryOptions());
   const [allExpanded, setAllExpanded] = useLocalStorageState<boolean>('materials:allExpanded', false);
   const [search, setSearch] = useState('');
@@ -141,6 +143,7 @@ export function MaterialsPage() {
           forceExpand={allExpanded}
           search={debouncedSearch}
           missingOnly={missingOnly}
+          isPlatformAdmin={isPlatformAdmin}
           onEdit={() => setEditCat(cat)}
           onDeleteRequest={() => setDeleteCatId(cat.id)}
           onAddMaterial={() => setAddMatCatId(cat.id)}

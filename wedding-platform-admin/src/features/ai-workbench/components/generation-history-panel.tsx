@@ -2,6 +2,16 @@
 
 import { useCallback, useState } from 'react';
 import Image from 'next/image';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Icons } from '@/components/icons';
@@ -16,6 +26,7 @@ interface GenerationHistoryPanelProps {
   onLoad: (generation: AiGeneration) => void;
   onDelete: (id: string) => void;
   onNewConversation: () => void;
+  onDeleteConversation: (id: string) => void;
   conversations?: AiConversation[];
   conversationsLoading?: boolean;
   onLoadConversation?: (conversationId: string) => void;
@@ -45,12 +56,14 @@ export function GenerationHistoryPanel({
   onLoad,
   onDelete,
   onNewConversation,
+  onDeleteConversation,
   conversations = [],
   conversationsLoading,
   onLoadConversation,
   activeConversationId
 }: GenerationHistoryPanelProps) {
   const [activeTab, setActiveTab] = useState<'conversations' | 'generations'>('conversations');
+  const [deleteTarget, setDeleteTarget] = useState<AiConversation | null>(null);
   const handleDelete = useCallback(
     (id: string) => {
       onDelete(id);
@@ -132,30 +145,39 @@ export function GenerationHistoryPanel({
             {conversations.map((convo) => {
               const isActive = convo.id === activeConversationId;
               return (
-                <button
-                  key={convo.id}
-                  type='button'
-                  onClick={() => onLoadConversation?.(convo.id)}
-                  className={cn(
-                    'w-full rounded-lg border p-3 text-left transition-colors hover:bg-accent',
-                    isActive && 'border-primary bg-accent/50'
-                  )}
-                >
-                  <div className='flex items-center gap-2'>
-                    <Icons.chat className='size-3.5 shrink-0 text-muted-foreground' />
-                    <p className='min-w-0 flex-1 truncate text-xs font-medium'>
-                      {convo.title || '新对话'}
-                    </p>
-                    {isActive && (
-                      <Badge variant='secondary' className='h-4 shrink-0 px-1 text-[9px]'>
-                        当前
-                      </Badge>
+                <div key={convo.id} className='group relative'>
+                  <button
+                    type='button'
+                    onClick={() => onLoadConversation?.(convo.id)}
+                    className={cn(
+                      'w-full rounded-lg border p-3 text-left transition-colors hover:bg-accent',
+                      isActive && 'border-primary bg-accent/50'
                     )}
-                  </div>
-                  <p className='text-muted-foreground mt-1.5 text-[11px]'>
-                    {formatDate(convo.updatedAt)}
-                  </p>
-                </button>
+                  >
+                    <div className='flex items-center gap-2'>
+                      <Icons.chat className='size-3.5 shrink-0 text-muted-foreground' />
+                      <p className='min-w-0 flex-1 truncate text-xs font-medium'>
+                        {convo.title || '新对话'}
+                      </p>
+                      {isActive && (
+                        <Badge variant='secondary' className='h-4 shrink-0 px-1 text-[9px]'>
+                          当前
+                        </Badge>
+                      )}
+                    </div>
+                    <p className='text-muted-foreground mt-1.5 text-[11px]'>
+                      {formatDate(convo.updatedAt)}
+                    </p>
+                  </button>
+                  <button
+                    type='button'
+                    onClick={() => setDeleteTarget(convo)}
+                    className='absolute right-2 top-2 hidden size-5 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-destructive group-hover:flex group-hover:opacity-100'
+                    title='删除对话'
+                  >
+                    <Icons.close className='size-3' />
+                  </button>
+                </div>
               );
             })}
           </div>
@@ -282,6 +304,30 @@ export function GenerationHistoryPanel({
           </div>
         )}
       </div>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除对话</AlertDialogTitle>
+            <AlertDialogDescription>
+              删除后，该对话及其生成的素材将不可下载。此操作不可撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteTarget) {
+                  onDeleteConversation(deleteTarget.id);
+                  setDeleteTarget(null);
+                }
+              }}
+            >
+              确认删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </aside>
   );
 }

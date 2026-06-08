@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -73,5 +74,15 @@ export class ConversationController {
       body.generationId,
       body.metadata,
     );
+  }
+
+  @RequirePermissions(PERMISSIONS.AI_GENERATION_READ)
+  @Delete(':id')
+  delete(
+    @Req() request: { auth?: AuthContext },
+    @Param('id') id: string,
+  ) {
+    const tenant = requireTenant(request.auth);
+    return this.conversationService.delete(tenant.tenantId, id);
   }
 }

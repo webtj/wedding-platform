@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Icons } from '@/components/icons';
 import { cn } from '@/lib/utils';
-import { REFINE_SUGGESTIONS } from '../constants';
+
 import { ResultActions } from './result-actions';
 import type { AiGeneration } from '../api/types';
 
@@ -76,12 +76,10 @@ function gridCols(count: number) {
 interface AiBubbleProps {
   message: AiMessage;
   onPreview: (url: string) => void;
-  onRefine: (feedback: string) => void;
   onRegenerate: () => void;
   onDownloadAll: (gen: AiGeneration) => void;
   onDownloadOne: (gen: AiGeneration, index: number) => void;
   onBookmark: (gen: AiGeneration) => void;
-  onGenerateSeries: (gen: AiGeneration, instruction: string) => void;
   onImageSelect?: (generationId: string, imageId: string) => void;
   onImageBookmark?: (generationId: string, imageId: string, isBookmarked: boolean) => void;
 }
@@ -89,12 +87,10 @@ interface AiBubbleProps {
 export function AiBubble({
   message,
   onPreview,
-  onRefine,
   onRegenerate,
   onDownloadAll,
   onDownloadOne,
   onBookmark,
-  onGenerateSeries,
   onImageSelect,
   onImageBookmark
 }: AiBubbleProps) {
@@ -261,7 +257,6 @@ export function AiBubble({
               onDownloadAll={onDownloadAll}
               onDownloadOne={onDownloadOne}
               onBookmark={onBookmark}
-              onGenerateSeries={onGenerateSeries}
             />
 
             <div className='mt-3 flex flex-wrap gap-1.5'>
@@ -274,17 +269,6 @@ export function AiBubble({
                 <Icons.spinner className='size-3.5' />
                 重新生成
               </Button>
-              {REFINE_SUGGESTIONS.map((s) => (
-                <button
-                  key={s}
-                  type='button'
-                  onClick={() => onRefine(s)}
-                  className='bg-card hover:border-primary hover:text-primary inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors'
-                >
-                  <Icons.check className='text-primary size-3' />
-                  {s}
-                </button>
-              ))}
             </div>
           </>
         )}
