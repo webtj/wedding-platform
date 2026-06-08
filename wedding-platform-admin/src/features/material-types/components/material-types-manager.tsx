@@ -85,8 +85,8 @@ function MaterialTypeCard({
             <span>{defaultSz.width}x{defaultSz.height}</span>
           </div>
         )}
-        <Badge variant='outline' className={cn('text-[10px] px-1.5 py-0 h-4', item.isSystem && 'bg-muted text-muted-foreground border-muted-foreground/20')}>
-          {item.isSystem ? '内置' : '自定义'}
+        <Badge variant='outline' className={cn('text-[10px] px-1.5 py-0 h-4', !item.tenantId && 'bg-muted text-muted-foreground border-muted-foreground/20')}>
+          {!item.tenantId ? '内置' : '自定义'}
         </Badge>
         {canEdit && (
           <div className='flex gap-0.5'>
@@ -192,13 +192,13 @@ export default function MaterialTypesManager({ mode }: { mode: ManagerMode }) {
   }, [hasMore, isFetching, allItems.length]);
 
   const stats = useMemo(() => ({
-    system: allItems.filter((m) => m.isSystem).length,
-    custom: allItems.filter((m) => !m.isSystem).length,
+    system: allItems.filter((m) => !m.tenantId).length,
+    custom: allItems.filter((m) => m.tenantId).length,
     total
   }), [allItems, total]);
 
   const canEditItem = useCallback((item: MaterialType): boolean => {
-    if (isSuper) return item.isSystem;
+    if (isSuper) return true;
     return !item.isSystem;
   }, [isSuper]);
 

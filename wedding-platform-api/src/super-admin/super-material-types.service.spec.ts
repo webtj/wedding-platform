@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { SuperMaterialTypesService } from './super-material-types.service';
 
 describe('SuperMaterialTypesService', () => {
   describe('list', () => {
-    it('queries system-only material types when tenantId=__platform__', async () => {
+    it('queries built-in types when tenantId=__platform__', async () => {
       const prisma = {
         materialType: { findMany: vi.fn().mockResolvedValue([]), count: vi.fn().mockResolvedValue(0) }
       };
@@ -12,12 +12,12 @@ describe('SuperMaterialTypesService', () => {
       await service.list('__platform__');
       expect(prisma.materialType.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ isSystem: true })
+          where: expect.objectContaining({ tenantId: null })
         })
       );
     });
 
-    it('queries tenant-only types when tenantId is a real id', async () => {
+    it('queries tenant-specific types when tenantId is a real id', async () => {
       const prisma = {
         materialType: { findMany: vi.fn().mockResolvedValue([]), count: vi.fn().mockResolvedValue(0) }
       };
@@ -25,7 +25,7 @@ describe('SuperMaterialTypesService', () => {
       await service.list('t1');
       expect(prisma.materialType.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ tenantId: 't1', isSystem: false })
+          where: expect.objectContaining({ tenantId: 't1' })
         })
       );
     });
@@ -56,7 +56,7 @@ describe('SuperMaterialTypesService', () => {
   });
 
   describe('create', () => {
-    it('inserts a system-built-in material type with tenantId=null', async () => {
+    it('inserts a built-in material type with tenantId=null', async () => {
       const prisma = { materialType: { create: vi.fn().mockResolvedValue({ id: 'mt1' }) } };
       const service = new SuperMaterialTypesService(prisma as never);
       await service.create({ name: '请柬', code: 'invite' } as never);
@@ -67,7 +67,6 @@ describe('SuperMaterialTypesService', () => {
           icon: undefined,
           defaultSize: undefined,
           sizes: undefined,
-          isSystem: true,
           tenantId: null
         }
       });
@@ -81,16 +80,22 @@ describe('SuperMaterialTypesService', () => {
       await expect(service.update('missing', { name: '新' } as never)).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('throws BadRequest when updating a non-system type', async () => {
-      const prisma = { materialType: { findUnique: vi.fn().mockResolvedValue({ id: 'mt1', isSystem: false }) } };
+    it('updates any type (system or custom) for super admin', async () => {
+      const prisma = {
+        materialType: {
+          findUnique: vi.fn().mockResolvedValue({ id: 'mt1', isSystem: false }),
+          update: vi.fn().mockResolvedValue({ id: 'mt1', name: '新' })
+        }
+      };
       const service = new SuperMaterialTypesService(prisma as never);
-      await expect(service.update('mt1', { name: '新' } as never)).rejects.toBeInstanceOf(BadRequestException);
+      const result = await service.update('mt1', { name: '新' } as never);
+      expect(result).toEqual({ id: 'mt1', name: '新' });
     });
 
     it('updates only the fields provided, preserving the rest', async () => {
       const prisma = {
         materialType: {
-          findUnique: vi.fn().mockResolvedValue({ id: 'mt1', isSystem: true }),
+          findUnique: vi.fn().mockResolvedValue({ id: 'mt1' }),
           update: vi.fn().mockResolvedValue({ id: 'mt1' })
         }
       };
@@ -110,16 +115,22 @@ describe('SuperMaterialTypesService', () => {
       await expect(service.delete('missing')).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('throws BadRequest when deleting a non-system type', async () => {
-      const prisma = { materialType: { findUnique: vi.fn().mockResolvedValue({ id: 'mt1', isSystem: false }) } };
+    it('deletes any type (system or custom) for super admin', async () => {
+      const prisma = {
+        materialType: {
+          findUnique: vi.fn().mockResolvedValue({ id: 'mt1', isSystem: false }),
+          delete: vi.fn().mockResolvedValue({ id: 'mt1' })
+        }
+      };
       const service = new SuperMaterialTypesService(prisma as never);
-      await expect(service.delete('mt1')).rejects.toBeInstanceOf(BadRequestException);
+      const result = await service.delete('mt1');
+      expect(result).toEqual({ id: 'mt1' });
     });
 
     it('deletes the system type', async () => {
       const prisma = {
         materialType: {
-          findUnique: vi.fn().mockResolvedValue({ id: 'mt1', isSystem: true }),
+          findUnique: vi.fn().mockResolvedValue({ id: 'mt1' }),
           delete: vi.fn().mockResolvedValue({ id: 'mt1' })
         }
       };
